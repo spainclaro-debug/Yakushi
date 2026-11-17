@@ -19,6 +19,7 @@ object AppSettings {
     private const val KEY_BATTERY_PROMPT_SHOWN = "battery_prompt_shown"
     private const val KEY_SERVER_SHOULD_RUN = "server_should_run"
     private const val KEY_THEME_ID = "theme_id"
+    private const val KEY_EXTENSION_REPOSITORIES = "extension_repositories"
 
     const val DEFAULT_PORT = 8080
     const val DEFAULT_THEME_ID = "dark"
@@ -75,4 +76,13 @@ object AppSettings {
     var themeId: String
         get() = requirePrefs().getString(KEY_THEME_ID, DEFAULT_THEME_ID) ?: DEFAULT_THEME_ID
         set(value) = requirePrefs().edit().putString(KEY_THEME_ID, value).apply()
+
+    /**
+     * User-added extension repositories as a JSON array of catalog URLs.
+     * Managed by [dev.spainclaro.tanoshi.extensions.ExtensionManager]; the
+     * built-in repository is always available and is not stored here.
+     */
+    var extensionRepositoriesJson: String
+        get() = requirePrefs().getString(KEY_EXTENSION_REPOSITORIES, "[]") ?: "[]"
+        set(value) = requirePrefs().edit().putString(KEY_EXTENSION_REPOSITORIES, value).apply()
 }

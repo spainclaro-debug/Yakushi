@@ -99,6 +99,7 @@ The scripts to run are:
 | --- | --- |
 | `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set and the Android app/extension-loader patches (0001 + 0002), embed the vendored `native/web-dist/` web UI (package-3, infinite scroll) when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
+| `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
 
 The scripts are self-checking. Typical order: run `native/build_libarchive.sh`
@@ -126,9 +127,12 @@ the equivalent manual steps, which is what the scripts automate.
      extensions).
 3. **`native/patches/0002-android-extension-loader.patch`** plus
    `native/patches/android_loader.rs`: dual-directory plugin loading (writable
-   `files/tanoshi/plugins` first, then `nativeLibraryDir`) and the in-memory
+   `files/tanoshi/plugins` first, then `nativeLibraryDir`), the in-memory
    `memfd` + `android_dlopen_ext` loader for plugins outside
-   `nativeLibraryDir` — see
+   `nativeLibraryDir`, the `.tanoshi-disabled` marker (persistent
+   uninstall/disable) and host-library filtering (`libtanoshi.so`,
+   `libarchive.so`, AndroidX/datastore libraries and files under 256 KB are
+   not treated as extensions) — see
    [Extension loader](#5-extension-loader-and-publishing-to-the-catalog).
 4. Optionally `patches/tanoshi-infinite-scroll.patch` (the Termux package's
    auto-loading catalogue). This only matters when regenerating the wasm web
@@ -243,27 +247,53 @@ CARGO_TARGET_DIR="$PWD/target-android" \
 
 Result: `target-android/aarch64-linux-android/release/tanoshi`.
 
-### 4. Extension plugins
+### 4. Extension plugins (bundled and exported sources)
 
-The nine plugins are the same native libraries the Termux package ships. They
-are already built for `aarch64-linux-android` against the `tanoshi-lib`
-version the server uses (0.38.0 for Tanoshi 0.40.0); the Termux package names
-them `plugins/<name>.so`, and `sync_prebuilt.sh` renames them to
-`lib<name>.so` for `nativeLibraryDir`. If a plugin must be rebuilt from
-source, use the upstream extension workspace with the Termux networking
-helpers/icon fixes applied, plus the five extensions ported in this
-repository's `extensions/` directory:
+The nine bundled plugins are built for `aarch64-linux-android` against the
+`tanoshi-lib` version the server uses (0.38.0 for Tanoshi 0.40.0). The Termux
+package ships them as `plugins/<name>.so`, and `sync_prebuilt.sh` renames them
+to `lib<name>.so` for `nativeLibraryDir`.
+
+The Rust sources of the five extensions ported in this repository are exported
+in [`android/extensions/sources/`](../extensions/sources/):
+
+- `sources/ported/{atsumaru,hentainexus,madaradex,mangaball,qiscans}` — the
+  ported crates (they must be built inside the upstream
+  `luigi311/tanoshi-extensions` workspace because they use its
+  `extension-utils`/`networking`/`tanoshi-lib` crates);
+- `sources/template/` — a scaffold crate for porting a new source;
+- `sources/README.md` — layout, conventions and porting notes.
+
+Build one or all of them with
+[`android/native/build_extension.sh`](../native/build_extension.sh) (Termux's
+native `aarch64-linux-android` toolchain, or a desktop with
+`ANDROID_NDK_HOME`):
+
+```bash
+# all five ported extensions
+bash android/native/build_extension.sh
+# one crate (e.g. a template copy you are porting)
+bash android/native/build_extension.sh --crate android/extensions/sources/template
+```
+
+The script clones/pins `luigi311/tanoshi-extensions`, applies this repository's
+`patches/networking-helpers.patch` (+ the icon patch when available), copies
+the crate(s) into the workspace `extensions/` directory, builds with
+`RUSTFLAGS=-Clink-arg=-Wl,--allow-multiple-definition -Clink-arg=-Wl,-z,max-page-size=16384`,
+strips the `.so` into `android/extensions/plugins/lib<name>.so`, and prints the
+SHA-256, size and a ready-to-paste catalog entry.
+
+The manual equivalent (what the script automates):
 
 ```bash
 git clone https://github.com/luigi311/tanoshi-extensions.git extensions-src
 cd extensions-src
 git apply ../patches/networking-helpers.patch
 git apply ../patches/extension-icons.patch
-cp -r ../extensions/* ./extensions/
+cp -r ../android/extensions/sources/ported/* ./extensions/
 
 CARGO_TARGET_DIR="$PWD/../target-extensions" \
   cargo build --release --target aarch64-linux-android \
-  -p mangadex -p guya -p manhwa18cc -p weebcentral \
   -p atsumaru -p qiscans -p mangaball -p madaradex -p hentainexus
 ```
 
@@ -272,11 +302,11 @@ patches touch, `git apply` fails; see `patches/README-patches.txt` for the
 current patch contents. Never mix plugins built against a different
 `tanoshi-lib` version — they refuse to load.
 
-#### Publishing an extension to the app catalog
+#### Publishing an extension to an extension repository
 
 To make a plugin installable from the app's **Sources → Add extension**
-flow (no new APK needed), publish the `.so` and add an entry to
-`android/extensions/index.json`:
+flow (no new APK needed), publish the `.so` in an extension repository and add
+an entry to its catalog:
 
 1. Build the plugin as above for **`aarch64-linux-android`** with the same
    `tanoshi-lib` (`0.38.0`) and Rust toolchain family as the bundled server.
@@ -288,14 +318,26 @@ flow (no new APK needed), publish the `.so` and add an entry to
    stat -c %s lib<name>.so
    ```
 
-3. Host the file over **HTTPS**: commit it to this repository (e.g. beside the
-   bundled plugins in `android/app/src/main/jniLibs/arm64-v8a/`) or attach it
-   to a GitHub release; raw GitHub URLs work.
+3. Host the file over **HTTPS**: commit it to a public repository (for example
+   under `android/extensions/plugins/` as in
+   [`android/extensions/repo-template/`](../extensions/repo-template/)) or
+   attach it to a GitHub release; raw GitHub URLs work.
 4. Add a catalog entry (`name`, `displayName`, `description`, `url`,
-   `sha256`, `size`, `ported`) and commit it to `main`. The app validates the
-   entry (name pattern, HTTPS URL, size > 256 KB, 64-hex SHA-256 when
-   present), downloads it into the writable plugin directory and verifies the
-   file before installing.
+   `sha256`, `size`, `ported`) to the repository's
+   `android/extensions/index.json` (the app also accepts a top-level
+   `tanoshi-extensions.json` when resolving a GitHub repository link). The app
+   validates the entry (name pattern, HTTPS URL, size > 256 KB, 64-hex SHA-256
+   when present), downloads it into the writable plugin directory and verifies
+   the file before installing.
+5. Add the repository in the app: **Sources → Repositories → Add
+   repository**, either the GitHub repo link
+   (`https://github.com/<owner>/<repo>`) or the direct raw `index.json` URL.
+   The app probes `main`/`master` for `android/extensions/index.json` or
+   `tanoshi-extensions.json` and stores the resolved catalog URL.
+
+For extensions published in this repository's own built-in catalog, add the
+entry to [`android/extensions/index.json`](../extensions/index.json) instead;
+installed apps see it on the next **Add extension** refresh.
 
 See [Extensions (Sources tab)](../README.md#extensions-sources-tab) in the app
 documentation for the user-facing flow and the exact JSON contract.
@@ -312,11 +354,22 @@ runtime extension support:
   `TANOSHI_PLUGIN_LOAD_DIR` (`nativeLibraryDir`, set by the app).
   `load_all()` walks both, normalizes each file to a plugin key, and skips a
   later file with the same key — so a user-installed `<name>.so` overrides
-  the bundled `lib<name>.so`. Files under 256 KB and support libraries
-  (`libtanoshi.so`, `libarchive.so`, managed names) are ignored, because
-  `nativeLibraryDir` also holds the server and its support libraries.
+  the bundled `lib<name>.so`. Host libraries are ignored:
+  `HOST_LIBRARY_NAMES` covers `libtanoshi.so`, `libarchive.so`,
+  `libandroidx.graphics.path.so` and `libdatastore_shared_counter.so`, plus
+  `libandroidx*`/`libdatastore*` prefixes, managed/staged names and anything
+  under 256 KB. This is what removed the old
+  `undefined symbol: plugin_declaration` startup errors.
   `resolve_plugin_path()` finds `<name>.so` or `lib<name>.so` for
   load/restart operations.
+- **Persistent disable/uninstall** in the same patch: the manager reads
+  `files/tanoshi/plugins/.tanoshi-disabled` (one normalized extension key per
+  line) and skips those plugins at load time (`skipping disabled extension
+  ...`; loading a disabled plugin by name fails with `extension <name> is
+  disabled`). A web-UI uninstall of a user copy deletes the file and clears the
+  marker; a web-UI uninstall of a bundled plugin writes the marker (the APK
+  file is read-only). The app writes the same marker for its Enable/Disable
+  actions.
 - **In-memory loader** in `crates/tanoshi-vm/src/extension/android_loader.rs`:
   on Android the extension worker no longer calls `dlopen()` on the file
   directly. It reads the `.so` bytes, creates an anonymous `memfd`, copies the
@@ -395,6 +448,9 @@ grep -c -a "catalogue-scroll-sentinel" libtanoshi.so   # expect 1
 
 # 6. The Android extension loader is compiled in (v0.5.0 and later)
 grep -c -a "android_dlopen_ext failed" libtanoshi.so   # expect 1
+
+# 7. Persistent disable/uninstall support is compiled in (v0.6.0 and later)
+grep -c -a "tanoshi-disabled" libtanoshi.so            # expect 1
 ```
 
 And on the built APK (since 0.3.0 the output is
@@ -432,9 +488,10 @@ output of this pipeline, built on an x86_64 Linux host with:
 `sync_prebuilt.sh` does not rebuild anything — it only copies what the other
 scripts produced, so `git diff` after a rebuild shows exactly which binaries
 changed. The 0.3.0/0.4.0 app releases did not change `libtanoshi.so`; **0.5.0
-did**, because it rebuilt the server with the extension loader, and the
-extension catalog (`android/extensions/index.json`) was added alongside the
-bundled plugins.
+did** (extension loader + catalog), and **0.6.0 rebuilt it again** with the
+host-library filtering fix and the `.tanoshi-disabled` marker support. The
+exported extension sources (`android/extensions/sources/`), repo template and
+`build_extension.sh` were added in 0.6.0.
 
 ### Reproducibility caveats
 

@@ -1,16 +1,29 @@
 --- a/crates/tanoshi-vm/src/extension/manager.rs
 +++ b/crates/tanoshi-vm/src/extension/manager.rs
-@@ -26,6 +26,9 @@
+@@ -26,6 +26,22 @@
      WorkerCallError, WorkerClient, WorkerErrorKind, WorkerRequest, WorkerValue, resolve_worker_path,
  };
  
 +/// Anything smaller than this in a plugin directory is not a Tanoshi extension
 +/// (the bundled nativeLibraryDir also holds tiny support libraries).
 +const MIN_PLUGIN_FILE_BYTES: u64 = 256 * 1024;
++/// Libraries that live in `nativeLibraryDir` next to the bundled extensions but
++/// are not Tanoshi extensions (server executable, libarchive and AndroidX
++/// support libraries). They must never be handed to the extension worker.
++const HOST_LIBRARY_NAMES: &[&str] = &[
++    "libtanoshi.so",
++    "libarchive.so",
++    "libandroidx.graphics.path.so",
++    "libdatastore_shared_counter.so",
++];
++/// Writable marker file listing extensions the user disabled/uninstalled.
++/// Stored in the writable plugin directory because bundled plugins are
++/// read-only; both the app and the web UI uninstall flow write to it.
++const DISABLED_PLUGINS_FILE: &str = ".tanoshi-disabled";
  const STAGED_LIBRARY_PREFIX: &str = ".tanoshi-staged-";
  const INSTALL_TEMP_PREFIX: &str = ".tanoshi-install-";
  const INSTALL_BACKUP_PREFIX: &str = ".tanoshi-backup-";
-@@ -109,6 +112,16 @@
+@@ -109,6 +125,16 @@
      name.strip_suffix(&extension).unwrap_or(name).to_lowercase()
  }
  
@@ -27,7 +40,7 @@
  fn entry_plugin_name(entry: &SourceEntry) -> String {
      entry
          .plugin_path()
-@@ -387,12 +400,49 @@
+@@ -387,12 +413,94 @@
      /// so on Android the load directory is overridden to nativeLibraryDir while
      /// [PluginManager::dir] keeps pointing at the writable data directory used
      /// for extension preferences.
@@ -63,24 +76,69 @@
 +                    return Some(candidate);
 +                }
 +            }
-         }
--        self.dir.clone()
++        }
 +        None
++    }
++
++    fn disabled_plugins_file(&self) -> PathBuf {
++        self.dir.join(DISABLED_PLUGINS_FILE)
++    }
++
++    /// Extension keys the user has disabled (or uninstalled from the bundled
++    /// set). Missing/empty file means nothing is disabled.
++    fn disabled_plugin_names(&self) -> std::collections::HashSet<String> {
++        std::fs::read_to_string(self.disabled_plugins_file())
++            .unwrap_or_default()
++            .lines()
++            .map(str::trim)
++            .filter(|line| !line.is_empty() && !line.starts_with('#'))
++            .map(plugin_key)
++            .collect()
++    }
++
++    fn set_plugin_disabled(&self, name: &str, disabled: bool) -> std::io::Result<()> {
++        let key = plugin_key(name);
++        let mut names = self.disabled_plugin_names();
++        if disabled {
++            names.insert(key);
++        } else {
++            names.remove(&key);
++        }
++        if names.is_empty() {
++            match std::fs::remove_file(self.disabled_plugins_file()) {
++                Ok(()) => Ok(()),
++                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
++                Err(error) => Err(error),
++            }
++        } else {
++            let mut sorted: Vec<String> = names.into_iter().collect();
++            sorted.sort();
++            std::fs::write(
++                self.disabled_plugins_file(),
++                format!("{}\n", sorted.join("\n")),
++            )
++        }
 +    }
 +
 +    /// Bundled `nativeLibraryDir` also contains the server executable and its
 +    /// support libraries; anything implausibly small is not a Tanoshi extension.
 +    fn is_plugin_file(&self, path: &Path, name: &str) -> bool {
-+        if !name.ends_with(PLUGIN_EXTENSION) || is_managed_library_name(name) {
++        if !name.ends_with(PLUGIN_EXTENSION)
++            || is_managed_library_name(name)
++            || HOST_LIBRARY_NAMES.contains(&name)
++            || name.starts_with("libandroidx")
++            || name.starts_with("libdatastore")
++        {
 +            return false;
-+        }
+         }
+-        self.dir.clone()
 +        std::fs::metadata(path)
 +            .map(|metadata| metadata.len() >= MIN_PLUGIN_FILE_BYTES)
 +            .unwrap_or(false)
      }
  
      fn stage_library(&self, plugin_path: &Path) -> Result<PathBuf> {
-@@ -980,21 +1030,28 @@
+@@ -980,21 +1088,33 @@
      }
  
      pub async fn load_all(&self) -> Result<()> {
@@ -102,6 +160,7 @@
 +        // Bundled plugins (nativeLibraryDir) and user-installed plugins (the
 +        // writable data directory) are both loaded; a user copy wins by name.
 +        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
++        let disabled = self.disabled_plugin_names();
 +        for dir in self.plugin_load_dirs() {
 +            let mut read_dir = match tokio::fs::read_dir(&dir).await {
 +                Ok(read_dir) => read_dir,
@@ -118,13 +177,17 @@
 +                if !seen.insert(key.clone()) {
 +                    continue;
 +                }
++                if disabled.contains(&key) {
++                    info!("skipping disabled extension {key}");
++                    continue;
++                }
 +                if let Err(e) = self.load(&key).await {
 +                    error!("failed to load {name} from {}: {e}", dir.display());
 +                }
              }
          }
          Ok(())
-@@ -1278,10 +1335,16 @@
+@@ -1278,10 +1398,19 @@
          let plugin_name = normalize_plugin_name(name);
          let lifecycle_lock = self.lifecycle_lock(&plugin_name)?;
          let _lifecycle_guard = lifecycle_lock.lock_owned().await;
@@ -132,6 +195,9 @@
 -            .plugin_load_dir()
 -            .join(&plugin_name)
 -            .with_extension(PLUGIN_EXTENSION);
++        if self.disabled_plugin_names().contains(&plugin_key(&plugin_name)) {
++            bail!("extension {plugin_name} is disabled");
++        }
 +        let plugin_path = self.resolve_plugin_path(&plugin_name).ok_or_else(|| {
 +            anyhow!(
 +                "extension {plugin_name} was not found in {}",
@@ -145,6 +211,59 @@
          let entry = self
              .load_worker_from_path(&plugin_path, plugin_path.clone())
              .await?;
+@@ -1383,17 +1512,42 @@
+                 worker.pause().await;
+             }
+ 
+-            if let Some(plugin_path) = entry.plugin_path()
+-                && let Err(error) = std::fs::remove_file(plugin_path)
+-                && error.kind() != std::io::ErrorKind::NotFound
+-            {
+-                if let Some(worker) = worker.as_ref() {
+-                    worker.resume();
++            if let Some(plugin_path) = entry.plugin_path().map(Path::to_path_buf) {
++                if plugin_path.starts_with(&self.dir) {
++                    // User-installed copy: physically delete it.
++                    if let Err(error) = std::fs::remove_file(&plugin_path)
++                        && error.kind() != std::io::ErrorKind::NotFound
++                    {
++                        if let Some(worker) = worker.as_ref() {
++                            worker.resume();
++                        }
++                        return Err(anyhow!(
++                            "failed to remove extension {}: {error}",
++                            plugin_path.display()
++                        ));
++                    }
++                    // A re-install may have left the name in the disabled list.
++                    if let Err(error) = self.set_plugin_disabled(&plugin_name, false) {
++                        if let Some(worker) = worker.as_ref() {
++                            worker.resume();
++                        }
++                        return Err(anyhow!(
++                            "failed to clear the disabled marker for {plugin_name}: {error}"
++                        ));
++                    }
++                } else {
++                    // Bundled plugin in the read-only native library directory:
++                    // keep the file but remember that the user uninstalled it.
++                    if let Err(error) = self.set_plugin_disabled(&plugin_name, true) {
++                        if let Some(worker) = worker.as_ref() {
++                            worker.resume();
++                        }
++                        return Err(anyhow!(
++                            "failed to persist uninstall of bundled extension {plugin_name}: {error}"
++                        ));
++                    }
++                    info!("bundled extension {plugin_name} disabled by uninstall request");
+                 }
+-                return Err(anyhow!(
+-                    "failed to remove extension {}: {error}",
+-                    plugin_path.display()
+-                ));
+             }
+ 
+             let removed = {
 --- a/crates/tanoshi-vm/src/extension/worker.rs
 +++ b/crates/tanoshi-vm/src/extension/worker.rs
 @@ -1366,6 +1366,13 @@

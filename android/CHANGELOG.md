@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.5.0`). The Termux package in the repository root has
+(for example `android-v0.6.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,86 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.6.0
+
+### Added
+
+- **Custom extension repositories.** **Sources → Add repository** accepts a
+  direct HTTPS catalog `.json` URL or a GitHub repository link
+  (`https://github.com/<owner>/<repo>`, `.git`/trailing slash tolerated). For
+  GitHub links the app probes
+  `raw.githubusercontent.com/<owner>/<repo>/{main,master}/android/extensions/index.json`
+  and then `{main,master}/tanoshi-extensions.json`, validates the catalog and
+  stores the resolved raw URL. Custom repositories are persisted (up to 10);
+  the built-in `tanoshi-termux` repository is always present and cannot be
+  removed. Catalogs from all repositories are merged, deduplicated by
+  extension name (built-in/earlier repositories win), with per-repository
+  failure warnings and Retry. A header refresh button reloads repositories and
+  catalogs.
+- **Real Enable/Disable/Uninstall.** Bundled extensions can be disabled
+  persistently via the server's
+  `files/tanoshi/plugins/.tanoshi-disabled` marker (one normalized extension
+  name per line); the server skips listed plugins on the next start. The
+  Sources tab shows a **Disabled** badge and **Enable/Disable** actions for
+  bundled and user copies, and user copies additionally have **Remove**.
+  Removing a user copy or installing/updating an extension clears the marker.
+  Tanoshi's own web-UI uninstall now works for bundled sources too: it writes
+  the marker instead of failing on the read-only plugin file, and for user
+  copies it deletes the file.
+- **Exported extension sources and build tooling:**
+  - `android/extensions/sources/` with the five Rust-ported extensions
+    (Atsumaru, HentaiNexus, MadaraDex, MangaBall, QiScans), a `template/`
+    scaffold crate for new ports and a README describing the workspace,
+    dependencies and conventions;
+  - a distributable snapshot
+    `android/extensions/tanoshi-extension-sources-2026-11-17.zip` (sources,
+    template, build script and repo template);
+  - `android/native/build_extension.sh`, which clones
+    `luigi311/tanoshi-extensions`, applies this repository's
+    `patches/networking-helpers.patch` (+ icon patch when available), copies
+    the requested crate(s) into the workspace, builds for
+    `aarch64-linux-android` (16 KB-page aligned), strips the result into
+    `android/extensions/plugins/lib<name>.so` and prints the SHA-256, size and
+    a ready-to-paste catalog entry;
+  - `android/extensions/repo-template/` with the repository layout the app
+    expects (`android/extensions/index.json` + `.so` files).
+
+### Fixed
+
+- **Support libraries were scanned as extensions.** The server now explicitly
+  excludes `libtanoshi.so`, `libarchive.so`,
+  `libandroidx.graphics.path.so`, `libdatastore_shared_counter.so` and other
+  `libandroidx*`/`libdatastore*` files (plus anything under 256 KB) from
+  plugin discovery, so the spurious
+  `undefined symbol: plugin_declaration` errors on startup are gone.
+- **Uninstall was not persistent for bundled extensions** (the read-only APK
+  file could not be removed) and **reinstall did not clear a previous
+  uninstall/disable state**. The `.tanoshi-disabled` marker now records
+  bundled uninstalls, user-copy uninstalls delete the file and clear the
+  marker, and installing/updating clears the marker so a source comes back.
+
+### Changed
+
+- The Sources screen now shows the repository list, merged catalogs with
+  repository labels, per-repository failures and enable/disable/remove
+  actions; every mutation still requires a server restart (existing banner).
+- **Version 0.6.0:** `versionCode` 6 in the Gradle default; the
+  `android-v0.6.0` tag produces `versionCode` 600. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes / limitations
+
+- Extensions are still native code for the exact Tanoshi/`tanoshi-lib` ABI
+  (`0.38.0`) and `arm64-v8a`; the app cannot compile them on-device. Use the
+  exported sources and `build_extension.sh` on Termux or a desktop with the
+  NDK.
+- Custom repositories are third-party content: only add repositories and
+  install plugins you trust. The app validates that a catalog parses and that
+  downloads match their SHA-256/size, but cannot vouch for catalog contents.
+- The catalog, repository resolution and downloads require network access to
+  GitHub/raw.githubusercontent.com (or the custom catalog host); a server
+  restart is required to apply plugin/disabled-state changes.
 
 ## 0.5.0
 

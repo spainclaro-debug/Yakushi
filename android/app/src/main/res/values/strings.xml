@@ -234,4 +234,33 @@
     <string name="extensions_progress">%1$d%%</string>
     <string name="extensions_error_generic">Something went wrong</string>
     <string name="extensions_dismiss">Dismiss</string>
+    <!-- Extension repositories + enable/disable (v0.6.0) -->
+    <string name="extensions_section_repositories">Repositories</string>
+    <string name="extensions_repositories_add">Add repository</string>
+    <string name="extensions_repositories_add_title">Add repository</string>
+    <string name="extensions_repositories_add_input">Repository URL or GitHub link</string>
+    <string name="extensions_repositories_add_helper">Paste a direct HTTPS index.json URL, or a GitHub repository link such as https://github.com/owner/repo. The app checks the main and master branches for android/extensions/index.json or tanoshi-extensions.json.</string>
+    <string name="extensions_repositories_add_button">Add</string>
+    <string name="extensions_repositories_add_cancel">Cancel</string>
+    <string name="extensions_repositories_add_empty">Enter a repository URL or GitHub link</string>
+    <string name="extensions_repositories_add_invalid">Repository URLs must start with https://</string>
+    <string name="extensions_repositories_adding">Adding repository…</string>
+    <string name="extensions_repositories_added">Repository added</string>
+    <string name="extensions_repositories_remove">Remove</string>
+    <string name="extensions_repositories_remove_title">Remove repository?</string>
+    <string name="extensions_repositories_remove_body">Remove %1$s? Its extensions will no longer be listed in Add extension.</string>
+    <string name="extensions_repositories_remove_confirm">Remove</string>
+    <string name="extensions_repositories_remove_cancel">Cancel</string>
+    <string name="extensions_repositories_removed">Repository removed</string>
+    <string name="extensions_repositories_remove_failed">Could not remove the repository: %1$s</string>
+    <string name="extensions_repositories_default">Default</string>
+    <string name="extensions_repositories_empty">No repositories configured.</string>
+    <string name="extensions_repositories_loading">Loading repositories…</string>
+    <string name="extensions_failures_title">Some repositories could not be loaded</string>
+    <string name="extensions_failures_retry">Retry</string>
+    <string name="extensions_refresh">Refresh</string>
+    <string name="extensions_action_disable">Disable</string>
+    <string name="extensions_action_enable">Enable</string>
+    <string name="extensions_badge_disabled">Disabled</string>
+    <string name="extensions_toggle_failed">Could not update %1$s: %2$s</string>
 </resources>

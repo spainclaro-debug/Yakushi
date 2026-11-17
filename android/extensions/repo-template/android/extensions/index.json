@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "updated": "2026-11-17",
+  "note": "Template catalog. Replace the placeholder extension with your build output.",
+  "extensions": [
+    {
+      "name": "myextension",
+      "displayName": "My Extension",
+      "description": "TODO: describe this source",
+      "url": "https://raw.githubusercontent.com/OWNER/REPO/main/android/extensions/plugins/libmyextension.so",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 1,
+      "ported": true
+    }
+  ]
+}

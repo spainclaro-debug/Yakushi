@@ -69,13 +69,16 @@ Upstream hardcodes the listen address. The Android-app patch
 ### A6 — Extensions: nine bundled + user-installable from the Sources tab
 
 Nine plugins are compiled into the APK as `lib<name>.so` in
-`nativeLibraryDir`; the **Sources** tab can additionally install, update and
-remove user copies in `filesDir/tanoshi/plugins/<name>.so` from the repository
-catalog (A27). The server loads the writable directory first and then
-`nativeLibraryDir`, so a user copy overrides a bundled extension with the same
-name. Bundled copies can never be removed (removing a user copy restores the
-bundled one after a restart). The writable `plugin_path` directory also holds
-extension preferences. Any change requires a server restart to load.
+`nativeLibraryDir`; the **Sources** tab can additionally install, update,
+enable/disable and remove user copies in `filesDir/tanoshi/plugins/<name>.so`
+from the built-in and custom extension repositories (A27/A30). The server
+loads the writable directory first and then `nativeLibraryDir`, so a user copy
+overrides a bundled extension with the same name. Bundled copies can never be
+deleted, but they can be **disabled** persistently through the
+`.tanoshi-disabled` marker (A31); removing a user copy clears the marker so a
+bundled copy becomes active again. The writable `plugin_path` directory also
+holds extension preferences and the marker. Any change requires a server
+restart to take effect.
 
 *If wrong:* plugins either fail to load or fail to persist preferences. The
 old "plugins are frozen in the APK" assumption was true up to 0.4.0 only; see
@@ -220,7 +223,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.5.0 / 5, local date).
+three to Gradle; local builds use the Gradle defaults (0.6.0 / 6, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -273,9 +276,9 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.5.0 / versionCode
-5 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
-`android-v0.5.0` is 500), independent of the bundled Tanoshi server (0.40.0 /
+The app follows its own `android-vX.Y.Z` version scheme (0.6.0 / versionCode
+6 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
+`android-v0.6.0` is 600), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
 separately.
@@ -394,29 +397,33 @@ state it is best-effort, show how to confirm the killer from
 `adb logcat -s ActivityManager` (`Killing PhantomProcessRecord`, `excessive
 cpu`) and document the workaround with its trade-offs.
 
-### A27 — Extensions are installed from a repository-maintained catalog
+### A27 — Extensions are installed from merged repository catalogs
 
 The bottom nav has a **Sources** tab (order: Server, Sources, Logs, Settings).
-It lists the bundled plugins plus user copies with badges (Bundled / Installed
-by you / Overrides bundled / Ported to Rust / Update available) and provides
-**Add extension**: the app fetches
-`https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/extensions/index.json`
-(plain `HttpURLConnection`, 15 s timeouts, no auth, no third-party library),
-then installs the selected entry by downloading its **HTTPS** `.so` into
-`filesDir/tanoshi/plugins/<name>.so.part`, verifying size and (when present)
-SHA-256, and atomically renaming to `<name>.so`. The catalog contract used by
-the app: `extensions[]` entries with `name` (`^[a-z0-9][a-z0-9_-]{0,63}$`),
-`url` (`https://`), `size` (> 0; install requires > 256 KB), optional `sha256`
-(64 hex) and `ported`; malformed entries are skipped. The app rejects plugins
-below 256 KB and never installs arbitrary URLs from the UI — only catalog
-entries. `remove` deletes only user copies. Install/remove mark
-**restart required**; the UI offers Restart/Start server. The catalog file is
-maintained by this repository's owner (the nine current entries mirror the
-bundled `jniLibs` files, each verified against its `sha256`/`size`).
+It manages a built-in repository plus up to 10 custom repositories (A30),
+lists the bundled plugins plus user copies with badges (Bundled / Installed by
+you / Overrides bundled / Ported to Rust / Update available / Disabled / the
+source repository label) and provides **Add extension**. The app fetches every
+configured catalog (plain `HttpURLConnection`, 15 s timeouts, no auth, no
+third-party library), merges them (dedupe by normalized extension name,
+built-in/earlier repositories win) and reports per-repository failures
+separately. Installing an entry downloads its **HTTPS** `.so` into
+`filesDir/tanoshi/plugins/<name>.so.part`, verifies size and (when present)
+SHA-256, atomically renames to `<name>.so` and clears any disabled marker for
+the name. The catalog contract used by the app: `extensions[]` entries with
+`name` (`^[a-z0-9][a-z0-9_-]{0,63}$`), `url` (`https://`), `size` (> 0;
+install requires > 256 KB), optional `sha256` (64 hex) and `ported`;
+malformed entries are skipped. The app rejects plugins below 256 KB and never
+installs arbitrary URLs from the UI — only catalog entries. Remove deletes
+only user copies (and clears the disabled marker); enable/disable update the
+disabled marker instead of deleting bundled files (A31). Any
+install/update/remove/enable/disable marks **restart required**; the UI offers
+Restart/Start server.
 
 *If wrong:* the app could install incompatible or untrusted plugin files. The
-docs state the trust boundary (repo `main` branch), that hashes are integrity
-not signatures, and that only reviewed catalog entries should be published.
+docs state the trust boundary (built-in repo `main` branch and third-party
+custom catalogs), that hashes are integrity not signatures, and that only
+reviewed catalog entries should be published.
 
 ### A28 — User extensions are loaded via memfd + `android_dlopen_ext`
 
@@ -427,9 +434,19 @@ The bundled server (0.5.0+) was rebuilt with the extension loader patch
 - `PluginManager::load_all` loads plugins from `self.dir`
   (`filesDir/tanoshi/plugins`, writable) **first** and then the directory in
   `TANOSHI_PLUGIN_LOAD_DIR` (`nativeLibraryDir`); entries are keyed by
-  normalized name so a user copy wins over a bundled one. Files under 256 KB
-  and support libraries (`libtanoshi.so`, `libarchive.so`, managed names) are
-  skipped.
+  normalized name so a user copy wins over a bundled one. `.tanoshi-disabled`
+  entries are skipped at startup (`skipping disabled extension ...`), and
+  loading a disabled plugin by name fails with `extension <name> is
+  disabled`.
+- Host libraries are never treated as extensions: `libtanoshi.so`,
+  `libarchive.so`, `libandroidx.graphics.path.so`,
+  `libdatastore_shared_counter.so`, other `libandroidx*`/`libdatastore*` files,
+  managed/staged names and anything under 256 KB are filtered out. This fixes
+  the older `undefined symbol: plugin_declaration` startup errors.
+- Uninstall handling: a user-installed copy in the writable directory is
+  deleted and its disabled-marker entry cleared; a bundled (read-only) plugin
+  is not deleted — the server instead writes its key to
+  `.tanoshi-disabled` so it stays disabled until re-enabled.
 - For Android plugins the worker calls `android_loader::open_plugin_library`:
   it reads the `.so` bytes, creates an anonymous `memfd_create` descriptor,
   maps and copies the bytes, marks the mapping `PROT_READ|PROT_EXEC` (warning,
@@ -450,17 +467,69 @@ Extensions remain native code with strict compatibility: they must be built
 for the bundled Tanoshi 0.40.0 / `tanoshi-lib` 0.38.0 ABI, the Rust toolchain
 family the package pins, and `arm64-v8a`. The app cannot compile extensions
 on-device, cannot install Tachiyomi/Keiyoushi `.apk` extensions, and only
-installs `.so` plugins listed by the catalog. The catalog and downloads need
-network access to GitHub/raw.githubusercontent.com; the catalog itself is not
-signed (SHA-256/size only verify integrity against the catalog). Extensions
+installs `.so` plugins listed by the built-in or added catalogs. Catalogs and
+downloads need network access to GitHub/raw.githubusercontent.com (or the
+custom catalog host); catalogs are not signed and SHA-256/size only verify
+integrity against the catalog, so **custom repositories are third-party
+content** the app cannot vouch for beyond structural validation. Extensions
 run with the Tanoshi server's privileges inside the app sandbox, so users
-should only install entries they trust. Incompatible plugins fail the
-server-side version check and are ignored (visible in the Logs tab), and the
-in-memory loader is best-effort.
+should only install entries and add repositories they trust. Incompatible
+plugins fail the server-side version check and are ignored (visible in the
+Logs tab), and the in-memory loader is best-effort.
 
 *If wrong:* users might expect arbitrary plugin compatibility or sandbox
 isolation; the docs and UI clearly state the version/ABI, trust and restart
 requirements.
+
+### A30 — Custom repositories: resolution, persistence and dedupe
+
+**Sources → Add repository** accepts only `https://` input:
+
+- a direct catalog URL ending in `.json` — fetched and parsed immediately; it
+  must be a valid catalog with at least one extension, and is then stored as
+  the catalog URL; or
+- a GitHub repository link `https://github.com/<owner>/<repo>` (`.git` and a
+  trailing slash are tolerated) — the app probes, in order,
+  `raw.githubusercontent.com/<owner>/<repo>/{main,master}/android/extensions/index.json`
+  then `{main,master}/tanoshi-extensions.json`, validates the first non-empty
+  catalog and **stores the resolved raw URL** (label `owner/repo`).
+
+Constraints: at most **10** custom repositories; duplicates (same catalog URL,
+or the same GitHub `owner/repo` label) are a no-op returning the existing
+repository. Repositories are persisted in `AppSettings.extensionRepositoriesJson`
+(a JSON array of catalog URLs) in insertion order; the built-in
+`tanoshi-termux` repository (label `tanoshi-termux (default)`) is synthesised
+first, cannot be removed and is not stored in the list. The displayed
+repository list is built-in first, then custom repositories in insertion
+order. Catalogs are fetched/merged in that order and deduplicated by
+normalized extension name with earlier entries winning; a failing repository
+yields a `RepositoryFailure` warning while the others still load. Removing a
+custom repository only removes it from the app list — extensions already
+installed from it stay on disk.
+
+*If wrong:* duplicate/conflicting extension names across repositories could
+resolve unexpectedly; the documented precedence (built-in, then insertion
+order) and per-repository labels/failures make it predictable.
+
+### A31 — Disabled marker (`.tanoshi-disabled`) semantics
+
+Extensions can be disabled without deleting them. The state lives in
+`filesDir/tanoshi/plugins/.tanoshi-disabled` (writable plugin directory), one
+normalized extension name per line: `#` comments and blank lines are ignored,
+an optional `lib` prefix and `.so` suffix are stripped, names are lowercased.
+The server reads it at plugin load time (missing file = nothing disabled) and
+skips the listed keys; both the app and Tanoshi's own web-UI uninstall flow
+write it. The app rewrites the file atomically (sorted names, deletes the file
+when the set becomes empty) for **Enable/Disable** on bundled and user
+extensions. **Remove** (user copy only) deletes `<name>.so` and clears the
+marker entry so a bundled copy becomes active again; **Reinstall/Update**
+clears the marker too. Web-UI uninstall deletes a user copy or writes the
+marker for a bundled extension. The Sources tab shows a **Disabled** badge and
+Enable/Disable actions; every change needs a server restart.
+
+*If wrong:* extensions could be hidden without an obvious way back, or stale
+marker entries could keep a source disabled; the docs/UI expose the Disabled
+badge and the Enable action, and removing a user copy clears the marker.
 
 ---
 
@@ -557,14 +626,15 @@ successful APK release.
 
 ### Q11 — How should extension updates be delivered?
 
-**Resolved (0.5.0):** per-extension install/update/remove from the **Sources**
-tab, backed by the repository catalog (A27). The catalog is served from this
-repository's `main` branch, so publishing/updating an entry reaches installed
-apps without a new APK; a server restart is required to load the change. This
-replaces the earlier "freeze plugins in the APK / ship a new app version"
-model. There is still no automatic/background extension update check (the
-user taps Install/Update), no per-extension auto-update, and no on-device
-compilation of extensions.
+**Resolved (0.5.0, extended 0.6.0):** per-extension install/update/remove
+from the **Sources** tab, backed by the built-in catalog plus custom
+repositories added by URL (A30); enable/disable uses the `.tanoshi-disabled`
+marker (A31). Publishing/updating a catalog entry reaches installed apps
+without a new APK; a server restart is required to load the change. There is
+still no automatic/background extension update check (the user taps
+Install/Update), no per-extension auto-update, and no on-device compilation of
+extensions — porting/building is done with the exported sources +
+`native/build_extension.sh` on Termux/desktop.
 
 ### Q12 — Is the current README default-login section still correct for the APK?
 
@@ -602,6 +672,16 @@ this is where to revisit it.
 
 **Resolved (owner, 0.5.0):** no. Extension installs/updates are explicit
 actions in the Sources tab; there is no background catalog polling, no
-automatic download and no silent install. The catalog is fetched when the tab
-is opened (cached per session, retry on failure), and a server restart applies
-the change. See A27/A29.
+automatic download and no silent install. Catalogs are fetched when the tab is
+opened or refreshed (per-repository failures are retried on demand), and a
+server restart applies the change. See A27/A29.
+
+### Q17 — Should custom extension repositories be verified/allow-listed?
+
+**Resolved (0.6.0):** no central allow-list. Any HTTPS catalog URL or GitHub
+repository link can be added (up to 10), because the feature exists to let the
+community publish sources. The app enforces structural validation (HTTPS,
+parseable catalog, HTTPS `.so` URLs, name/size/SHA-256 checks) and shows the
+repository label/failure warnings, but cannot vet content; the UI/docs warn
+that custom repositories are third-party native code and a trust decision (see
+A29/A30).
