@@ -89,8 +89,12 @@ cp "$REPO_ROOT/patches/extension-build.rs.new" crates/tanoshi-vm/src/extension/b
 if [ -f "$REPO_ROOT/patches/tanoshi-infinite-scroll.patch" ]; then
     apply_patch "$REPO_ROOT/patches/tanoshi-infinite-scroll.patch" || true
 fi
-say "applying Android app patch"
+say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
+# The extension loader is a new source file; `git diff` cannot carry it, so the
+# patch set ships the file and the build script copies it into place.
+cp "$HERE/patches/android_loader.rs" crates/tanoshi-vm/src/extension/android_loader.rs
+apply_patch "$HERE/patches/0002-android-extension-loader.patch"
 
 # compress-tools is patched for Android/bionic and linked dynamically against
 # libarchive (see patches/README-patches.txt in the repo root).

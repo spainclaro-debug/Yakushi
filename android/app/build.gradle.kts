@@ -7,10 +7,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Version can be overridden from CI (`-PappVersionName=0.4.0 -PappVersionCode=400`)
+// Version can be overridden from CI (`-PappVersionName=0.5.0 -PappVersionCode=500`)
 // so tagged Android releases always carry an increasing version automatically.
-val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.4.0").get()
-val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("4").get().toInt()
+val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.5.0").get()
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("5").get().toInt()
 
 // Sideload APK file name, e.g. tanoshi-mobile-server-release-2026-11-14.apk.
 // CI passes -PapkDate=$(date -u +%F); local builds use the local date so the

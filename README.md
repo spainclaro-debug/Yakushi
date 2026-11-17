@@ -22,15 +22,34 @@ APK, tap **Start server**, and open the web UI.
 
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.4.0**; download it from the
+HentaiNexus). The current release is **0.5.0**; download it from the
 [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.4.0 adds a hidden silent-audio keep-alive and an auto-restart watchdog so
-the background server survives Android/OEM killing more often — see
-[Keeping the server alive in the background](#keeping-the-server-alive-in-the-background).
+0.5.0 adds a Suwayomi-style **Sources** tab with **Add extension**: browse this
+repository's extension catalog, install/update/remove prebuilt Android plugins
+at runtime (SHA-256 verified), and restart the server to load them — without
+shipping a new APK. The previous releases' background keep-alive/watchdog and
+the rest of the app are unchanged.
 
 > The Termux package documented below and the Android app in `android/` are two
 > independent ways to run the same server. You only need one of them.
+
+### What's new in 0.5.0
+
+- **Sources tab with Add extension** — a new bottom-navigation tab lists
+  installed extensions (the nine bundled ones plus anything you installed) and
+  installs/updates/removes extensions from this repository's catalog. A server
+  restart applies the change. See [Sources and extensions](#sources-and-extensions).
+- **Extension management no longer needs a new APK** — the app downloads
+  prebuilt `aarch64-linux-android` plugins into its own storage; the bundled
+  server was rebuilt with an in-memory plugin loader so Android 10+ W^X does
+  not block them. `targetSdk` stays 35 and no root is required.
+- **Extension catalog in the repository** —
+  [`android/extensions/index.json`](android/extensions/index.json) lists each
+  extension's download URL, SHA-256 and size. Adding an entry publishes a new
+  extension to installed apps without a new APK.
+- Everything from 0.4.0 and earlier (silent keep-alive, watchdog, LAN QR
+  sharing, in-app updates, themes, infinite-scroll web UI) is unchanged.
 
 ### Requirements
 
@@ -103,6 +122,17 @@ account — the session is kept by the embedded browser.
 - The QR only appears when the server is actually running and bound to the LAN;
   on guest/isolated Wi-Fi it may not be reachable even though the QR scans.
 
+**Install and manage sources (extensions)**
+
+- The **Sources** tab is a Suwayomi-style extension manager: it lists the nine
+  bundled extensions plus user-installed copies, with badges for
+  Bundled/installed-by-you/override/ported/update-available.
+- **Add extension** loads this repository's catalog and installs/updates a
+  prebuilt Android plugin with a progress bar and SHA-256/size verification;
+  **Remove** deletes only your copy (bundled extensions cannot be removed).
+- After any change, restart the server from the prompt so Tanoshi loads the
+  new sources. See [Sources and extensions](#sources-and-extensions).
+
 **Configure everything**
 
 | Where | What you can do |
@@ -126,14 +156,56 @@ files/tanoshi/
 ├── downloads/      # downloaded chapters
 ├── cache/          # image cache
 ├── manga/          # "Local" source folder — put your own manga here
-├── plugins/        # extension preferences (plugins themselves are in the APK)
+├── plugins/        # user-installed extensions (<name>.so) + preferences
 └── server.log      # server log, rotated to server.log.1 at 5 MB
 ```
 
-The bundled extensions are read-only inside the APK and cannot be installed or
-updated from Tanoshi's web UI; new/updated plugins arrive with a new app
-release. Data survives app updates but is **deleted when you uninstall** the
-app (there is no export feature yet), so keep your own backups if needed.
+The nine bundled extensions ship read-only inside the APK; anything you install
+from the **Sources** tab is added under `plugins/` and overrides a bundled
+extension with the same name. Managing extensions no longer needs a new APK,
+but the server must be restarted to load changes. Data survives app updates
+but is **deleted when you uninstall** the app (there is no export feature
+yet), so keep your own backups if needed.
+
+### Sources and extensions
+
+The app bundles nine Tanoshi extensions and can install more at runtime:
+
+1. Tap the **Sources** tab (between Server and Logs).
+2. The **Installed** list shows the bundled extensions plus anything you
+   installed, with **Bundled** / **Installed by you** / **Overrides bundled** /
+   **Ported to Rust** / **Update available** badges.
+3. Tap **Add extension** to load this repository's catalog, then **Install**,
+   **Update** or **Reinstall** an entry; a progress bar shows the download.
+   Use **Remove** to delete a copy you installed (bundled extensions stay).
+4. The app shows a **Server restart needed** banner/snackbar after a change —
+   tap **Restart server** (or **Start server**) so Tanoshi loads the new
+   sources.
+
+Downloads are HTTPS-only and checked against the catalog's SHA-256 and size,
+and install into the app's private `files/tanoshi/plugins/`. A user-installed
+copy overrides a bundled extension with the same name.
+
+**Catalog and adding extensions:** the catalog is
+[`android/extensions/index.json`](android/extensions/index.json), served from
+this repository's `main` branch over raw.githubusercontent.com. Each entry has
+a bare `name`, optional `displayName`/`description`, an HTTPS `url` to a
+prebuilt `.so`, `sha256`, `size` and a `ported` flag. The current nine entries
+mirror the nine bundled plugins. To add a new one, build a compatible
+`aarch64-linux-android` plugin with the native pipeline (same Tanoshi/
+`tanoshi-lib` version and Rust toolchain — see
+[`android/native/README.md`](android/native/README.md)), upload the `.so`,
+compute `sha256sum`/`stat -c %s`, add a catalog entry and commit to `main`.
+Installed apps see it on the next **Add extension** refresh, with no new APK.
+
+**Limitations:** extensions are native code for the exact Tanoshi
+version/`tanoshi-lib` ABI and `arm64-v8a`; the app cannot compile them on the
+phone and cannot install Tachiyomi/Keiyoushi `.apk` extensions. Only catalog
+entries are accepted, the catalog/downloads need network access to GitHub, and
+installs/removals only take effect after a server restart. Extensions run with
+the server's privileges, so only install ones you trust — the catalog and
+binaries come from this repository's `main` branch. Full details:
+[`android/README.md`](android/README.md#extensions-sources-tab).
 
 ### Keeping the server alive in the background
 
@@ -203,7 +275,7 @@ Full details, including the API-level differences and failure modes:
 ### Updating the app
 
 - **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.4.0`), compares the
+  repository's GitHub releases (only tags like `android-v0.5.0`), compares the
   version, downloads the release APK, verifies it when a digest is available and
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.
@@ -226,7 +298,11 @@ Full details, including the API-level differences and failure modes:
 - The APK is debug-signed and distributed as a **sideload** build (no Play
   Store, no automatic updates except the manual in-app updater).
 - The app stores no analytics and talks only to the Tanoshi sources you use,
-  plus GitHub when you check for updates.
+  plus GitHub when you check for updates or install extensions.
+- **Extensions are native code.** Extensions installed from the Sources tab run
+  with the Tanoshi server's privileges. Installs are SHA-256/size checked, but
+  the catalog and binaries come from this repository's `main` branch — only
+  install entries you trust.
 
 ### Limitations and troubleshooting
 
@@ -239,7 +315,10 @@ Full details, including the API-level differences and failure modes:
 | QR scans but the other device can't connect | Guest Wi-Fi / client isolation or a VPN is blocking it; both devices must be on the same network. Use the shown `IP:port` in a browser to test. |
 | Old versions: error saving the port (`config.yml.tmp`, `ENOENT`) | Fixed in 0.3.0 — update the app. |
 | Update check fails | Needs network access; GitHub rate limits can apply. Download the APK from the release page manually. |
-| Plugins missing / a source disappeared | The app ships a fixed set of plugins; check the Logs tab and update to the latest app release. |
+| A source/extension is missing after installing it | Open **Sources** and **restart the server** — Tanoshi loads plugins at startup. If it is listed but still missing, it is incompatible (exact Tanoshi version/`tanoshi-lib` ABI/arm64); check the **Logs** tab and use a compatible catalog entry. |
+| The Sources catalog will not load / Add extension is empty | Needs network access to raw.githubusercontent.com (and the repository `main` branch). Retry; installed extensions keep working. |
+| Tachiyomi/Keiyoushi `.apk` extension won't work | Different format/runtime: the app only installs catalog-listed Tanoshi native `.so` plugins. |
+| An extension install fails a checksum/size check | Retry the download; if it keeps failing, the catalog's `sha256`/`size` and the uploaded `.so` disagree (a catalog issue). |
 | Other problems | **Logs** tab and `server.log`; full troubleshooting in [`android/README.md`](android/README.md#troubleshooting). |
 
 ### Building the Android app

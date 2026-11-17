@@ -5,16 +5,17 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.4.0** — see the
+Current release: **0.5.0** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). It makes the background server harder to
-kill: a hidden, inaudible **silent-audio keep-alive** puts the app in a
-media-playback foreground state, and an **auto-restart watchdog** brings the
-server back after an unexpected kill (up to 5 times in 10 minutes). The APK
-name is unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It
-includes the 0.3.0 features (LAN QR sharing, port-save fix, dated APK naming)
-and the 0.2.0 features (catalogue infinite scroll, in-app updates,
-Dark/Light/Nord/Catppuccin themes, shared signing key).
+and [`CHANGELOG.md`](CHANGELOG.md). It adds a Suwayomi-style **Sources tab**
+with **Add extension**: browse this repository's extension catalog, download
+prebuilt Android plugins (SHA-256 verified) into the app, update or remove
+them, and restart the server to load them — without shipping a new APK. The
+bundled server now loads user-installed plugins from the app's writable plugin
+directory through an in-memory loader. The APK name is unchanged
+(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It includes the 0.4.0
+keep-alive/watchdog, 0.3.0 LAN QR sharing/port fix and 0.2.0 features
+(catalogue infinite scroll, in-app updates, themes, shared signing key).
 
 This directory is the Android Gradle project (`dev.spainclaro.tanoshi`).
 The `arm64-v8a` native binaries are prebuilt and checked in, so building the
@@ -32,7 +33,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.4.0](#whats-new-in-040)
+- [What's new in 0.5.0](#whats-new-in-050)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -42,6 +43,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 - [The embedded web UI](#the-embedded-web-ui)
 - [Themes](#themes)
 - [In-app updates](#in-app-updates)
+- [Extensions (Sources tab)](#extensions-sources-tab)
 - [Architecture](#architecture)
 - [Keeping the server alive in the background](#keeping-the-server-alive-in-the-background)
 - [Storage layout](#storage-layout)
@@ -62,14 +64,16 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
   this repository's Termux patch set plus the Android-app patch, running as an
   `aarch64` native process inside the app's sandbox.
 - **Nine extensions** bundled as native plugins: Mangadex, Guya, Manhwa18cc,
-  WeebCentral, Atsumaru, QiScans, Manga Ball, MadaraDex and HentaiNexus.
+  WeebCentral, Atsumaru, QiScans, Manga Ball, MadaraDex and HentaiNexus. The
+  **Sources** tab can install, update and remove extensions from the
+  repository's catalog at runtime (the nine bundled ones included).
 - The same embedded Tanoshi web UI as the Termux package, including the
   **infinite-scroll catalogue**: the next page loads automatically as you
   scroll, with **Load More** as the manual fallback.
-- A small Material 3 wrapper: start/stop the server, watch its logs, open the
-  web UI, edit the port, toggle LAN exposure and share a QR code for other
-  devices on the same network, inspect/edit `config.yml`, pick an app theme
-  and update the app from inside it.
+- A small Material 3 wrapper: start/stop the server, watch its logs, manage
+  sources/extensions, open the web UI, edit the port, toggle LAN exposure and
+  share a QR code for other devices on the same network, inspect/edit
+  `config.yml`, pick an app theme and update the app from inside it.
 - The entire server data directory lives in the app's private storage; the
   phone needs no root, no Termux and no shell.
 
@@ -78,31 +82,32 @@ and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
 
-## What's new in 0.4.0
+## What's new in 0.5.0
 
-- **Hidden silent-audio keep-alive** — while the server runs, the app loops a
-  generated, inaudible one-second WAV through `MediaPlayer` at volume 0 and
-  declares the foreground service as `specialUse|mediaPlayback`. Android/OEMs
-  treat the app as actively playing media, so the app and its native server
-  child processes are less likely to be frozen or killed. There is **no
-  MediaSession and no extra notification** — the only notification is still
-  the normal server one. It is a best-effort mitigation, not a guarantee; see
-  [Keeping the server alive in the background](#keeping-the-server-alive-in-the-background).
-- **Auto-restart watchdog** — if the server process is killed while you want
-  it running, the app now restarts it automatically (up to **5 times in a
-  rolling 10-minute window**, about 3 s apart) instead of giving up at the
-  first unexpected exit. When the budget is exhausted it shows the usual
-  `ERROR` state.
-- **Phantom-process-killer workaround documented** — the reliable user-side
-  fixes (Developer options **Disable child process restrictions**, or the ADB
-  `settings`/`device_config` commands), how to confirm from `logcat` that the
-  killer is the cause, and the trade-offs. The silent audio improves the app's
-  standing but does **not** exempt it from the Android 12+ phantom-process
-  limits.
-- **Version 0.4.0** — `versionCode` 4 in local builds; the `android-v0.4.0`
-  tag produces 400. The APK filename scheme is unchanged. Includes the 0.3.0
-  features (LAN QR sharing, port-save fix, dated APK naming) and the 0.2.0
-  features (catalogue infinite scroll, in-app updates,
+- **Sources tab with Add extension** (Suwayomi-style) — a new bottom-navigation
+  destination lists the installed extensions (bundled and user-installed, with
+  Badges for bundled/user/override/ported/update) and lets you **install,
+  reinstall, update and remove** extensions from this repository's catalog.
+  Downloads are HTTPS-only and SHA-256/size verified; user copies go to
+  `filesDir/tanoshi/plugins/<name>.so`. The app then prompts you to
+  **restart the server** so Tanoshi sees the new sources. See
+  [Extensions (Sources tab)](#extensions-sources-tab).
+- **User-installed extensions are loaded at runtime** — the bundled server was
+  rebuilt with a plugin loader that reads both `nativeLibraryDir` (bundled
+  `lib<name>.so`) and the writable `files/tanoshi/plugins` directory
+  (`<name>.so`); a user copy overrides a bundled one with the same name. On
+  Android 10+ a plugin in app-writable storage cannot be `dlopen()`ed
+  directly, so the server copies it into an anonymous **memfd** and loads it
+  with `android_dlopen_ext` — no `targetSdk` downgrade and no root.
+- **Extension catalog in the repository** —
+  [`extensions/index.json`](extensions/index.json) lists the nine bundled
+  plugins with their download URLs, SHA-256 and size; adding an entry there
+  makes a new extension appear in **Add extension** for every installed app
+  without a new APK.
+- **Version 0.5.0** — `versionCode` 5 in local builds; the `android-v0.5.0`
+  tag produces 500. The APK filename scheme is unchanged. Includes the 0.4.0
+  keep-alive/watchdog, 0.3.0 LAN QR sharing/port-save fix/dated APK naming and
+  0.2.0 features (catalogue infinite scroll, in-app updates,
   Dark/Light/Nord/Catppuccin themes, stable signing key).
 
 Full details: [`CHANGELOG.md`](CHANGELOG.md).
@@ -119,6 +124,8 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md).
 - ~250 MB free space for the app and a fresh library.
 - To use **in-app updates**: a network connection and the "Install unknown
   apps" permission for Tanoshi (the app links to the system setting).
+- To install extensions from the **Sources** tab: a network connection (the
+  catalog is fetched from GitHub) and a server restart after each change.
 
 **To build the APK (app only)**
 
@@ -165,12 +172,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.4.0**,
-`versionCode` 4) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.5.0**,
+`versionCode` 5) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.4.0 -PappVersionCode=400 \
+./gradlew :app:assembleDebug -PappVersionName=0.5.0 -PappVersionCode=500 \
   -PapkDate=2026-11-14
 ```
 
@@ -231,18 +238,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.4.0`. For a tag, CI derives everything from the tag and
+example `android-v0.5.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.4.0` → `400`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.5.0` → `500`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.4.0 /
-versionCode 4) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.5.0 /
+versionCode 5) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -315,8 +322,11 @@ ABI.
    Settings, restart the server, then scan the
    [Share on your network QR code](#sharing-on-your-network-qr) from the
    Server screen.
-4. **Install sources / configure** in the web UI like any other Tanoshi
-   server. The nine bundled extensions are already present.
+4. **Install sources / configure** — the nine bundled extensions are already
+   present in the web UI. Use the **Sources** tab to install, update or remove
+   extensions from the repository catalog (see
+   [Extensions (Sources tab)](#extensions-sources-tab)); the web UI itself is
+   configured like any other Tanoshi server.
 
 The server keeps running while the app is in the background, held by the
 foreground service and a partial wake lock, until you tap **Stop** (in the app
@@ -327,11 +337,12 @@ service does not silently resume after a reboot.
 
 ## Using the app
 
-The app has three screens plus an embedded browser:
+The app has four screens plus an embedded browser:
 
 | Screen | What it does |
 | --- | --- |
 | **Server** | Server state (`STOPPED` / `STARTING` / `RUNNING` / `STOPPING` / `ERROR`), PID, port, bind address (`127.0.0.1` or `0.0.0.0`), uptime, Start/Stop, the local URL, **Open in browser**, **Open in app**, and (when LAN-exposed) the **Share on your network** QR card. The first-run admin dialog appears here. |
+| **Sources** | Suwayomi-style extension manager: installed extensions (bundled + user), **Add extension** from the repository catalog, install/update/remove, and the restart prompt. See [Extensions (Sources tab)](#extensions-sources-tab). |
 | **Logs** | Live server stdout/stderr with timestamps and stream colouring; auto-scroll toggle; copy-all and clear. `server.log` in the data directory mirrors the same output. |
 | **Settings** | Appearance (themes), port, "Expose on LAN", raw `config.yml` editor, notification/battery permissions, in-app updates, and the storage paths. |
 | **Browser** | WebView pointed at the local server (JavaScript and DOM storage enabled) with Back and Reload buttons; the catalogue auto-loads the next page as you scroll. The system back button exits the WebView before leaving the app. |
@@ -425,7 +436,7 @@ its own theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.4.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.5.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -467,6 +478,168 @@ Requirements and limitations:
 - **From 0.1.0** the updater cannot help, because 0.1.0 predates it and is
   signed with a different key — see the one-time uninstall note in
   [Installing and updating](#installing-and-updating).
+
+---
+
+## Extensions (Sources tab)
+
+The bottom navigation has a **Sources** tab (between Server and Logs): it is a
+Suwayomi-style extension manager for the Tanoshi plugins that provide manga
+sources.
+
+### What the tab shows
+
+- **Installed** lists every extension the app can see: the nine bundled
+  plugins (`lib<name>.so` shipped in the APK) and any user-installed copies
+  stored in `filesDir/tanoshi/plugins/<name>.so`. Badges show whether an
+  extension is **Bundled**, **Installed by you** or **Overrides bundled** (a
+  user copy of a bundled extension), whether it was **Ported to Rust** in this
+  repository, and whether an **Update available** (the installed file's
+  SHA-256 differs from the catalog).
+- **Add extension** opens the catalog (fetched from this repository) and lets
+  you **Install**, **Update** or **Reinstall** entries with inline progress.
+  Installed cards offer **Update**/**Reinstall** and **Remove**. **Remove**
+  deletes only your user-installed copy; bundled copies can never be removed
+  and become active again after a restart.
+- After an install/update/remove the tab shows a **Server restart needed**
+  banner (and a snackbar reading "Restart the server to load the new sources")
+  with a **Restart server** (or **Start server**) action. Tanoshi only loads
+  plugins at startup, so a restart is required for the new sources to appear.
+- The catalog is fetched on demand; if GitHub/raw is unreachable the tab shows
+  a retryable error, and extensions that are already installed keep working.
+
+### How installation works
+
+The app (not the server) performs the download on a background thread using
+`HttpURLConnection`:
+
+1. `GET https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/extensions/index.json`
+   (15 s timeouts, no authentication).
+2. Download the entry's HTTPS `.so` to
+   `filesDir/tanoshi/plugins/<name>.so.part`, streaming with progress.
+3. Verify the byte count and, when the catalog provides one, the SHA-256 while
+   streaming; files smaller than 256 KB are rejected as implausible plugins.
+4. Atomically rename to `<name>.so` (replacing a previous user copy) and mark
+   **restart required**.
+
+The server is not touched while installing; the restart loads the new file.
+User copies take precedence over bundled plugins with the same name (the
+server loads the writable plugin directory first).
+
+### The extension catalog
+
+[`extensions/index.json`](extensions/index.json) is a plain JSON document
+served over raw.githubusercontent.com from this repository's `main` branch:
+
+```json
+{
+  "version": 1,
+  "updated": "2026-11-17",
+  "extensions": [
+    {
+      "name": "mangadex",
+      "displayName": "MangaDex",
+      "description": "MangaDex source (bundled with the app).",
+      "url": "https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/app/src/main/jniLibs/arm64-v8a/libmangadex.so",
+      "sha256": "d6b0e83f3b02e180f4d65e09fa083bcd14f8b10ccee1bd11ff7983b6566c7a47",
+      "size": 4461728,
+      "ported": false
+    }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `version`, `updated`, `note` | no | Documentation for humans; the app reads only `extensions[]`. |
+| `name` | yes | Bare extension id, `^[a-z0-9][a-z0-9_-]{0,63}$` (e.g. `mangadex`). |
+| `displayName` | no | Name shown in the app (falls back to a prettified `name`). |
+| `description` | no | Short description shown under the name. |
+| `url` | yes | **HTTPS** URL of the prebuilt `aarch64-linux-android` `.so`. |
+| `sha256` | no | Lowercase 64-hex SHA-256 of the file; verified on install when present. |
+| `size` | yes | File size in bytes; also used for progress and verification (must be > 256 KB to install). |
+| `ported` | no | `true` for the five extensions ported to Rust in this repository; shows the "Ported to Rust" badge (defaults `false`). |
+
+Malformed entries are skipped without hiding the rest of the catalog. The nine
+current entries mirror the nine bundled plugins: their URLs point at the
+checked-in `jniLibs` files and their `sha256`/`size` match exactly.
+
+### Adding a new extension
+
+Extensions are native plugins built for Tanoshi on Android; the app cannot
+compile them on the device. To add one:
+
+1. Build a compatible `.so` for the **same Tanoshi version / `tanoshi-lib`
+   ABI (`0.38.0`) and Rust toolchain** as the bundled server, targeting
+   `aarch64-linux-android` — see the "Extension plugins" steps in
+   [`native/README.md`](native/README.md). The file is a normal
+   `lib<name>.so` (the app installs it as `<name>.so`).
+2. Check it is an aarch64 Android shared object and plausibly sized
+   (`file lib<name>.so`; plugins are several MB, and files under 256 KB are
+   rejected).
+3. Upload the file and use its **HTTPS** URL: commit it to this repository
+   (for example alongside the bundled plugins in
+   `android/app/src/main/jniLibs/arm64-v8a/`) or attach it to a GitHub
+   release; raw GitHub URLs work.
+4. Add an entry to [`extensions/index.json`](extensions/index.json) with
+   `name`, `displayName`, `description`, `url`, `sha256`, `size` and
+   `ported`, and commit to `main`:
+
+   ```bash
+   sha256sum lib<name>.so
+   stat -c %s lib<name>.so
+   ```
+
+Installed apps see the new entry on the next **Sources → Add extension**
+refresh — no new APK is needed. Users still tap Install/Update and restart
+the server.
+
+### How user-installed plugins are loaded (technical note)
+
+Android 10+ forbids executing or `dlopen()`ing code from app-writable storage
+(W^X/SELinux), which is why bundled plugins ship as `lib*.so` in
+`nativeLibraryDir`. To support user-installed plugins the bundled server
+(0.5.0+) was rebuilt with a custom loader; the app still targets API 35:
+
+- The server loads plugins from **two directories**: the writable
+  `filesDir/tanoshi/plugins` first, then `nativeLibraryDir` (passed via
+  `TANOSHI_PLUGIN_LOAD_DIR`). A user copy wins over a bundled copy with the
+  same name; bundled plugins are still loaded normally.
+- For a plugin outside `nativeLibraryDir`, the extension worker reads the
+  `.so` bytes, copies them into an anonymous **memfd**, and loads the library
+  from that file descriptor with `android_dlopen_ext` +
+  `ANDROID_DLEXT_USE_LIBRARY_FD`. If that path fails for any reason it falls
+  back to a regular `dlopen()` and reports both errors. This is the same class
+  of technique used by other on-device runtimes; it does not lower `targetSdk`.
+- Plugin compatibility is unchanged: every plugin must embed the same
+  `tanoshi-lib` version as the server (`0.38.0` for Tanoshi `0.40.0`) and
+  match the device ABI (`arm64-v8a`). Incompatible plugins fail the server's
+  version check and are ignored (see the Logs tab).
+- User-installed copies live in `files/tanoshi/plugins/` and are not part of
+  the APK; app updates keep them, but uninstalling the app deletes them with
+  the rest of the app data.
+
+### Limitations and security
+
+- **Native code with exact version requirements.** A plugin must be built for
+  the bundled Tanoshi version, the `tanoshi-lib` ABI and `arm64-v8a`. It
+  cannot be compiled on the phone, and incompatible `.so` files fail to load.
+- **Only `.so` plugins from the catalog.** The app cannot install Tachiyomi /
+  Keiyoushi `.apk` extensions (different runtime/format), and it does not
+  accept arbitrary URLs from the UI — only entries in the repository catalog.
+- **Trust.** Extensions run as native code with the Tanoshi server's
+  privileges (network, files, the phone's storage access inside the app
+  sandbox). Only install extensions you trust. Installs are integrity-checked
+  (SHA-256/size) but the catalog and binaries come from this repository's
+  `main` branch, so treat the repository as part of your trust boundary.
+- **Network.** The catalog and downloads need internet access to GitHub /
+  raw.githubusercontent.com. If the catalog is unavailable the tab shows a
+  retryable error; installed extensions keep working.
+- **Restart required.** The server loads plugins at startup, so installs,
+  updates and removes only apply after a restart (the UI offers the action).
+- **Best-effort loader.** If a plugin does not appear even after a restart,
+  check the Logs tab, confirm it matches the server/ABI, and remove the user
+  copy in the Sources tab to fall back to the bundled one.
 
 ---
 
@@ -543,16 +716,21 @@ must keep that flag — see [`native/README.md`](native/README.md).
 
 ### Plugins
 
-Plugins are loaded in place from `nativeLibraryDir` by the patched server; the
-Android patch skips the staging copy into the writable plugin directory that
-the upstream code would perform (that copy exists only to rename plugins, and
-Android would refuse to load it anyway).
+The patched server loads plugins from **two directories**, writable first:
+`filesDir/tanoshi/plugins/` (user-installed `<name>.so` files, where the
+Sources tab installs them) and `nativeLibraryDir` (the nine bundled
+`lib<name>.so` files, passed to the server as `TANOSHI_PLUGIN_LOAD_DIR`). A
+user copy with the same name overrides the bundled one; bundled plugins are
+still loaded the usual way. Plugins outside `nativeLibraryDir` are loaded
+through the in-memory `memfd` + `android_dlopen_ext` loader described in
+[Extensions (Sources tab)](#extensions-sources-tab) — details of the server
+changes are in [`native/README.md`](native/README.md).
 
-The `plugin_path` in `config.yml` still points at the writable
-`filesDir/tanoshi/plugins/` directory, which the plugins use for their
-preferences. **Plugins are bundled with the APK and cannot be updated from
-inside the app**: installing or updating a source means shipping a new APK
-built with the matching plugin ABI (`tanoshi-lib` 0.38.0 for Tanoshi 0.40.0).
+The `plugin_path` in `config.yml` points at the writable
+`filesDir/tanoshi/plugins/` directory, which doubles as the extensions'
+preferences directory. Plugins are native code built for the exact
+`tanoshi-lib` ABI (`0.38.0` for Tanoshi `0.40.0`) and the device ABI
+(`arm64-v8a`).
 
 ### `libarchive`
 
@@ -722,12 +900,14 @@ the package is `dev.spainclaro.tanoshi.debug`; the release build uses
 ├── downloads/         # downloaded chapters
 ├── cache/             # image cache
 ├── manga/             # local ("Local source") folder
-└── plugins/           # extension preferences only
+└── plugins/           # user-installed extensions (<name>.so) + extension preferences
 ```
 
-The actual native libraries (including plugins) are **not** here — they are
-in `nativeLibraryDir` (`/data/app/.../lib/arm64/libtanoshi.so`, …), managed
-by the package manager.
+The bundled native libraries live in `nativeLibraryDir`
+(`/data/app/.../lib/arm64/libtanoshi.so`, …), managed by the package
+manager. `files/tanoshi/plugins/` holds only extensions you installed from the
+Sources tab (plus the plugins' preference files); a user extension overrides a
+bundled one with the same name.
 
 Notes:
 
@@ -788,8 +968,11 @@ The APK embeds these files in
 | `libarchive.so` | libarchive 3.8.11, minimal build with zlib linked statically (only libc/libdl dependencies, SONAME `libarchive.so`) |
 | `libmangadex.so`, `libguya.so`, `libmanhwa18cc.so`, `libweebcentral.so`, `libatsumaru.so`, `libqiscans.so`, `libmangaball.so`, `libmadaradex.so`, `libhentainexus.so` | The nine extension plugins |
 
-They are prebuilt and committed; a Gradle build does not compile Rust. To
-update Tanoshi or a plugin, run the pipeline documented in
+They are prebuilt and committed; a Gradle build does not compile Rust. Since
+0.5.0 the bundled `libtanoshi.so` also contains the dual-directory/in-memory
+plugin loader (see [Extensions (Sources tab)](#extensions-sources-tab)); any
+extension you install at runtime lives in `files/tanoshi/plugins/`, not in the
+APK. To update Tanoshi or the bundled plugins, run the pipeline documented in
 [`native/README.md`](native/README.md):
 
 - [`native/build_tanoshi.sh`](native/build_tanoshi.sh) — clone upstream,
@@ -836,8 +1019,12 @@ caveats" section of the native guide.
   `network_security_config.xml` permits cleartext HTTP only for `127.0.0.1`,
   `localhost` and `10.0.2.2` (emulator loopback); WebView/browser traffic to
   the local server works, and cleartext to other hosts stays blocked.
-- **Third-party content.** The extensions scrape third-party sites; respect
-  their terms of service and your local laws.
+- **Third-party content and native extensions.** The extensions scrape
+  third-party sites; respect their terms of service and your local laws.
+  Extensions downloaded in the Sources tab are **native code** that runs with
+  the Tanoshi server's privileges. Only install extensions you trust; installs
+  are SHA-256/size checked, but both the catalog and the binaries come from
+  this repository's `main` branch.
 - **Updates come from GitHub.** The updater contacts `api.github.com` and
   downloads release assets from this repository only. It never installs
   anything without the system confirmation dialog, and Android only accepts an
@@ -886,10 +1073,30 @@ non-16-character secrets on start), an unwritable data directory, or a crashed
 plugin build. Restarting the app regenerates missing directories; deleting
 `config.yml` makes the app generate a fresh one.
 
-**Plugins do not appear in the web UI.** The bundled plugins and
-`libtanoshi.so` disagree on the `tanoshi-lib` ABI (0.38.0 for Tanoshi 0.40.0).
-They ship together in one APK, so this usually means a mismatched manual
-rebuild — rebuild server + plugins together.
+**A source/extension does not appear in the web UI.** Open the **Sources** tab
+to check it is listed, and **restart the server** after installing, updating
+or removing it — Tanoshi only loads plugins at startup. If it is listed but
+still missing, the plugin's `tanoshi-lib` ABI (0.38.0 for Tanoshi 0.40.0) or
+`arm64-v8a` target does not match the bundled server; the Logs tab reports the
+failed load. Remove the user copy in Sources to fall back to the bundled
+extension.
+
+**The Sources catalog will not load / "Add extension" is empty.** The catalog
+is fetched from raw.githubusercontent.com, so it needs internet access (and
+GitHub can be unreachable or rate-limited). Use Retry; extensions that are
+already installed keep working. A newly added catalog entry appears only after
+the repository's `main` branch is updated.
+
+**Installing an extension fails with a checksum/size error.** The download was
+incomplete or the catalog entry is stale. Retry the install; if it keeps
+failing, the catalog's `sha256`/`size` and the uploaded `.so` do not match —
+that is a catalog/maintainer issue, not an app bug.
+
+**An extension file was downloaded but Tanoshi still ignores it.** Native
+plugins must be built for the exact Tanoshi version, `tanoshi-lib` ABI and
+`arm64-v8a`, and be a real Android `.so` (not a Tachiyomi/Keiyoushi `.apk`).
+Check the Logs tab for a version/load error, then remove the user copy and
+retry with a compatible build.
 
 **Cannot reach the server from another device on the LAN.** Enable "Expose on
 LAN", restart, and check the status card shows `0.0.0.0`. Make sure both
@@ -999,7 +1206,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Embedded web UI | Package-3 wasm dist (`native/web-dist/`), built with the infinite-scroll patch |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
-| App version | 0.4.0 (`versionName`); `versionCode` 4 in local builds, 400 for the `android-v0.4.0` tag |
+| Extension catalog | `android/extensions/index.json` (9 entries, served from this repo's `main` branch) |
+| Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0) |
+| App version | 0.5.0 (`versionName`); `versionCode` 5 in local builds, 500 for the `android-v0.5.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1017,9 +1226,10 @@ android/
 │   ├── build.gradle.kts
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       ├── java/dev/spainclaro/tanoshi/   # app, service, admin bootstrap, updater, Compose UI
+│       ├── java/dev/spainclaro/tanoshi/   # app, service, admin bootstrap, updater, extensions, Compose UI
 │       ├── res/                           # strings, themes, icons, network policy
 │       └── jniLibs/arm64-v8a/             # libtanoshi.so, libarchive.so, lib<plugin>.so
+├── extensions/                            # extension catalog (index.json)
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
 ├── native/                                # native pipeline + vendored web-dist

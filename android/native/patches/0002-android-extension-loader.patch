@@ -1,0 +1,175 @@
+--- a/crates/tanoshi-vm/src/extension/manager.rs
++++ b/crates/tanoshi-vm/src/extension/manager.rs
+@@ -26,6 +26,9 @@
+     WorkerCallError, WorkerClient, WorkerErrorKind, WorkerRequest, WorkerValue, resolve_worker_path,
+ };
+ 
++/// Anything smaller than this in a plugin directory is not a Tanoshi extension
++/// (the bundled nativeLibraryDir also holds tiny support libraries).
++const MIN_PLUGIN_FILE_BYTES: u64 = 256 * 1024;
+ const STAGED_LIBRARY_PREFIX: &str = ".tanoshi-staged-";
+ const INSTALL_TEMP_PREFIX: &str = ".tanoshi-install-";
+ const INSTALL_BACKUP_PREFIX: &str = ".tanoshi-backup-";
+@@ -109,6 +112,16 @@
+     name.strip_suffix(&extension).unwrap_or(name).to_lowercase()
+ }
+ 
++/// Stable extension identity: file names differ between the bundled directory
++/// (`libmangadex.so`) and the writable directory (`mangadex.so`).
++fn plugin_key(name: &str) -> String {
++    let normalized = normalize_plugin_name(name);
++    normalized
++        .strip_prefix("lib")
++        .map(str::to_string)
++        .unwrap_or(normalized)
++}
++
+ fn entry_plugin_name(entry: &SourceEntry) -> String {
+     entry
+         .plugin_path()
+@@ -387,12 +400,49 @@
+     /// so on Android the load directory is overridden to nativeLibraryDir while
+     /// [PluginManager::dir] keeps pointing at the writable data directory used
+     /// for extension preferences.
+-    fn plugin_load_dir(&self) -> PathBuf {
++    /// Directories plugins are loaded from, in priority order.
++    ///
++    /// The writable data directory comes first so a user-installed copy
++    /// overrides a bundled one with the same name; on Android the read-only
++    /// native library directory (bundled plugins) is appended.
++    fn plugin_load_dirs(&self) -> Vec<PathBuf> {
++        let mut dirs = vec![self.dir.clone()];
+         #[cfg(target_os = "android")]
+         if let Some(dir) = std::env::var_os("TANOSHI_PLUGIN_LOAD_DIR") {
+-            return PathBuf::from(dir);
++            let dir = PathBuf::from(dir);
++            if !dirs.contains(&dir) {
++                dirs.push(dir);
++            }
++        }
++        dirs
++    }
++
++    /// Find the file for a plugin name (`mangadex`, `libmangadex.so`, ...) in
++    /// the writable directory first, then in the bundled directory.
++    fn resolve_plugin_path(&self, plugin_name: &str) -> Option<PathBuf> {
++        let bare = plugin_name.strip_prefix("lib").unwrap_or(plugin_name);
++        for dir in self.plugin_load_dirs() {
++            for candidate in [
++                dir.join(format!("{bare}.{PLUGIN_EXTENSION}")),
++                dir.join(format!("lib{bare}.{PLUGIN_EXTENSION}")),
++            ] {
++                if candidate.is_file() {
++                    return Some(candidate);
++                }
++            }
+         }
+-        self.dir.clone()
++        None
++    }
++
++    /// Bundled `nativeLibraryDir` also contains the server executable and its
++    /// support libraries; anything implausibly small is not a Tanoshi extension.
++    fn is_plugin_file(&self, path: &Path, name: &str) -> bool {
++        if !name.ends_with(PLUGIN_EXTENSION) || is_managed_library_name(name) {
++            return false;
++        }
++        std::fs::metadata(path)
++            .map(|metadata| metadata.len() >= MIN_PLUGIN_FILE_BYTES)
++            .unwrap_or(false)
+     }
+ 
+     fn stage_library(&self, plugin_path: &Path) -> Result<PathBuf> {
+@@ -980,21 +1030,28 @@
+     }
+ 
+     pub async fn load_all(&self) -> Result<()> {
+-        let dir = self.plugin_load_dir();
+-        let mut read_dir = tokio::fs::read_dir(&dir).await?;
+-        while let Some(entry) = read_dir.next_entry().await? {
+-            let name = entry.file_name().to_string_lossy().into_owned();
+-            // nativeLibraryDir also holds the server executable and libarchive;
+-            // they are not Tanoshi extensions.
+-            #[cfg(target_os = "android")]
+-            if name == "libtanoshi.so" || name == "libarchive.so" {
+-                continue;
+-            }
+-            if name.ends_with(PLUGIN_EXTENSION)
+-                && !is_managed_library_name(&name)
+-                && let Err(e) = self.load(&name).await
+-            {
+-                error!("failed to load {name}: {e}");
++        // Bundled plugins (nativeLibraryDir) and user-installed plugins (the
++        // writable data directory) are both loaded; a user copy wins by name.
++        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
++        for dir in self.plugin_load_dirs() {
++            let mut read_dir = match tokio::fs::read_dir(&dir).await {
++                Ok(read_dir) => read_dir,
++                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
++                Err(error) => return Err(error.into()),
++            };
++            while let Some(entry) = read_dir.next_entry().await? {
++                let name = entry.file_name().to_string_lossy().into_owned();
++                let path = entry.path();
++                if !self.is_plugin_file(&path, &name) {
++                    continue;
++                }
++                let key = plugin_key(&name);
++                if !seen.insert(key.clone()) {
++                    continue;
++                }
++                if let Err(e) = self.load(&key).await {
++                    error!("failed to load {name} from {}: {e}", dir.display());
++                }
+             }
+         }
+         Ok(())
+@@ -1278,10 +1335,16 @@
+         let plugin_name = normalize_plugin_name(name);
+         let lifecycle_lock = self.lifecycle_lock(&plugin_name)?;
+         let _lifecycle_guard = lifecycle_lock.lock_owned().await;
+-        let plugin_path = self
+-            .plugin_load_dir()
+-            .join(&plugin_name)
+-            .with_extension(PLUGIN_EXTENSION);
++        let plugin_path = self.resolve_plugin_path(&plugin_name).ok_or_else(|| {
++            anyhow!(
++                "extension {plugin_name} was not found in {}",
++                self.plugin_load_dirs()
++                    .iter()
++                    .map(|dir| dir.display().to_string())
++                    .collect::<Vec<_>>()
++                    .join(", ")
++            )
++        })?;
+         let entry = self
+             .load_worker_from_path(&plugin_path, plugin_path.clone())
+             .await?;
+--- a/crates/tanoshi-vm/src/extension/worker.rs
++++ b/crates/tanoshi-vm/src/extension/worker.rs
+@@ -1366,6 +1366,13 @@
+ }
+ 
+ fn load_worker_entry(plugin_path: &Path, max_concurrent_calls: usize) -> Result<Arc<SourceEntry>> {
++    // On Android, user-installed extensions live in the app's writable plugin
++    // directory, which the dynamic linker refuses to map directly (W^X). The
++    // Android loader copies the library into a memfd and loads it from the file
++    // descriptor; bundled extensions still fall back to a regular dlopen.
++    #[cfg(target_os = "android")]
++    let library = unsafe { crate::extension::android_loader::open_plugin_library(plugin_path) }?;
++    #[cfg(not(target_os = "android"))]
+     let library = unsafe { libloading::Library::new(plugin_path) }?;
+     let declaration = unsafe {
+         library
+--- a/crates/tanoshi-vm/src/extension/mod.rs
++++ b/crates/tanoshi-vm/src/extension/mod.rs
+@@ -6,6 +6,9 @@
+ 
+ pub mod worker;
+ 
++#[cfg(target_os = "android")]
++pub mod android_loader;
++
+ pub mod build;
+ 
+ mod queue;

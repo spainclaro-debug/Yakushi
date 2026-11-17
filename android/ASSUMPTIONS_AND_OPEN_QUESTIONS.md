@@ -66,18 +66,20 @@ Upstream hardcodes the listen address. The Android-app patch
 *If wrong:* the app could be reachable on the LAN even with the toggle off
 (security regression), or LAN mode would not work.
 
-### A6 — Plugins are bundled, read-only, and not updatable in-app
+### A6 — Extensions: nine bundled + user-installable from the Sources tab
 
-The nine plugins are compiled into the APK as `lib<name>.so` and loaded from
-`nativeLibraryDir`. The Android patch skips upstream's staging copy into the
-writable plugin directory (Android 10+ cannot `dlopen` from app-writable
-storage). The writable `plugin_path` directory is still used for extension
-preferences.
+Nine plugins are compiled into the APK as `lib<name>.so` in
+`nativeLibraryDir`; the **Sources** tab can additionally install, update and
+remove user copies in `filesDir/tanoshi/plugins/<name>.so` from the repository
+catalog (A27). The server loads the writable directory first and then
+`nativeLibraryDir`, so a user copy overrides a bundled extension with the same
+name. Bundled copies can never be removed (removing a user copy restores the
+bundled one after a restart). The writable `plugin_path` directory also holds
+extension preferences. Any change requires a server restart to load.
 
-*If wrong:* plugins either fail to load or fail to persist preferences.
-There is still no per-plugin update mechanism: as of 0.2.0 a new/updated
-plugin ships inside a new APK and reaches users through the in-app updater
-(A19), not through the server's extension downloader.
+*If wrong:* plugins either fail to load or fail to persist preferences. The
+old "plugins are frozen in the APK" assumption was true up to 0.4.0 only; see
+A27/A28 for the 0.5.0 install/load model.
 
 ### A7 — The first administrator is created through GraphQL `register`
 
@@ -199,7 +201,11 @@ source and patch set as the Termux package (`patches/`,
 `sync_prebuilt.sh`. `libtanoshi.so` is the patched Tanoshi 0.40.0 binary;
 `libarchive.so` is a minimal libarchive **3.8.11** build with zlib linked in
 statically (only libc/libdl `NEEDED`) and SONAME patched to `libarchive.so`;
-plugin files are named `lib<plugin>.so`.
+plugin files are named `lib<plugin>.so`. From 0.5.0 `libtanoshi.so` was
+rebuilt with the dual-directory/in-memory extension loader
+(`native/patches/0002-android-extension-loader.patch` +
+`android_loader.rs`), and the bundled plugin set is unchanged (the catalog's
+nine entries mirror those files).
 
 *If wrong:* the two deliverables would silently diverge in server/plugin
 version; the docs tell maintainers to bump both together.
@@ -214,7 +220,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.4.0 / 4, local date).
+three to Gradle; local builds use the Gradle defaults (0.5.0 / 5, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -267,9 +273,9 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.4.0 / versionCode
-4 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
-`android-v0.4.0` is 400), independent of the bundled Tanoshi server (0.40.0 /
+The app follows its own `android-vX.Y.Z` version scheme (0.5.0 / versionCode
+5 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
+`android-v0.5.0` is 500), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
 separately.
@@ -388,6 +394,74 @@ state it is best-effort, show how to confirm the killer from
 `adb logcat -s ActivityManager` (`Killing PhantomProcessRecord`, `excessive
 cpu`) and document the workaround with its trade-offs.
 
+### A27 — Extensions are installed from a repository-maintained catalog
+
+The bottom nav has a **Sources** tab (order: Server, Sources, Logs, Settings).
+It lists the bundled plugins plus user copies with badges (Bundled / Installed
+by you / Overrides bundled / Ported to Rust / Update available) and provides
+**Add extension**: the app fetches
+`https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/extensions/index.json`
+(plain `HttpURLConnection`, 15 s timeouts, no auth, no third-party library),
+then installs the selected entry by downloading its **HTTPS** `.so` into
+`filesDir/tanoshi/plugins/<name>.so.part`, verifying size and (when present)
+SHA-256, and atomically renaming to `<name>.so`. The catalog contract used by
+the app: `extensions[]` entries with `name` (`^[a-z0-9][a-z0-9_-]{0,63}$`),
+`url` (`https://`), `size` (> 0; install requires > 256 KB), optional `sha256`
+(64 hex) and `ported`; malformed entries are skipped. The app rejects plugins
+below 256 KB and never installs arbitrary URLs from the UI — only catalog
+entries. `remove` deletes only user copies. Install/remove mark
+**restart required**; the UI offers Restart/Start server. The catalog file is
+maintained by this repository's owner (the nine current entries mirror the
+bundled `jniLibs` files, each verified against its `sha256`/`size`).
+
+*If wrong:* the app could install incompatible or untrusted plugin files. The
+docs state the trust boundary (repo `main` branch), that hashes are integrity
+not signatures, and that only reviewed catalog entries should be published.
+
+### A28 — User extensions are loaded via memfd + `android_dlopen_ext`
+
+The bundled server (0.5.0+) was rebuilt with the extension loader patch
+(`android/native/patches/0002-android-extension-loader.patch` +
+`android_loader.rs`):
+
+- `PluginManager::load_all` loads plugins from `self.dir`
+  (`filesDir/tanoshi/plugins`, writable) **first** and then the directory in
+  `TANOSHI_PLUGIN_LOAD_DIR` (`nativeLibraryDir`); entries are keyed by
+  normalized name so a user copy wins over a bundled one. Files under 256 KB
+  and support libraries (`libtanoshi.so`, `libarchive.so`, managed names) are
+  skipped.
+- For Android plugins the worker calls `android_loader::open_plugin_library`:
+  it reads the `.so` bytes, creates an anonymous `memfd_create` descriptor,
+  maps and copies the bytes, marks the mapping `PROT_READ|PROT_EXEC` (warning,
+  not fatal, if `mprotect` fails), and loads with
+  `android_dlopen_ext(ANDROID_DLEXT_USE_LIBRARY_FD)` (`RTLD_NOW|RTLD_LOCAL`).
+  If that fails it falls back to a normal `dlopen()` and reports both errors;
+  bundled plugins remain loadable via the normal path.
+- Rationale: Android 10+ W^X/SELinux forbids `dlopen()` of code from
+  app-writable storage. This is the same class of technique used by other
+  on-device runtimes; the app still targets API 35 (no `targetSdk` downgrade).
+
+*If wrong:* user-installed plugins would not load (W^X) and only the bundled
+nine would work; the fallback path and Logs messages make the failure visible.
+
+### A29 — Extension compatibility, trust and availability limits
+
+Extensions remain native code with strict compatibility: they must be built
+for the bundled Tanoshi 0.40.0 / `tanoshi-lib` 0.38.0 ABI, the Rust toolchain
+family the package pins, and `arm64-v8a`. The app cannot compile extensions
+on-device, cannot install Tachiyomi/Keiyoushi `.apk` extensions, and only
+installs `.so` plugins listed by the catalog. The catalog and downloads need
+network access to GitHub/raw.githubusercontent.com; the catalog itself is not
+signed (SHA-256/size only verify integrity against the catalog). Extensions
+run with the Tanoshi server's privileges inside the app sandbox, so users
+should only install entries they trust. Incompatible plugins fail the
+server-side version check and are ignored (visible in the Logs tab), and the
+in-memory loader is best-effort.
+
+*If wrong:* users might expect arbitrary plugin compatibility or sandbox
+isolation; the docs and UI clearly state the version/ABI, trust and restart
+requirements.
+
 ---
 
 ## Open questions for the repository owner
@@ -483,14 +557,14 @@ successful APK release.
 
 ### Q11 — How should extension updates be delivered?
 
-Plugins are frozen in the APK (A6). The upstream Tanoshi server can download
-prebuilt extensions, but upstream publishes no Android binaries, and loading
-downloaded code from app storage is forbidden on Android 10+.
-
-**Resolved in practice (0.2.0):** new/updated plugins ship inside a new APK and
-reach users through the in-app updater (A19), which replaces the whole app.
-There is no per-plugin update path (and no in-server source rebuild, since
-that needs a Rust toolchain on the device).
+**Resolved (0.5.0):** per-extension install/update/remove from the **Sources**
+tab, backed by the repository catalog (A27). The catalog is served from this
+repository's `main` branch, so publishing/updating an entry reaches installed
+apps without a new APK; a server restart is required to load the change. This
+replaces the earlier "freeze plugins in the APK / ship a new app version"
+model. There is still no automatic/background extension update check (the
+user taps Install/Update), no per-extension auto-update, and no on-device
+compilation of extensions.
 
 ### Q12 — Is the current README default-login section still correct for the APK?
 
@@ -523,3 +597,11 @@ This keeps the anti-kill behaviour predictable and avoids a setting whose
 effect users would struggle to observe (it is inaudible and has no separate
 notification). See A24. If a future release needs a battery-focused option,
 this is where to revisit it.
+
+### Q16 — Should extension updates be automatic?
+
+**Resolved (owner, 0.5.0):** no. Extension installs/updates are explicit
+actions in the Sources tab; there is no background catalog polling, no
+automatic download and no silent install. The catalog is fetched when the tab
+is opened (cached per session, retry on failure), and a server restart applies
+the change. See A27/A29.

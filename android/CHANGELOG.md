@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.4.0`). The Termux package in the repository root has
+(for example `android-v0.5.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,65 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.5.0
+
+### Added
+
+- **Sources tab with "Add extension"** (Suwayomi-style extension manager). A
+  new bottom-navigation destination lists every extension the app can see —
+  the nine bundled plugins and user-installed copies — with badges for
+  Bundled / Installed by you / Overrides bundled / Ported to Rust / Update
+  available. **Add extension** loads this repository's catalog
+  (`android/extensions/index.json`), downloads the chosen prebuilt
+  `aarch64-linux-android` `.so` over HTTPS into
+  `filesDir/tanoshi/plugins/<name>.so` with a progress bar and SHA-256/size
+  verification, and supports **Install / Update / Reinstall**. **Remove**
+  deletes only user-installed copies (bundled extensions can never be
+  removed). After any change the tab shows a Restart-needed banner/snackbar
+  with **Restart server** (or **Start server**), because Tanoshi only loads
+  plugins at startup. The catalog is cached per session and retryable on
+  network failure.
+- **Runtime user-extension loading in the bundled server.** The bundled
+  `libtanoshi.so` was rebuilt with a plugin loader that reads the writable
+  `files/tanoshi/plugins` directory (user copies, `<name>.so`) *and*
+  `nativeLibraryDir` (bundled, `lib<name>.so`), writable directory first, so a
+  user copy overrides a bundled extension with the same name. Plugins outside
+  the app's native library directory are loaded from an anonymous **memfd**
+  with `android_dlopen_ext` + `ANDROID_DLEXT_USE_LIBRARY_FD` (with a regular
+  `dlopen()` fallback), because Android 10+ W^X forbids executing code from
+  app-writable storage. `targetSdk` stays 35.
+- **Extension catalog in the repository**
+  (`android/extensions/index.json`): nine entries describing name,
+  displayName, description, HTTPS URL, SHA-256, size and the `ported` flag for
+  the bundled extensions. Adding an entry there publishes a new extension to
+  installed apps without a new APK.
+- New native build patch `android/native/patches/0002-android-extension-loader.patch`
+  plus `android_loader.rs` (dual-directory manager loading and the memfd
+  loader); `build_tanoshi.sh` applies them.
+
+### Changed
+
+- The app's extension management no longer requires shipping a new APK for
+  each extension: installing/updating/removing happens in the Sources tab and
+  takes effect after a server restart. Bundled plugins still ship inside the
+  APK, and extension compatibility (exact Tanoshi/`tanoshi-lib` version,
+  `arm64-v8a`) is unchanged.
+- **Version 0.5.0:** `versionCode` 5 in the Gradle default; the
+  `android-v0.5.0` tag produces `versionCode` 500. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes / limitations
+
+- Extensions are native code for the exact Tanoshi version/ABI; the app
+  cannot compile them on-device and cannot install Tachiyomi/Keiyoushi `.apk`
+  extensions. Only catalog-listed `.so` plugins are accepted.
+- Only install extensions you trust: they run with the Tanoshi server's
+  privileges. Installs are SHA-256/size checked; the catalog and binaries come
+  from this repository's `main` branch.
+- The catalog and plugin downloads require network access to GitHub; a server
+  restart is required for changes to take effect; the memfd loader is
+  best-effort.
 
 ## 0.4.0
 

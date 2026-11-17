@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,8 +29,10 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,6 +60,7 @@ import dev.spainclaro.tanoshi.server.ServerStateRepository
 import dev.spainclaro.tanoshi.server.TanhoshiService
 import dev.spainclaro.tanoshi.settings.AppSettings
 import dev.spainclaro.tanoshi.ui.screens.BrowserScreen
+import dev.spainclaro.tanoshi.ui.screens.ExtensionsScreen
 import dev.spainclaro.tanoshi.ui.screens.LogsScreen
 import dev.spainclaro.tanoshi.ui.screens.ServerScreen
 import dev.spainclaro.tanoshi.ui.screens.SettingsScreen
@@ -66,6 +70,7 @@ import kotlinx.coroutines.launch
 
 private enum class RootTab(val labelRes: Int, val icon: ImageVector) {
     SERVER(R.string.nav_server, Icons.Filled.Dns),
+    SOURCES(R.string.nav_sources, Icons.Filled.Extension),
     LOGS(R.string.nav_logs, Icons.AutoMirrored.Filled.Article),
     SETTINGS(R.string.nav_settings, Icons.Filled.Settings),
 }
@@ -86,6 +91,7 @@ fun TanoshiRoot(
     val snapshot by ServerStateRepository.state.collectAsStateWithLifecycle()
     val logs by ServerStateRepository.logs.collectAsStateWithLifecycle()
     val adminDialog by viewModel.adminDialog.collectAsStateWithLifecycle()
+    val extensionsViewModel: ExtensionsViewModel = viewModel()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -149,6 +155,45 @@ fun TanoshiRoot(
             )
         }
     }
+    val restartServer: () -> Unit = {
+        runCatching { TanhoshiService.restart(context) }.onFailure { error ->
+            showMessage(
+                context.getString(
+                    R.string.extensions_restart_failed,
+                    error.message ?: context.getString(R.string.settings_unknown_error),
+                ),
+            )
+        }
+    }
+
+    // Extension installs/removals only take effect after the server restarts, so
+    // offer the restart inline in a snackbar action.
+    LaunchedEffect(extensionsViewModel) {
+        extensionsViewModel.events.collect { event ->
+            when (event) {
+                is ExtensionsEvent.ShowMessage -> showMessage(event.text)
+
+                ExtensionsEvent.RestartRequired -> {
+                    val running = ServerStateRepository.state.value.state == RunState.RUNNING
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.extensions_restart_snackbar),
+                        actionLabel = context.getString(
+                            if (running) {
+                                R.string.extensions_restart_action
+                            } else {
+                                R.string.extensions_start_action
+                            },
+                        ),
+                        withDismissAction = true,
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        if (running) restartServer() else startServer()
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -195,6 +240,13 @@ fun TanoshiRoot(
                         onOpenInApp = { browserVisible = true },
                         onViewLogs = { selectedTabName = RootTab.LOGS.name },
                         onShowMessage = showMessage,
+                    )
+
+                    RootTab.SOURCES -> ExtensionsScreen(
+                        viewModel = extensionsViewModel,
+                        serverRunning = snapshot.state == RunState.RUNNING,
+                        onStartServer = startServer,
+                        onRestartServer = restartServer,
                     )
 
                     RootTab.LOGS -> LogsScreen(
