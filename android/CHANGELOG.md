@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.6.0`). The Termux package in the repository root has
+(for example `android-v0.7.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,54 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.7.0
+
+### Changed
+
+- **Extension management is app-only; the embedded web UI is backend-only.**
+  The Tanoshi web UI was rebuilt from source and now hides the extension
+  controls that never worked on Android:
+  - Settings → Sources no longer renders the **Available** sources list
+    (only **Installed** is shown),
+  - the source list no longer has **Install/Update** buttons,
+  - the per-source settings page no longer has an **Uninstall** button.
+  Installed sources and their per-source preferences still work. Adding,
+  updating, reinstalling, disabling and removing extensions is done only in
+  the app's **Sources** tab. Implemented with a new
+  `android/native/patches/0003-web-ui-hide-source-management.patch` applied on
+  top of `patches/tanoshi-infinite-scroll.patch`; the rebuilt wasm dist is
+  vendored in `android/native/web-dist/` and embedded in `libtanoshi.so`.
+  The infinite-scroll catalogue is preserved.
+- **Built-in extension repository moved to `tanoshi-extension`.** The app's
+  built-in repository now points at
+  `https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/index.json`
+  (label `tanoshi-extension (default)`) instead of this repository's catalog.
+  The dedicated public repository
+  [spainclaro-debug/tanoshi-extension](https://github.com/spainclaro-debug/tanoshi-extension)
+  hosts the nine prebuilt `aarch64-linux-android` plugins
+  (`android/extensions/plugins/lib<name>.so`), the catalog
+  (`android/extensions/index.json` plus a root `tanoshi-extensions.json`), the
+  ported extension sources (`sources/`), the patches and
+  `tools/build_extension.sh`; its README notes it is Android/Tanoshi-Mobile-
+  Server-only. It can also be added manually in **Sources → Add repository**
+  with the GitHub link `https://github.com/spainclaro-debug/tanoshi-extension`
+  or the raw index URL. This repository keeps its
+  `android/extensions/index.json` and exported sources/tooling for
+  back-compatibility and tooling; **`tanoshi-extension` is the canonical
+  catalog**.
+- **Version 0.7.0:** `versionCode` 7 in the Gradle default; the
+  `android-v0.7.0` tag produces `versionCode` 700. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- Extension compatibility is unchanged: plugins must be built for the bundled
+  Tanoshi/`tanoshi-lib` ABI (`0.38.0`) and `arm64-v8a`; the app still cannot
+  compile extensions on-device (use the `tanoshi-extension` sources +
+  `tools/build_extension.sh` on Termux or a desktop with the Android NDK).
+- The web UI keeps its own theme and infinite-scroll behaviour; only the
+  extension-management controls were removed.
 
 ## 0.6.0
 

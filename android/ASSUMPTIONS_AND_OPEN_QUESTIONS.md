@@ -223,7 +223,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.6.0 / 6, local date).
+three to Gradle; local builds use the Gradle defaults (0.7.0 / 7, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -276,9 +276,9 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.6.0 / versionCode
-6 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
-`android-v0.6.0` is 600), independent of the bundled Tanoshi server (0.40.0 /
+The app follows its own `android-vX.Y.Z` version scheme (0.7.0 / versionCode
+7 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
+`android-v0.7.0` is 700), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
 separately.
@@ -400,7 +400,13 @@ cpu`) and document the workaround with its trade-offs.
 ### A27 — Extensions are installed from merged repository catalogs
 
 The bottom nav has a **Sources** tab (order: Server, Sources, Logs, Settings).
-It manages a built-in repository plus up to 10 custom repositories (A30),
+It manages a built-in repository plus up to 10 custom repositories (A30); the
+built-in default is now the dedicated
+[`tanoshi-extension`](https://github.com/spainclaro-debug/tanoshi-extension)
+repository (raw `main/android/extensions/index.json`, label
+`tanoshi-extension (default)`), while the local
+`android/extensions/index.json` in this repo is kept for tooling/back-compat.
+It
 lists the bundled plugins plus user copies with badges (Bundled / Installed by
 you / Overrides bundled / Ported to Rust / Update available / Disabled / the
 source repository label) and provides **Add extension**. The app fetches every
@@ -421,9 +427,9 @@ install/update/remove/enable/disable marks **restart required**; the UI offers
 Restart/Start server.
 
 *If wrong:* the app could install incompatible or untrusted plugin files. The
-docs state the trust boundary (built-in repo `main` branch and third-party
-custom catalogs), that hashes are integrity not signatures, and that only
-reviewed catalog entries should be published.
+docs state the trust boundary (the `tanoshi-extension` built-in repo and
+third-party custom catalogs), that hashes are integrity not signatures, and
+that only reviewed catalog entries should be published.
 
 ### A28 — User extensions are loaded via memfd + `android_dlopen_ext`
 
@@ -498,8 +504,10 @@ Constraints: at most **10** custom repositories; duplicates (same catalog URL,
 or the same GitHub `owner/repo` label) are a no-op returning the existing
 repository. Repositories are persisted in `AppSettings.extensionRepositoriesJson`
 (a JSON array of catalog URLs) in insertion order; the built-in
-`tanoshi-termux` repository (label `tanoshi-termux (default)`) is synthesised
-first, cannot be removed and is not stored in the list. The displayed
+`tanoshi-extension` repository (label `tanoshi-extension (default)`) is
+synthesised first, cannot be removed and is not stored in the list. Adding
+`https://github.com/spainclaro-debug/tanoshi-extension` explicitly resolves to
+the same raw catalog URL and is deduplicated against the built-in entry. The displayed
 repository list is built-in first, then custom repositories in insertion
 order. Catalogs are fetched/merged in that order and deduplicated by
 normalized extension name with earlier entries winning; a failing repository
@@ -518,18 +526,42 @@ Extensions can be disabled without deleting them. The state lives in
 normalized extension name per line: `#` comments and blank lines are ignored,
 an optional `lib` prefix and `.so` suffix are stripped, names are lowercased.
 The server reads it at plugin load time (missing file = nothing disabled) and
-skips the listed keys; both the app and Tanoshi's own web-UI uninstall flow
-write it. The app rewrites the file atomically (sorted names, deletes the file
-when the set becomes empty) for **Enable/Disable** on bundled and user
-extensions. **Remove** (user copy only) deletes `<name>.so` and clears the
-marker entry so a bundled copy becomes active again; **Reinstall/Update**
-clears the marker too. Web-UI uninstall deletes a user copy or writes the
-marker for a bundled extension. The Sources tab shows a **Disabled** badge and
-Enable/Disable actions; every change needs a server restart.
+skips the listed keys. The app wrote it from 0.6.0 for **Enable/Disable** on
+bundled and user extensions and still rewrites it atomically (sorted names,
+deletes the file when the set becomes empty). From 0.7.0 the embedded web UI
+no longer exposes uninstall, but the server keeps the uninstall handling for
+older clients: it deletes a user copy and clears the marker, or writes the
+marker for a bundled extension. **Remove** in the app (user copy only) deletes
+`<name>.so` and clears the marker entry so a bundled copy becomes active
+again; **Reinstall/Update** clears the marker too. The Sources tab shows a
+**Disabled** badge and Enable/Disable actions; every change needs a server
+restart.
 
 *If wrong:* extensions could be hidden without an obvious way back, or stale
 marker entries could keep a source disabled; the docs/UI expose the Disabled
 badge and the Enable action, and removing a user copy clears the marker.
+
+### A32 — Extension management is backend-only (app), not in the web UI
+
+From 0.7.0 the embedded Tanoshi web UI is deliberately **backend-only** for
+extensions. Settings → Sources renders only the **Installed** source list
+and per-source preferences; it no longer renders the **Available** sources
+list, the source-list **Install/Update** buttons, or the per-source
+**Uninstall** button. Those controls never worked on Android, where plugins
+are native `.so` files installed by the app and loaded by the server only at
+startup; the web-UI backend install path would fail or target a different
+distribution format.
+
+Implementation: the wasm frontend was rebuilt from source with
+`patches/tanoshi-infinite-scroll.patch` and
+`native/patches/0003-web-ui-hide-source-management.patch`; the resulting dist
+is vendored in `android/native/web-dist/` and embedded in `libtanoshi.so`.
+The infinite-scroll catalogue is unaffected. Extension management remains in
+the app's **Sources** tab only (A27).
+
+*If wrong:* users could be confused by a web UI that looks less capable than
+the app, or someone could re-enable controls that do not work; the docs/UI
+state that extension management is app-only and point to the Sources tab.
 
 ---
 
@@ -626,10 +658,11 @@ successful APK release.
 
 ### Q11 — How should extension updates be delivered?
 
-**Resolved (0.5.0, extended 0.6.0):** per-extension install/update/remove
-from the **Sources** tab, backed by the built-in catalog plus custom
-repositories added by URL (A30); enable/disable uses the `.tanoshi-disabled`
-marker (A31). Publishing/updating a catalog entry reaches installed apps
+**Resolved (0.5.0, extended 0.6.0/0.7.0):** per-extension
+install/update/remove from the **Sources** tab, backed by the built-in
+`tanoshi-extension` catalog plus custom repositories added by URL (A30);
+enable/disable uses the `.tanoshi-disabled` marker (A31). The web UI no longer
+offers extension management at all (A32). Publishing/updating a catalog entry reaches installed apps
 without a new APK; a server restart is required to load the change. There is
 still no automatic/background extension update check (the user taps
 Install/Update), no per-extension auto-update, and no on-device compilation of
@@ -685,3 +718,11 @@ parseable catalog, HTTPS `.so` URLs, name/size/SHA-256 checks) and shows the
 repository label/failure warnings, but cannot vet content; the UI/docs warn
 that custom repositories are third-party native code and a trust decision (see
 A29/A30).
+
+### Q18 — Should the embedded web UI keep extension install/uninstall controls?
+
+**Resolved (owner, 0.7.0):** no. The embedded Tanoshi web UI is backend-only
+for extensions: the Available list and the Install/Update/Uninstall controls
+are hidden because they never worked on Android. Installed sources and
+per-source preferences remain in the web UI, and all extension management
+happens in the app's Sources tab. See A32.

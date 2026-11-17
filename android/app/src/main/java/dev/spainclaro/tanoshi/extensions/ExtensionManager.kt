@@ -971,10 +971,10 @@ class ExtensionManager(context: Context) {
     companion object {
         /** Catalog of prebuilt extensions hosted in this repository. */
         const val CATALOG_URL =
-            "https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/extensions/index.json"
+            "https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/index.json"
 
         /** Label shown for the built-in repository. */
-        const val DEFAULT_REPO_LABEL = "tanoshi-termux (default)"
+        const val DEFAULT_REPO_LABEL = "tanoshi-extension (default)"
 
         private const val TAG = "ExtensionManager"
         private const val USER_AGENT = "Tanoshi-Android"

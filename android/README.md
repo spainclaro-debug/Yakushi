@@ -5,18 +5,19 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.6.0** — see the
+Current release: **0.7.0** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). It builds on the Sources tab with
-**custom extension repositories** (add a direct `index.json` URL or a GitHub
-repo link), real **Enable/Disable/Uninstall** for bundled and user extensions
-(persisted in the server's `.tanoshi-disabled` marker), a fix so the server no
-longer mistakes `libtanoshi.so`/`libarchive.so`/AndroidX support libraries for
-extensions, and **exported ported-extension sources + `build_extension.sh`**
-for porting/building more `.so` plugins. The APK name is unchanged
-(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It includes the 0.5.0
-Sources/Add extension functionality and the earlier keep-alive/watchdog, LAN
-QR sharing and 0.2.0 features.
+and [`CHANGELOG.md`](CHANGELOG.md). It makes extension management **app-only**:
+the embedded Tanoshi web UI no longer shows the "Available" sources list or the
+non-working Install/Update/Uninstall buttons (it still lists installed sources
+and their preferences), so the app's **Sources** tab is the one place to
+manage extensions. The built-in extension repository now points at the
+dedicated [**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
+repository, which hosts the prebuilt plugins, catalog, ported sources and
+`tools/build_extension.sh`. The APK name is unchanged
+(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It includes the 0.6.0
+custom repositories / Enable/Disable / exported-sources tooling and the
+earlier features.
 
 This directory is the Android Gradle project (`dev.spainclaro.tanoshi`).
 The `arm64-v8a` native binaries are prebuilt and checked in, so building the
@@ -34,7 +35,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.6.0](#whats-new-in-060)
+- [What's new in 0.7.0](#whats-new-in-070)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -84,44 +85,35 @@ and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
 
-## What's new in 0.6.0
+## What's new in 0.7.0
 
-- **Custom extension repositories** — **Sources → Add repository** accepts a
-  direct HTTPS catalog `index.json` URL or a GitHub repository link
-  (`https://github.com/<owner>/<repo>`). GitHub links resolve
-  `raw.githubusercontent.com/<owner>/<repo>/{main,master}/android/extensions/index.json`
-  (then `tanoshi-extensions.json`); custom repositories are persisted, the
-  built-in repository is always present, and catalogs from all repositories
-  are merged (deduplicated by extension name, earlier/built-in entries win)
-  with a per-repository failure warning and Retry. See
-  [Custom extension repositories](#custom-extension-repositories).
-- **Real Enable/Disable/Uninstall** — bundled extensions can now be disabled
-  persistently via `files/tanoshi/plugins/.tanoshi-disabled` (the server skips
-  them on the next start); user-installed copies are deleted on uninstall and
-  the marker is cleared so the bundled copy becomes active again. The Sources
-  tab shows a **Disabled** badge and **Enable/Disable** actions, installing or
-  updating an extension clears its disabled marker, and Tanoshi's own web-UI
-  uninstall works for bundled sources too (it writes the marker instead of
-  failing on the read-only file). See
-  [Enable, disable and uninstall](#enable-disable-and-uninstall).
-- **Quieter, correct startup** — the server no longer treats `libtanoshi.so`,
-  `libarchive.so` or AndroidX/datastore support libraries in
-  `nativeLibraryDir` as extensions, so the old
-  `undefined symbol: plugin_declaration` errors are gone.
-- **Exported extension sources and build tooling** —
-  [`extensions/sources/`](extensions/sources/) contains the five Rust-ported
-  extensions (`atsumaru`, `hentainexus`, `madaradex`, `mangaball`, `qiscans`),
-  a `template/` crate for new ports and a README; a zip snapshot
-  (`extensions/tanoshi-extension-sources-2026-11-17.zip`) is committed next
-  to it. There is a new
-  [`native/build_extension.sh`](native/build_extension.sh) that builds a crate
-  for `aarch64-linux-android`, strips it into `extensions/plugins/` and prints
-  a ready-to-paste catalog entry, plus [`extensions/repo-template/`](extensions/repo-template/)
-  showing the repository layout the app expects. See
-  [Porting and publishing extensions](#porting-and-publishing-extensions).
-- **Version 0.6.0** — `versionCode` 6 in local builds; the `android-v0.6.0`
-  tag produces 600. The APK filename scheme is unchanged. Includes the 0.5.0
-  Sources/Add extension functionality and all earlier features.
+- **Extension management is app-only** — the embedded Tanoshi web UI now
+  renders **backend-only**: Settings → Sources shows only the **Installed**
+  sources list (the **Available** list is gone), the source list no longer has
+  **Install/Update** buttons, and the per-source settings page no longer has
+  an **Uninstall** button. Those controls never worked on Android, where
+  plugins are native files loaded by the server. Adding, updating,
+  reinstalling, disabling and removing extensions is done **only** in the
+  app's [Sources tab](#extensions-sources-tab). See
+  [The embedded web UI](#the-embedded-web-ui).
+- **Dedicated extension repository: `tanoshi-extension`** — the built-in
+  repository now points at
+  [github.com/spainclaro-debug/tanoshi-extension](https://github.com/spainclaro-debug/tanoshi-extension)
+  (raw `main/android/extensions/index.json`, label **`tanoshi-extension
+  (default)`**). It hosts the nine prebuilt `aarch64-linux-android` plugins,
+  the catalog (plus a root `tanoshi-extensions.json`), the ported extension
+  sources, patches and `tools/build_extension.sh`. It can also be added
+  manually with the GitHub link or the raw catalog URL — see
+  [The extension catalog](#the-extension-catalog).
+- **Web UI rebuilt from source** — the embedded wasm frontend was rebuilt
+  with `patches/tanoshi-infinite-scroll.patch` +
+  `native/patches/0003-web-ui-hide-source-management.patch`; the infinite-scroll
+  catalogue is preserved and the rebuilt dist is vendored in
+  `android/native/web-dist/` and embedded in `libtanoshi.so`.
+- **Version 0.7.0** — `versionCode` 7 in local builds; the `android-v0.7.0`
+  tag produces 700. The APK filename scheme is unchanged. Includes the 0.6.0
+  custom repositories / Enable/Disable / exported-sources tooling and all
+  earlier features.
 
 Full details: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -185,12 +177,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.6.0**,
-`versionCode` 6) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.7.0**,
+`versionCode` 7) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.6.0 -PappVersionCode=600 \
+./gradlew :app:assembleDebug -PappVersionName=0.7.0 -PappVersionCode=700 \
   -PapkDate=2026-11-14
 ```
 
@@ -251,18 +243,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.6.0`. For a tag, CI derives everything from the tag and
+example `android-v0.7.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.6.0` → `600`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.7.0` → `700`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.6.0 /
-versionCode 6) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.7.0 /
+versionCode 7) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -413,8 +405,22 @@ serves it over the loopback HTTP port. The app's **Open in app** screen is a
 `WebView` pointed at that URL, and **Open in browser** hands the URL to your
 browser. Both show exactly the same UI.
 
-**Catalogue infinite scroll (0.2.0).** The embedded UI was rebuilt from the
-package-3 web dist, which includes `patches/tanoshi-infinite-scroll.patch`. A
+**Extension management is app-only (0.7.0).** The embedded web UI is
+**backend-only** for extensions: Settings → Sources shows only the
+**Installed** sources list and each source's preferences — the
+**Available** sources list, the source-list **Install/Update** buttons and the
+per-source **Uninstall** button are hidden (they never worked on Android,
+where extensions are native `.so` files loaded by the server). Adding,
+updating, reinstalling, disabling and removing extensions is done exclusively
+in the app's [Sources tab](#extensions-sources-tab).
+
+**Rebuilt from source (0.7.0).** The embedded dist was rebuilt from the
+Tanoshi web workspace with `patches/tanoshi-infinite-scroll.patch` (the
+auto-loading catalogue) and `native/patches/0003-web-ui-hide-source-management.patch`
+(the extension-management hide), then vendored in `android/native/web-dist/`
+and embedded in `libtanoshi.so`. The infinite-scroll catalogue is preserved.
+With the original setup, a sentinel below the catalogue grid
+(`catalogue-scroll-sentinel`) is watched with
 sentinel below the catalogue grid (`catalogue-scroll-sentinel`) is watched with
 an `IntersectionObserver`: when it comes within about 600 px of the viewport,
 the next page is fetched automatically, so normally you never have to press
@@ -449,7 +455,7 @@ its own theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.6.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.7.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -503,12 +509,12 @@ install, update, enable, disable and remove extensions.
 
 ### What the tab shows
 
-- **Repositories** lists the built-in `tanoshi-termux` repository (labelled
-  **Default**, cannot be removed) and every custom repository you added, with
-  its catalog URL and a Remove action. **Add repository** accepts a direct
-  HTTPS `index.json` URL or a GitHub repository link — see
-  [Custom extension repositories](#custom-extension-repositories). A refresh
-  button in the header reloads repositories and catalogs.
+- **Repositories** lists the built-in **`tanoshi-extension`** repository
+  (label **`tanoshi-extension (default)`**, cannot be removed) and every custom
+  repository you added, with its catalog URL and a Remove action. **Add
+  repository** accepts a direct HTTPS `index.json` URL or a GitHub repository
+  link — see [Custom extension repositories](#custom-extension-repositories).
+  A refresh button in the header reloads repositories and catalogs.
 - If a repository cannot be fetched, a **"Some repositories could not be
   loaded"** card lists each failure (`label: reason`) with a **Retry** action;
   the other repositories still load.
@@ -548,9 +554,14 @@ The server is not touched while installing; the restart loads the new file.
 
 ### The extension catalog
 
-[`extensions/index.json`](extensions/index.json) is the built-in catalog — a
-plain JSON document served over raw.githubusercontent.com from this
-repository's `main` branch. Custom repositories use the same format:
+The built-in catalog is served from the dedicated
+[`tanoshi-extension`](https://github.com/spainclaro-debug/tanoshi-extension)
+repository at
+`https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/index.json`
+(it also mirrors the catalog as a root `tanoshi-extensions.json`). The copy in
+this repository at [`extensions/index.json`](extensions/index.json) is kept for
+tooling/back-compatibility; **tanoshi-extension is the canonical catalog**.
+Custom repositories use the same format:
 
 ```json
 {
@@ -560,8 +571,8 @@ repository's `main` branch. Custom repositories use the same format:
     {
       "name": "mangadex",
       "displayName": "MangaDex",
-      "description": "MangaDex source (bundled with the app).",
-      "url": "https://raw.githubusercontent.com/spainclaro-debug/tanoshi-termux/main/android/app/src/main/jniLibs/arm64-v8a/libmangadex.so",
+      "description": "MangaDex source for the Tanoshi mobile server.",
+      "url": "https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/plugins/libmangadex.so",
       "sha256": "d6b0e83f3b02e180f4d65e09fa083bcd14f8b10ccee1bd11ff7983b6566c7a47",
       "size": 4461728,
       "ported": false
@@ -582,9 +593,18 @@ repository's `main` branch. Custom repositories use the same format:
 | `ported` | no | `true` for extensions ported to Rust in this repository; shows the "Ported to Rust" badge (defaults `false`). |
 
 Malformed entries are skipped without hiding the rest of that catalog. The
-nine entries in the built-in catalog mirror the nine bundled plugins: their
-URLs point at the checked-in `jniLibs` files and their `sha256`/`size` match
-exactly.
+nine entries in the built-in catalog mirror the nine plugins prebuilt in
+`tanoshi-extension` (`android/extensions/plugins/lib<name>.so`), with matching
+`sha256`/`size`; the same plugin files are bundled in the APK so a fresh
+install already has all nine. The `tanoshi-extension` repo also contains the
+ported sources (`sources/`), the patches used to build the plugins, and
+`tools/build_extension.sh`.
+
+You can also add that repository manually in
+**Sources → Add repository**, with either:
+
+- `https://github.com/spainclaro-debug/tanoshi-extension`, or
+- `https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/index.json`.
 
 ### Custom extension repositories
 
@@ -608,7 +628,7 @@ and stores the first URL that returns a non-empty, valid catalog. A direct URL
 is fetched and validated immediately (it must be HTTPS, parse as a catalog and
 list at least one extension). Custom repositories are persisted in the app's
 settings, up to **10** of them; duplicates are a no-op. The built-in
-`tanoshi-termux` repository is always present and cannot be removed or
+`tanoshi-extension` repository is always present and cannot be removed or
 disabled. Removing a custom repository only removes it from the app list —
 extensions you installed from it stay installed.
 
@@ -636,10 +656,13 @@ change below needs a **server restart** (the app offers it).
 - **Reinstall / Update** (app): replaces the user copy (or installs one over a
   bundled extension) and **clears** the disabled marker, re-enabling the
   source.
-- **Uninstall from Tanoshi's web UI** also works now: for a user-installed
-  copy the server deletes the file; for a bundled extension it writes the same
+- **From 0.7.0 the web UI no longer exposes uninstall.** The server still has
+  the uninstall handling for older clients: for a user-installed copy it
+  deletes the file; for a bundled extension it writes the same
   `.tanoshi-disabled` marker instead of trying to delete the read-only plugin.
-- Bundled extensions disabled/uninstalled this way stay visible in the app as
+  In the app, use **Disable** for bundled extensions and **Remove** for user
+  copies.
+- Bundled extensions disabled this way stay visible in the app as
   **Disabled**; use **Enable** to bring them back. A removed user-installed
   copy with no bundled equivalent disappears from **Installed** (it can be
   reinstalled from **Add extension**, and the disabled marker was cleared).
@@ -680,62 +703,74 @@ Android 10+ forbids executing or `dlopen()`ing code from app-writable storage
 
 ### Porting and publishing extensions
 
-The app cannot compile extensions on-device, but the sources and tooling are
-exported so you can build plugins on the phone (Termux) or on a desktop with
-the Android NDK:
+The canonical extension repository is
+[**`tanoshi-extension`**](https://github.com/spainclaro-debug/tanoshi-extension).
+It contains everything needed to build and publish plugins:
 
-- [`extensions/sources/`](extensions/sources/) contains the Rust sources of the
-  five extensions ported to Tanoshi (`atsumaru`, `hentainexus`, `madaradex`,
-  `mangaball`, `qiscans`), a `template/` scaffold crate for a new port, and a
-  README explaining the workspace, dependencies and conventions. They are
-  `cdylib` crates that must be built inside the
-  `luigi311/tanoshi-extensions` workspace (the script sets that up).
-- [`extensions/tanoshi-extension-sources-2026-11-17.zip`](extensions/tanoshi-extension-sources-2026-11-17.zip)
-  is a snapshot of the sources, template, build script and repo template for
-  easy sharing.
-- [`native/build_extension.sh`](native/build_extension.sh) clones
-  `luigi311/tanoshi-extensions`, applies this repository's
-  `patches/networking-helpers.patch` (+ icon patch when available), copies the
-  requested crate(s) in, builds for `aarch64-linux-android` (16 KB-page
-  aligned), strips the result into `android/extensions/plugins/lib<name>.so`,
-  and prints the SHA-256, size and a ready-to-paste catalog entry. Examples:
+```
+tanoshi-extension/
+├── android/extensions/
+│   ├── index.json                 # catalog the app fetches
+│   └── plugins/lib<name>.so       # prebuilt aarch64 plugins (9)
+├── tanoshi-extensions.json        # same catalog at the repo root (convenience)
+├── sources/                       # Rust sources of the five ported extensions + template
+├── patches/                       # patches applied to the tanoshi-extensions workspace
+├── tools/build_extension.sh       # build a source into plugins/lib<name>.so
+└── README.md
+```
 
-  ```bash
-  # all five ported extensions
-  bash android/native/build_extension.sh
-  # one crate (e.g. a template copy you are porting)
-  bash android/native/build_extension.sh --crate android/extensions/sources/template
-  ```
+The app's built-in repository points at this repo's
+`android/extensions/index.json` (label `tanoshi-extension (default)`); you can
+also add it manually with the GitHub link or the raw catalog URL (see
+[The extension catalog](#the-extension-catalog)).
 
-- [`extensions/repo-template/`](extensions/repo-template/) shows the layout a
-  repository needs: `android/extensions/index.json` plus the `.so` files (for
-  example under `android/extensions/plugins/`). Host it on GitHub, then add the
-  repository link in the app (see
-  [Custom extension repositories](#custom-extension-repositories)).
+This repository keeps copies of the same tooling for back-compatibility:
+[`extensions/sources/`](extensions/sources/) (sources + template),
+[`extensions/tanoshi-extension-sources-2026-11-17.zip`](extensions/tanoshi-extension-sources-2026-11-17.zip)
+and [`native/build_extension.sh`](native/build_extension.sh). They behave the
+same way as the `tanoshi-extension` versions; the dedicated repo is where the
+published plugins/catalog live.
 
-Publishing checklist for a new source:
+Building a source (Termux on the phone, or a desktop with `ANDROID_NDK_HOME`):
 
-1. Copy `template/` to a new crate directory, rename the crate, give it a
-   unique extension `ID`, and implement the `Extension` trait methods (the
-   ported crates are the reference). Build it with `build_extension.sh`.
-2. Upload the `.so` over HTTPS (commit it to a repository or attach it to a
-   release) and copy the SHA-256/size printed by the script.
-3. Create/refresh the repository's `android/extensions/index.json` with the
-   entry (`name`, `displayName`, `description`, HTTPS `url`, `sha256`, `size`,
-   `ported`). Commit/push.
-4. In the app: **Sources → Add repository** with your GitHub link (or the
-   direct raw `index.json` URL), then **Add extension → Install** and restart
-   the server.
+```bash
+# in tanoshi-extension: build all five ported extensions...
+bash tools/build_extension.sh
+# ...or one crate (e.g. a template copy you are porting)
+bash tools/build_extension.sh --crate sources/ported/mysource
+```
 
-Requirements and caveats: the plugin must be built for the **same
-Tanoshi/`tanoshi-lib` version**
-(`0.38.0` for Tanoshi `0.40.0`; a mismatch is reported in the Logs and the
-plugin is ignored) and the device ABI (`arm64-v8a`). The build script needs a
-Rust toolchain (Termux's native `aarch64-linux-android` toolchain, or a desktop
-with `ANDROID_NDK_HOME`); building is not possible from the app itself. Custom
-repository catalogs are **third-party content**: only add repositories and
-install plugins you trust — plugins run as native code with the server's
-privileges.
+The script clones `luigi311/tanoshi-extensions`, applies the repo's
+`patches/`, copies the crate in, builds for `aarch64-linux-android` (16 KB-page
+aligned), strips it to `android/extensions/plugins/lib<name>.so`, and prints
+the SHA-256, size and a ready-to-paste catalog entry. The
+`tanoshi-termux` copy is at `android/native/build_extension.sh` and writes to
+`android/extensions/plugins/` instead.
+
+Publishing a new source to `tanoshi-extension`:
+
+1. Copy `sources/template/` to `sources/ported/<your-source>/`, rename the
+   crate, give it a unique extension `ID`, and implement the `Extension` trait
+   methods (the five ported crates are the reference). Build it with
+   `tools/build_extension.sh`.
+2. Commit the built `android/extensions/plugins/lib<name>.so` and add/refresh
+   the entry in `android/extensions/index.json` (and root
+   `tanoshi-extensions.json`) with `name`, `displayName`, `description`, HTTPS
+   `url`, `sha256`, `size`, `ported`.
+3. Commit/push; the app shows the new/updated entry on the next **Sources →
+   Add extension** catalog refresh (and **Update available** when a catalog
+   hash changes).
+4. To publish your own extension repository instead, the same layout works —
+   see `android/extensions/repo-template/` in this repository — then add its
+   GitHub link or raw `index.json` URL in **Sources → Add repository**.
+
+Requirements and caveats: a plugin must be built for the **same
+Tanoshi/`tanoshi-lib` version** (`0.38.0` for Tanoshi `0.40.0`; a mismatch is
+reported in the Logs and the plugin is ignored) and the device ABI
+(`arm64-v8a`). The app cannot compile extensions on-device; porting/building
+happens on Termux or a desktop with the Android NDK. Published plugins are
+native code and run with the server's privileges — only publish/install what
+you trust.
 
 ### Limitations and security
 
@@ -845,8 +880,9 @@ the Sources tab) and `nativeLibraryDir` (the nine bundled `lib<name>.so` files,
 passed to the server as `TANOSHI_PLUGIN_LOAD_DIR`). A user copy with the same
 name overrides the bundled one. The writable directory also holds the
 `.tanoshi-disabled` marker: every extension key listed there is skipped at
-startup (used by the app's Enable/Disable actions and by web-UI uninstalls of
-bundled sources). Server executable and support libraries in
+startup (used by the app's Enable/Disable actions, and by the server's
+uninstall handling for older web-UI builds that still exposed it). Server
+executable and support libraries in
 `nativeLibraryDir` (`libtanoshi.so`, `libarchive.so`, AndroidX/datastore libs)
 are explicitly not treated as extensions.
 
@@ -1203,28 +1239,39 @@ non-16-character secrets on start), an unwritable data directory, or a crashed
 plugin build. Restarting the app regenerates missing directories; deleting
 `config.yml` makes the app generate a fresh one.
 
-**A source/extension does not appear in the web UI.** Open the **Sources** tab
-to check it is listed and not marked **Disabled**, and **restart the server**
-after installing, updating, enabling/disabling or removing it — Tanoshi reads
-plugins and `.tanoshi-disabled` only at startup. If it is listed but still
-missing, the plugin's `tanoshi-lib` ABI (0.38.0 for Tanoshi 0.40.0) or
-`arm64-v8a` target does not match the bundled server; the Logs tab reports the
-failed load. Remove/Disable the user copy in Sources to fall back to the
-bundled extension.
+**The web UI has no Install/Update button or "Available" sources list, and no
+Uninstall button on a source page.** This is intentional from 0.7.0: the
+embedded web UI is **backend-only** for extensions (those controls never
+worked on Android). Use the app's **Sources** tab to install/update/reinstall/
+disable/remove extensions; the web UI still lists installed sources and their
+preferences.
 
-**An extension shows "Disabled" after I uninstalled it in Tanoshi's web UI.**
-That is expected for bundled extensions: their APK files are read-only, so a
-web-UI uninstall writes the server's `.tanoshi-disabled` marker instead of
-deleting the file. The app shows it as Disabled; tap **Enable** and restart the
-server to load it again. Uninstalling a user-installed copy deletes the file
-and clears the marker, so the bundled extension becomes active again.
+**A source/extension does not appear in the web UI or the app.** Open the
+**Sources** tab to check it is listed and not marked **Disabled**, and
+**restart the server** after installing, updating, enabling/disabling or
+removing it — Tanoshi reads plugins and `.tanoshi-disabled` only at startup.
+If it is listed in the app but not the web UI after a restart, the plugin's
+`tanoshi-lib` ABI (0.38.0 for Tanoshi 0.40.0) or `arm64-v8a` target does not
+match the bundled server; the Logs tab reports the failed load. Remove/Disable
+the user copy in Sources to fall back to the bundled extension.
+
+**An extension shows "Disabled" after a disable/uninstall.** That is expected
+for bundled extensions: their APK files are read-only, so disabling (or an
+uninstall in 0.6/older builds whose web UI still had the button) writes the
+server's `.tanoshi-disabled` marker instead of deleting the file. The app
+shows it as Disabled; tap **Enable** and restart the server to load it again.
+Removing a user-installed copy deletes the file and clears the marker, so the
+bundled extension becomes active again.
 
 **"Add repository" rejects my link.** Only `https://` input is accepted: either
 a direct catalog URL ending in `.json`, or a GitHub repository link such as
 `https://github.com/owner/repo` (`.git`/trailing slash allowed). For a GitHub
 link the app probes `main`/`master` for `android/extensions/index.json` and
 `tanoshi-extensions.json`; if none exists there is no catalog to add. You can
-have at most 10 custom repositories; adding a duplicate is a no-op.
+have at most 10 custom repositories; adding a duplicate is a no-op. The
+built-in default already points at
+[`tanoshi-extension`](https://github.com/spainclaro-debug/tanoshi-extension);
+adding that repo explicitly is unnecessary but harmless.
 
 **"Some repositories could not be loaded" / one repository is missing from the
 catalog.** Only that repository failed (network, GitHub rate limit, deleted
@@ -1234,10 +1281,11 @@ added catalog entry appears only after its repository's `main`/`master` branch
 is updated.
 
 **The Sources catalog will not load / "Add extension" is empty.** Every
-configured catalog is fetched over HTTPS (built-in + custom), so it needs
-network access (GitHub can be unreachable or rate-limited). Check the
-per-repository failure card and use Retry; extensions that are already
-installed keep working.
+configured catalog is fetched over HTTPS (built-in `tanoshi-extension` +
+custom), so it needs network access (GitHub can be unreachable or
+rate-limited). Check the per-repository failure card and use Retry; extensions
+that are already installed keep working. The legacy catalog in the
+`tanoshi-termux` repo is not used by the app by default anymore.
 
 **Old builds logged `undefined symbol: plugin_declaration`.** That was the
 server trying to load support libraries from `nativeLibraryDir` as
@@ -1361,13 +1409,13 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Package-3 wasm dist (`native/web-dist/`), built with the infinite-scroll patch |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the infinite-scroll + backend-only extension-management patches (0.7.0), embedded in `libtanoshi.so` |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
-| Extension catalogs | Built-in `android/extensions/index.json` (9 entries) + up to 10 custom HTTPS catalog repositories (GitHub-link resolution from 0.6.0) |
+| Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
-| Extension sources/tooling | `android/extensions/sources/` (5 ported crates + template), `repo-template/`, `native/build_extension.sh` (from 0.6.0) |
-| App version | 0.6.0 (`versionName`); `versionCode` 6 in local builds, 600 for the `android-v0.6.0` tag |
+| Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
+| App version | 0.7.0 (`versionName`); `versionCode` 7 in local builds, 700 for the `android-v0.7.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1388,10 +1436,10 @@ android/
 │       ├── java/dev/spainclaro/tanoshi/   # app, service, admin bootstrap, updater, extensions, Compose UI
 │       ├── res/                           # strings, themes, icons, network policy
 │       └── jniLibs/arm64-v8a/             # libtanoshi.so, libarchive.so, lib<plugin>.so
-├── extensions/                            # catalogs, exported sources/template, repo-template, built plugins
+├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, build_extension.sh, vendored web-dist
+├── native/                                # native pipeline, patches 0001-0003, build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

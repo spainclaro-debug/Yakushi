@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.6.0 (default)}' code '${CODE:-6 (default)}'"
+          echo "Building version '${NAME:-0.7.0 (default)}' code '${CODE:-7 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.6.0}"
-          CODE="${APP_VERSION_CODE:-6}"
+          NAME="${APP_VERSION_NAME:-0.7.0}"
+          CODE="${APP_VERSION_CODE:-7}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.6.0: add custom extension repositories by URL in Sources (direct index.json or GitHub repo link), real persistent extension uninstall/disable and reinstall, cleaner startup (host libraries are no longer treated as extensions), and an exported ported-extension source bundle + build script for porting more sources. Includes all 0.5.0 Sources/Add extension functionality plus the QA/infinite-scroll/themes/updater features. Install: download tanoshi-mobile-server-release-<date>.apk and sideload it, then open the app, start the server and register the first admin account. Upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and android/README.md."
+          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.7.0: extension management is now backend-only - the embedded Tanoshi web UI hides the Available sources list and the non-working Install/Update/Uninstall buttons; the built-in extension repository now points at the dedicated tanoshi-extension repository (also addable by URL); includes 0.6.0 custom repositories, persistent enable/disable and exported extension sources/build tooling. Install: download tanoshi-mobile-server-release-<date>.apk and sideload it, then open the app, start the server and register the first admin account. Upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and android/README.md."
           gh release create "$TAG" \
             android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \

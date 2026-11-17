@@ -1,0 +1,60 @@
+--- a/crates/tanoshi-web/src/settings.rs
++++ b/crates/tanoshi-web/src/settings.rs
+@@ -722,23 +722,7 @@
+                                         ])
+                                     })
+                                 },
+-                                if x.installed && x.has_update {
+-                                    html!("button", {
+-                                        .text("Update")
+-                                        .event(clone!(settings => move |_: events::Click| {
+-                                            Self::update_source(settings.clone(), x.id);
+-                                        }))
+-                                    })
+-                                } else if !x.installed {
+-                                    html!("button", {
+-                                        .text("Install")
+-                                        .event(clone!(settings => move |_: events::Click| {
+-                                            Self::install_source(settings.clone(), x.id);
+-                                        }))
+-                                    })
+-                                } else {
+-                                    html!("div", {})
+-                                }
++
+                             ])
+                         })
+                     )))
+@@ -794,8 +778,10 @@
+                     SettingCategory::SourceList => Some(html!("div", {
+                         .class("content")
+                         .children(&mut [
++                            // The Android app manages extension installation and
++                            // removal (backend-only); the web UI only shows the
++                            // installed sources and their preferences.
+                             Self::render_source_list("Installed", settings.clone(), settings.installed_sources.signal_vec_cloned()),
+-                            Self::render_source_list("Available", settings.clone(), settings.available_sources.signal_vec_cloned()),
+                         ])
+                     })),
+                     SettingCategory::Source(source_id) => Some(SettingsSource::render(Rc::new(SettingsSource::new(source_id)))),
+--- a/crates/tanoshi-web/src/settings_source.rs
++++ b/crates/tanoshi-web/src/settings_source.rs
+@@ -100,17 +100,7 @@
+                     Self::set_source_preferences(settings.clone());
+                 }))
+             ])
+-            .child_signal(signal::always(settings.source_id).map(clone!(settings => move |source_id| (source_id > 1).then(|| html!("button", {
+-                .class("uninstall-btn")
+-                .children(&mut [
+-                    html!("span", {
+-                        .text("Uninstall")
+-                        .event(clone!(settings => move |_: events::Click| {
+-                            Self::uninstall_source(settings.clone(), source_id);
+-                        }))
+-                    })
+-                ])
+-            })))))
++
+         })
+     }
+ }

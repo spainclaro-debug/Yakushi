@@ -31,10 +31,12 @@ loaded by the server through the in-memory loader described in
 does not execute them itself).
 
 `libtanoshi.so` also embeds the Tanoshi web UI: the wasm bundle from
-`android/native/web-dist/` (the package-3 dist built with
-`patches/tanoshi-infinite-scroll.patch`) is compiled into the server binary,
-so the catalogue/infinite-scroll behaviour ships with the server rather than
-with the Android app.
+`android/native/web-dist/` is compiled into the server binary, so the
+catalogue/infinite-scroll behaviour and UI changes ship with the server rather
+than with the Android app. For 0.7.0 the dist was rebuilt from source with
+`patches/tanoshi-infinite-scroll.patch` and
+`native/patches/0003-web-ui-hide-source-management.patch` (extension
+management is app-only; see step 3).
 
 ---
 
@@ -54,10 +56,10 @@ these binaries.
   ```
 
 - **Web UI tooling** (only needed when rebuilding the embedded web UI):
-  `trunk`, `wasm-bindgen-cli` **0.2.129**, `sass` **1.106.1** and
-  `wasm-opt` (binaryen) **133** — these versions are pinned by the upstream
-  Tanoshi web workspace and are the same ones the Termux scripts use
-  (`lib/common.sh`).
+  `trunk` **0.22.1**, `wasm-bindgen-cli` **0.2.129**, `sass` **1.106.1** and
+  `wasm-opt` (binaryen) **133**, plus the `wasm32-unknown-unknown` target —
+  these versions are pinned by the upstream Tanoshi web workspace and are the
+  same ones the Termux scripts use (`lib/common.sh`).
 - **CMake 3.22+**, `make`, `pkg-config`, `git`, `curl`, `python3`.
 - About **10 GB** of free disk space for source checkouts and Cargo targets.
 
@@ -97,7 +99,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set and the Android app/extension-loader patches (0001 + 0002), embed the vendored `native/web-dist/` web UI (package-3, infinite scroll) when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set and the Android app/extension-loader/web-UI patches (0001 + 0002 + 0003), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -135,9 +137,17 @@ the equivalent manual steps, which is what the scripts automate.
    not treated as extensions) — see
    [Extension loader](#5-extension-loader-and-publishing-to-the-catalog).
 4. Optionally `patches/tanoshi-infinite-scroll.patch` (the Termux package's
-   auto-loading catalogue). This only matters when regenerating the wasm web
-   UI: the vendored `native/web-dist/` already contains the patched output, so
-   a normal server rebuild uses it as-is.
+   auto-loading catalogue), then
+   **`native/patches/0003-web-ui-hide-source-management.patch`**:
+   - the embedded web UI keeps the infinite-scroll catalogue but becomes
+     **backend-only** for extensions: Settings → Sources hides the
+     **Available** sources list, the source-list **Install/Update** buttons and
+     the per-source **Uninstall** button (they never worked on Android). The
+     installed sources list and per-source preferences remain; extension
+     management is done in the app's Sources tab.
+   - Both web patches only matter when regenerating the wasm UI: the vendored
+     `native/web-dist/` already contains the patched output, so a normal server
+     rebuild uses it as-is. `build_tanoshi.sh` applies 0003 automatically.
 
 Manually:
 
@@ -151,6 +161,8 @@ git apply ../patches/tanoshi-android.patch
 cp ../patches/http.rs.new      crates/tanoshi/src/infrastructure/http.rs
 cp ../patches/extension-build.rs.new crates/tanoshi-vm/src/extension/build.rs
 git apply ../patches/tanoshi-infinite-scroll.patch   # optional
+# Embedded web UI is backend-only for extensions (on top of infinite scroll)
+git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
 
 # Android app layer
 git apply ../android/native/patches/0001-android-app.patch
@@ -212,27 +224,38 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **package-3 web UI** — the same dist the
-  Termux package-3 archive uses: upstream Tanoshi 0.40.0's wasm UI built with
-  `patches/tanoshi-infinite-scroll.patch` applied. Its wasm bundle contains
-  the `catalogue-scroll-sentinel`, which auto-loads the next catalogue page
-  about 600 px before the viewport and turns the **Load More** button into
-  *No more results* at the end.
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.7.0+:
+  upstream Tanoshi 0.40.0's wasm UI built with
+  `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue) and
+  `native/patches/0003-web-ui-hide-source-management.patch` (the extension
+  Available list and Install/Update/Uninstall buttons are hidden; extension
+  management is app-only). Its wasm bundle still contains the
+  `catalogue-scroll-sentinel`, which auto-loads the next catalogue page about
+  600 px before the viewport and turns the **Load More** button into *No more
+  results* at the end.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
-  `./build_tanoshi.sh` therefore uses the infinite-scroll UI with no web
+  `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.2.0**.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.7.0**
+  (0.2.0/0.5.0/0.6.0 used earlier dists).
 
-To change the web UI itself, rebuild the wasm dist with trunk (using the
-pinned tool versions from the prerequisites) and refresh the vendored copy so
-future native builds stay consistent:
+To change the web UI itself, rebuild the wasm dist from a patched checkout
+using the pinned toolchain versions from the prerequisites (trunk **0.22.1**,
+wasm-bindgen **0.2.129**, sass **1.106.1**, wasm-opt **133**,
+`wasm32-unknown-unknown`):
 
 ```bash
+# in the Tanoshi source tree, after applying the root Termux patches:
+git apply ../patches/tanoshi-infinite-scroll.patch
+git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
+
 cd crates/tanoshi-web
 CARGO_TARGET_DIR="$PWD/../../target-wasm" trunk build --release
 cd ../..
+
+# refresh the vendored copy used by future native builds
 rm -rf android/native/web-dist && cp -R crates/tanoshi-web/dist android/native/web-dist
 ```
 
@@ -302,14 +325,34 @@ patches touch, `git apply` fails; see `patches/README-patches.txt` for the
 current patch contents. Never mix plugins built against a different
 `tanoshi-lib` version — they refuse to load.
 
-#### Publishing an extension to an extension repository
+#### Publishing an extension to the tanoshi-extension repository
 
-To make a plugin installable from the app's **Sources → Add extension**
-flow (no new APK needed), publish the `.so` in an extension repository and add
-an entry to its catalog:
+The canonical extension repository is
+[**spainclaro-debug/tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension).
+It hosts the published plugins/catalog/sources/tooling:
 
-1. Build the plugin as above for **`aarch64-linux-android`** with the same
-   `tanoshi-lib` (`0.38.0`) and Rust toolchain family as the bundled server.
+```
+tanoshi-extension/
+├── android/extensions/
+│   ├── index.json                 # catalog the app fetches
+│   └── plugins/lib<name>.so       # prebuilt aarch64 plugins
+├── tanoshi-extensions.json        # same catalog at the repo root
+├── sources/                       # Rust sources of the five ported extensions + template
+├── patches/                       # patches applied to the tanoshi-extensions workspace
+├── tools/build_extension.sh       # build a source into plugins/lib<name>.so
+└── README.md
+```
+
+The app's built-in repository points at this repo's
+`android/extensions/index.json` (label `tanoshi-extension (default)`); users
+can also add it via **Sources → Add repository** with the GitHub link
+`https://github.com/spainclaro-debug/tanoshi-extension` or the raw index URL.
+
+To publish a plugin there:
+
+1. Build it with the repo's `tools/build_extension.sh` for
+   **`aarch64-linux-android`** against the same `tanoshi-lib` (`0.38.0`) and
+   Rust toolchain family as the bundled server.
 2. Verify it is an aarch64 shared object and compute the catalog values:
 
    ```bash
@@ -318,28 +361,23 @@ an entry to its catalog:
    stat -c %s lib<name>.so
    ```
 
-3. Host the file over **HTTPS**: commit it to a public repository (for example
-   under `android/extensions/plugins/` as in
-   [`android/extensions/repo-template/`](../extensions/repo-template/)) or
-   attach it to a GitHub release; raw GitHub URLs work.
-4. Add a catalog entry (`name`, `displayName`, `description`, `url`,
-   `sha256`, `size`, `ported`) to the repository's
-   `android/extensions/index.json` (the app also accepts a top-level
-   `tanoshi-extensions.json` when resolving a GitHub repository link). The app
-   validates the entry (name pattern, HTTPS URL, size > 256 KB, 64-hex SHA-256
-   when present), downloads it into the writable plugin directory and verifies
-   the file before installing.
-5. Add the repository in the app: **Sources → Repositories → Add
-   repository**, either the GitHub repo link
-   (`https://github.com/<owner>/<repo>`) or the direct raw `index.json` URL.
-   The app probes `main`/`master` for `android/extensions/index.json` or
-   `tanoshi-extensions.json` and stores the resolved catalog URL.
+3. Commit the file under `android/extensions/plugins/lib<name>.so` and add the
+   entry to both `android/extensions/index.json` and
+   `tanoshi-extensions.json`: `name`, `displayName`, `description`, HTTPS
+   `url`, `sha256`, `size`, `ported`. The URL points at the raw GitHub file
+   (`https://raw.githubusercontent.com/spainclaro-debug/tanoshi-extension/main/android/extensions/plugins/lib<name>.so`).
+4. Commit/push. Installed apps show the new/updated entry after a **Sources**
+   catalog refresh (and **Update available** if the hash changed).
 
-For extensions published in this repository's own built-in catalog, add the
-entry to [`android/extensions/index.json`](../extensions/index.json) instead;
-installed apps see it on the next **Add extension** refresh.
-
-See [Extensions (Sources tab)](../README.md#extensions-sources-tab) in the app
+This repository keeps copies of the same sources/tooling for
+back-compatibility:
+[`android/extensions/sources/`](../extensions/sources/),
+[`android/extensions/repo-template/`](../extensions/repo-template/) and
+[`native/build_extension.sh`](../native/build_extension.sh) (which writes to
+`android/extensions/plugins/` here instead). The local
+`android/extensions/index.json` is legacy/tooling; `tanoshi-extension` is the
+canonical catalog. See
+[Extensions (Sources tab)](../README.md#extensions-sources-tab) in the app
 documentation for the user-facing flow and the exact JSON contract.
 
 ### 5. Extension loader and publishing to the catalog
@@ -443,8 +481,10 @@ readelf -d libtanoshi.so | grep -E 'RPATH|RUNPATH'   # expect no output
 readelf -lW libtanoshi.so | grep LOAD
 #   expected alignment: 0x4000 in the last column
 
-# 5. The embedded web UI is the infinite-scroll dist (v0.2.0 and later)
+# 5. The embedded web UI is the vendored dist (v0.2.0+; rebuilt for 0.7.0)
 grep -c -a "catalogue-scroll-sentinel" libtanoshi.so   # expect 1
+#   For 0.7.0+ the js/wasm asset names embedded in libtanoshi.so should match
+#   the names in android/native/web-dist/index.html
 
 # 6. The Android extension loader is compiled in (v0.5.0 and later)
 grep -c -a "android_dlopen_ext failed" libtanoshi.so   # expect 1
@@ -478,8 +518,9 @@ output of this pipeline, built on an x86_64 Linux host with:
 - upstream Tanoshi checked out at the tag in `VERSION` (`0.40.0`) and patched
   with the Termux patch set + `native/patches/0001-android-app.patch` +
   `native/patches/0002-android-extension-loader.patch` (+ `android_loader.rs`),
-- the embedded web UI from `android/native/web-dist/` (package-3 dist with the
-  infinite-scroll patch),
+- the embedded web UI from `android/native/web-dist/` (rebuilt from source for
+  0.7.0 with the infinite-scroll + backend-only extension-management
+  patches),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -488,10 +529,13 @@ output of this pipeline, built on an x86_64 Linux host with:
 `sync_prebuilt.sh` does not rebuild anything — it only copies what the other
 scripts produced, so `git diff` after a rebuild shows exactly which binaries
 changed. The 0.3.0/0.4.0 app releases did not change `libtanoshi.so`; **0.5.0
-did** (extension loader + catalog), and **0.6.0 rebuilt it again** with the
-host-library filtering fix and the `.tanoshi-disabled` marker support. The
-exported extension sources (`android/extensions/sources/`), repo template and
-`build_extension.sh` were added in 0.6.0.
+did** (extension loader + catalog), **0.6.0 rebuilt it again** with the
+host-library filtering fix and the `.tanoshi-disabled` marker support, and
+**0.7.0 rebuilt it once more** to embed the rebuilt web UI with the
+backend-only extension-management patch. The exported extension sources
+(`android/extensions/sources/`), repo template and `build_extension.sh` were
+added in 0.6.0; the canonical catalogs/plugins moved to the separate
+`tanoshi-extension` repository in 0.7.0.
 
 ### Reproducibility caveats
 
