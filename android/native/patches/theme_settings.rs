@@ -20,7 +20,7 @@ use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 use crate::common::snackbar;
-use crate::utils::{apply_theme, apply_theme_color, document, local_storage};
+use crate::utils::{apply_theme, apply_theme_color, body, document, local_storage};
 
 pub const STORAGE_KEY: &str = "settings:theme-palette";
 
@@ -220,22 +220,113 @@ const THEME_VARS: &[&str] = &[
     "--topbar-text-color",
     "--topbar-button-color",
     "--topbar-bottom-border",
+    "--theme-text-light",
+    "--theme-text-dark",
+    "--theme-title-light",
+    "--theme-title-dark",
+    "--theme-title-on-image",
+    "--heading-on-primary",
+    "--bottombar-text-color",
+    "--bottombar-active-color",
+    "--panel-text",
+    "--unread-text",
 ];
 
+fn blend(from: &str, to: &str, amount: f32) -> String {
+    match (parse_hex(from), parse_hex(to)) {
+        (Some((fr, fg, fb)), Some((tr, tg, tb))) => {
+            let mix = |a: u8, b: u8| -> u8 {
+                (a as f32 * (1.0 - amount) + b as f32 * amount)
+                    .round()
+                    .clamp(0.0, 255.0) as u8
+            };
+            format!("#{:02x}{:02x}{:02x}", mix(fr, tr), mix(fg, tg), mix(fb, tb))
+        }
+        _ => from.to_string(),
+    }
+}
+
+fn contrast_ratio(a: &str, b: &str) -> f32 {
+    let la = luminance(a) + 0.05;
+    let lb = luminance(b) + 0.05;
+    if la > lb {
+        la / lb
+    } else {
+        lb / la
+    }
+}
+
+/// Keep `color` recognisable but readable on `background` (WCAG-ish 3:1).
+fn ensure_contrast(color: &str, background: &str, minimum: f32) -> String {
+    if contrast_ratio(color, background) >= minimum {
+        return color.to_string();
+    }
+    let target = if luminance(background) > 0.42 {
+        "#000000"
+    } else {
+        "#ffffff"
+    };
+    for step in 1..=10 {
+        let candidate = blend(color, target, step as f32 / 10.0);
+        if contrast_ratio(&candidate, background) >= minimum {
+            return candidate;
+        }
+    }
+    target.to_string()
+}
+
 /// Apply a palette to the current document (this device only).
+///
+/// Both light and dark mode get their own adaptive text/heading colors, so
+/// switching the appearance mode keeps the themed UI readable without
+/// re-applying the palette.
 pub fn apply_palette(primary: &str, secondary: &str, accent: &str) {
     set_var("--primary-color", primary);
     set_var("--primary-color-300", &lighten(primary, 0.35));
     set_var("--secondary-color", secondary);
     set_var("--accent-color", accent);
-    // A themed top bar makes the selected palette obvious on every page. The
-    // foreground is chosen from the primary color's luminance so both light
-    // and dark palettes stay readable in light and dark mode.
+
+    // Top/bottom banners use the primary color in both modes.
     set_var("--topbar-background-color", primary);
-    let foreground = contrast_text(primary);
-    set_var("--topbar-text-color", foreground);
-    set_var("--topbar-button-color", foreground);
+    set_var("--bottombar-background-color", primary);
+    let on_primary = contrast_text(primary);
+    set_var("--topbar-text-color", on_primary);
+    set_var("--topbar-button-color", on_primary);
+    set_var("--bottombar-text-color", on_primary);
     set_var("--topbar-bottom-border", &format!("2px solid {accent}"));
+    set_var("--heading-on-primary", &ensure_contrast(accent, primary, 3.0));
+    set_var(
+        "--bottombar-active-color",
+        &ensure_contrast(accent, primary, 3.0),
+    );
+
+    // The page background is the accent/neutral color at 30% opacity over the
+    // mode's base color (the color-mix rules live in styles.scss); text must
+    // adapt to the resulting tint.
+    let light_background = blend("#f4f4f4", accent, 0.3);
+    let dark_background = blend("#0a0a0a", accent, 0.3);
+    set_var("--theme-text-light", contrast_text(&light_background));
+    set_var("--theme-text-dark", contrast_text(&dark_background));
+    set_var(
+        "--theme-title-light",
+        &ensure_contrast(accent, &light_background, 3.0),
+    );
+    set_var(
+        "--theme-title-dark",
+        &ensure_contrast(accent, &dark_background, 3.0),
+    );
+    // Cover titles sit on the dark thumbnail gradient, not on the page tint.
+    set_var(
+        "--theme-title-on-image",
+        &ensure_contrast(accent, "#101010", 3.0),
+    );
+
+    // Settings panels use the accent color directly.
+    set_var("--panel-text", contrast_text(accent));
+    // Unread-chapter badges use the secondary color in both modes.
+    set_var("--unread-text", contrast_text(secondary));
+
+    body().class_list().add_1("themed").ok();
     let _ = apply_theme_color(primary);
 }
 
@@ -349,6 +440,7 @@ impl ThemeSettings {
         for var in THEME_VARS {
             remove_var(var);
         }
+        let _ = body().class_list().remove_1("themed");
         let _ = local_storage().remove_item(STORAGE_KEY);
         apply_theme(local_storage().get("theme").ok().flatten());
         self.applied.set("Default (Auto)".to_string());

@@ -5,12 +5,17 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.9.0** — see the
+Current release: **0.9.1** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.9.0 adds **per-device web-UI themes** in
-the Tanoshi frontend (Settings → Appearance → Themes): 12 preset palettes
-plus a **New theme** builder with Primary/Secondary/Accent colour grids,
-**Apply** and **Reset to default**. The choice is stored only in the browser's
+and [`CHANGELOG.md`](CHANGELOG.md). 0.9.1 reworks **how** the per-device
+web-UI theme is applied (the 0.9.0 feature is unchanged): top and bottom
+banners use the primary colour, icons and the unread-chapter badge use the
+secondary, page background is the accent at 30% over the light/dark base,
+headers/titles and settings panels use the accent, and all text is
+contrast-adaptive per mode. 0.9.0 added the **per-device web-UI themes** in the
+Tanoshi frontend (Settings → Appearance → Themes): 12 preset palettes plus a
+**New theme** builder with Primary/Secondary/Accent colour grids, **Apply** and
+**Reset to default**; the choice is stored only in the browser's
 `localStorage` (`settings:theme-palette`) and applied at boot, so each
 device/browser keeps its own theme and a new device defaults to Auto. The
 0.8.0 release (still included) added the **Delete History** button, a working
@@ -41,7 +46,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.9.0](#whats-new-in-090)
+- [What's new in 0.9.1](#whats-new-in-091)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -90,6 +95,38 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.9.1
+
+- **Themed palette now applies across the whole web UI** (the 0.9.0 theme
+  feature and per-device storage are unchanged):
+  - the **top and bottom banners** use the **primary** colour;
+  - **all icons** use the **secondary** colour;
+  - the library-cover **unread-chapter badge** uses the **secondary** colour
+    with contrast-adaptive badge text;
+  - the **page background** is the **accent** colour mixed at **30%** opacity
+    over the mode's base colour (`color-mix`: 30% accent over `#f4f4f4` in
+    light mode, over `#0a0a0a` in dark; the derived background shades and
+    modal background are tinted too);
+  - **headers and titles** use the **accent** colour (readable variants for the
+    top-bar title against the primary banner and for manga-cover titles
+    against the dark thumbnail gradient);
+  - **settings panels** (`.reader-settings` and the settings page content) use
+    the **accent** colour as their panel background with adaptive text;
+  - **all text is contrast-adaptive per mode**: `theme_settings.rs` computes
+    separate light/dark text colours from the tinted background, plus readable
+    heading, banner, panel and badge foregrounds, all under the `body.themed`
+    class. **Reset to default** removes the class and variables and restores
+    the normal Auto/Light/Dark appearance.
+- **Web UI and server rebuilt** — the wasm dist was rebuilt with the reworked
+  theme CSS/logic and vendored in `android/native/web-dist/`; the embedded
+  `libtanoshi.so` was rebuilt with it. Theme presets, the custom
+  Primary/Secondary/Accent builder and the per-device `localStorage`
+  behaviour are unchanged.
+- **Version 0.9.1** — `versionCode` 901; the `android-v0.9.1` tag produces
+  `versionCode` 901. The APK filename scheme is unchanged.
+
+Previous release — **0.9.0** — and its features:
 
 ## What's new in 0.9.0
 
@@ -254,12 +291,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.9.0**,
-`versionCode` 900) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.9.1**,
+`versionCode` 901) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.9.0 -PappVersionCode=900 \
+./gradlew :app:assembleDebug -PappVersionName=0.9.1 -PappVersionCode=901 \
   -PapkDate=2026-11-14
 ```
 
@@ -320,18 +357,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.9.0`. For a tag, CI derives everything from the tag and
+example `android-v0.9.1`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.0` → `900`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.1` → `901`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.9.0 /
-versionCode 900) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.9.1 /
+versionCode 901) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -544,9 +581,27 @@ browser) has its own **Settings → Appearance → Themes** section, added in
   theme and returns to the stock appearance (your existing Auto/Light/Dark
   appearance choice).
 - The section shows which theme is applied (**Applied: …**) and confirms
-  actions with a snackbar. The palette themes the top bar (text/button colour
-  is chosen from the primary colour's luminance so it stays readable), accent
-  borders and secondary hover colours.
+  actions with a snackbar. Since 0.9.1 the palette is applied across the UI:
+  - **top and bottom banners** → background **primary** (text/buttons adapt to
+    its luminance; the active bottom-bar item and the top-bar title use a
+    readable accent);
+  - **all icons** (SVG) → **secondary**;
+  - **library-cover unread-chapter badge** → background **secondary** with
+    contrast-adaptive text;
+  - **page background** → **accent** mixed at **30%** opacity over the mode's
+    base (`color-mix`: 30% accent over `#f4f4f4` in light mode, over `#0a0a0a`
+    in dark; the derived background shades and modal background are tinted
+    too);
+  - **headers/titles** → **accent**, with readable variants for the top-bar
+    title against the primary banner and manga-cover titles against the dark
+    thumbnail gradient;
+  - **settings panels** (`.reader-settings` and the settings page content) →
+    **accent** panel background with adaptive panel text;
+  - **all text** → contrast-adaptive **per mode**: `theme_settings.rs`
+    computes separate light/dark text colours from the tinted background plus
+    readable heading, banner, panel and badge foregrounds, applied through the
+    `body.themed` class. **Reset to default** removes the class/variables and
+    restores the normal Auto/Light/Dark appearance.
 
 **Per-device storage.** The theme is stored **only in the browser's
 `localStorage`** under the key `settings:theme-palette` (a small JSON object
@@ -563,7 +618,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.9.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.9.1-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1530,14 +1585,14 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.0 theme patches (`native/patches/0004-web-ui-themes.patch` + `theme_settings.rs`), embedded in `libtanoshi.so` |
-| Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0 |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches (`native/patches/0004-web-ui-themes.patch` + `theme_settings.rs`), embedded in `libtanoshi.so`; 0.9.1 rebuilt it with the full-palette application and adaptive text |
+| Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.9.0 (`versionName`); `versionCode` 900 in local builds and for the `android-v0.9.0` tag |
+| App version | 0.9.1 (`versionName`); `versionCode` 901 in local builds and for the `android-v0.9.1` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

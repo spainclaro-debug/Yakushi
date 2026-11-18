@@ -37,9 +37,19 @@
  
      let closure = Closure::wrap(Box::new(|e: MediaQueryListEvent| {
          let mut status_bar_color = "#5b749b";
+--- a/crates/tanoshi-web/src/settings.rs
++++ b/crates/tanoshi-web/src/settings.rs
+@@ -750,6 +750,7 @@
+         }
+ 
+         html!("div", {
++            .class("settings-page")
+             .class_signal("main", self.page.signal().map(|x| matches!(x, SettingCategory::None)))
+             .style("padding", "0.5rem")
+             .children(&mut [
 --- a/crates/tanoshi-web/static/css/styles.scss
 +++ b/crates/tanoshi-web/static/css/styles.scss
-@@ -1019,3 +1019,86 @@
+@@ -1019,3 +1019,180 @@
      user-select: none;
      touch-action: manipulation;
  }
@@ -47,7 +57,9 @@
 +
 +/* --- Per-device theme palette (Settings -> Appearance -> Themes) ----------
 +   The chosen palette sets these variables inline on :root/documentElement and
-+   is stored in localStorage, so it is local to the device/browser. */
++   is stored in localStorage, so it is local to the device/browser. Palette
++   rules apply in both light and dark mode; adaptive text/heading colors are
++   computed by theme_settings.rs for each mode. */
 +:root {
 +    --secondary-color: #{$color-gray-300};
 +    --accent-color: #{$primary-color-600};
@@ -58,6 +70,98 @@
 +    --accent-color: #{$primary-color-300};
 +}
 +
++/* Background: accent/neutral at 30% opacity over the mode's base color, so it
++   stays subtle. Banners use the primary color in both modes. */
++body.themed {
++    --background-color: color-mix(in srgb, var(--accent-color) 30%, #f4f4f4);
++    --background-color-100: color-mix(in srgb, var(--accent-color) 45%, #f4f4f4);
++    --background-color-200: color-mix(in srgb, var(--accent-color) 60%, #f4f4f4);
++    --modal-background-color: var(--background-color);
++    --topbar-background-color: var(--primary-color);
++    --bottombar-background-color: var(--primary-color);
++    --color: var(--theme-text-light);
++}
++
++body.themed.dark {
++    --background-color: color-mix(in srgb, var(--accent-color) 30%, #0a0a0a);
++    --background-color-100: color-mix(in srgb, var(--accent-color) 45%, #0a0a0a);
++    --background-color-200: color-mix(in srgb, var(--accent-color) 60%, #0a0a0a);
++    --modal-background-color: var(--background-color);
++    --color: var(--theme-text-dark);
++}
++
++/* All icons use the secondary color. */
++body.themed svg {
++    color: var(--secondary-color);
++}
++
++/* Top bar: primary background, accent title and accent bottom border. */
++body.themed .topbar .title {
++    color: var(--heading-on-primary);
++}
++
++/* Bottom bar: primary background, adaptive labels, secondary icons. */
++body.themed .bottombar a,
++body.themed .bottombar button,
++body.themed .edit-action a,
++body.themed .edit-action button {
++    color: var(--bottombar-text-color);
++}
++
++body.themed .bottombar a.active,
++body.themed .bottombar button.active,
++body.themed .edit-action a.active,
++body.themed .edit-action button.active {
++    color: var(--bottombar-active-color);
++}
++
++/* Headers and titles use the accent color; adaptive so they stay readable
++   against the tinted background (and the dark thumbnail overlay for covers). */
++body.themed .title,
++body.themed .header,
++body.themed h1,
++body.themed h2,
++body.themed h3,
++body.themed h4,
++body.themed h5,
++body.themed h6 {
++    color: var(--theme-title-light);
++}
++
++body.themed.dark .title,
++body.themed.dark .header,
++body.themed.dark h1,
++body.themed.dark h2,
++body.themed.dark h3,
++body.themed.dark h4,
++body.themed.dark h5,
++body.themed.dark h6 {
++    color: var(--theme-title-dark);
++}
++
++body.themed .manga-cover .title {
++    color: var(--theme-title-on-image);
++}
++
++/* Unread-chapter notification badge on library covers. */
++body.themed .manga-cover .unread-badge {
++    background-color: var(--secondary-color);
++    color: var(--unread-text);
++}
++
++/* Settings panels use the accent color; their text adapts to it. */
++body.themed .reader-settings,
++body.themed .settings-page .content {
++    background-color: var(--accent-color);
++    color: var(--panel-text);
++}
++
++body.themed .reader-settings :where(span, label, p, div, a, button, input, text),
++body.themed .settings-page .content :where(span, label, p, div, a, button, input, text) {
++    color: inherit;
++}
++
++/* Theme picker styling. */
 +.theme-preset-list {
 +    display: flex;
 +    flex-direction: column;

@@ -40,7 +40,9 @@ than with the Android app. The dist is rebuilt from source with
 `native/patches/0003-web-ui-hide-source-management.patch` (extension
 management is app-only) and
 `native/patches/0004-web-ui-themes.patch` + `native/patches/theme_settings.rs`
-(per-device theme palettes; see step 3).
+(per-device theme palettes; since 0.9.1 the palette is applied across banners,
+icons, the unread badge, page background, headers and settings panels with
+contrast-adaptive text computed per light/dark mode — see step 3).
 
 ---
 
@@ -245,7 +247,7 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.9.0+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.9.1+:
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -254,19 +256,23 @@ default source is the **vendored dist** in this directory:
   (extension Available list and Install/Update/Uninstall hidden — app-only
   management) and `native/patches/0004-web-ui-themes.patch` + copied
   `theme_settings.rs` (per-device theme palettes, Settings → Appearance →
-  Themes). Its wasm bundle still contains the `catalogue-scroll-sentinel`,
+  Themes; 0.9.1 maps primary → top/bottom banners, secondary → icons and the
+  unread badge, accent → tinted page background/headers/settings panels, with
+  per-mode adaptive text in a `body.themed` class). Its wasm bundle still
+  contains the `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.9.0):
-  `tanoshi-web-dcb86240b5199fae.js`, `tanoshi-web-ee60348ae5b3947e_bg.wasm`,
-  `styles-45acda5da1659ded.css`.
+  Current dist asset names (0.9.1):
+  `tanoshi-web-f6e578783142ed29.js`, `tanoshi-web-d6c55288bdc64845_bg.wasm`,
+  `styles-962ce0bfedb36ee0.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.9.0**
-  (0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older dists).
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.9.1**
+  (0.9.0/0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older
+  dists).
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -522,10 +528,11 @@ readelf -d libtanoshi.so | grep -E 'RPATH|RUNPATH'   # expect no output
 readelf -lW libtanoshi.so | grep LOAD
 #   expected alignment: 0x4000 in the last column
 
-# 5. The embedded web UI is the vendored dist (v0.2.0+; rebuilt for 0.9.0)
+# 5. The embedded web UI is the vendored dist (v0.2.0+; rebuilt for 0.9.1)
 grep -c -a "catalogue-scroll-sentinel" libtanoshi.so   # expect 1
 grep -c -a "settings:theme-palette" libtanoshi.so      # expect 1 (0.9.0+)
 grep -c -a "Monochromatic Blue" libtanoshi.so          # expect 1 (0.9.0+ preset)
+grep -c -a "body.themed" libtanoshi.so                 # expect >= 1 (0.9.1+)
 #   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
 #   match the names in android/native/web-dist/index.html
 
@@ -566,8 +573,10 @@ output of this pipeline, built on an x86_64 Linux host with:
   `native/patches/0001-android-app.patch` +
   `native/patches/0002-android-extension-loader.patch` (+ `android_loader.rs`),
 - the embedded web UI from `android/native/web-dist/` (rebuilt from source for
-  0.9.0 with the 0.8.0 web features, infinite-scroll, app-only
-  extension-management and per-device theme patches),
+  0.9.1 with the 0.8.0 web features, infinite-scroll, app-only
+  extension-management and per-device theme patches; 0.9.1 reworked the theme
+  application to cover banners/icons/badge/background/titles/panels with
+  per-mode adaptive text),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -580,8 +589,9 @@ did** (extension loader + catalog), **0.6.0 rebuilt it again** with the
 host-library filtering fix and the `.tanoshi-disabled` marker support, and
 **0.7.0 rebuilt it once more** to embed the rebuilt web UI with the
 backend-only extension-management patch, **0.8.0 rebuilt it** for the Delete
-History/filters/layout-preset/tap-area web features, and **0.9.0 rebuilt it
-again** for the per-device theme palettes. The exported extension sources
+History/filters/layout-preset/tap-area web features, **0.9.0 rebuilt it again**
+for the per-device theme palettes, and **0.9.1 rebuilt it** with the reworked
+full-UI theme application and adaptive text. The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

@@ -22,13 +22,18 @@ APK, tap **Start server**, and open the web UI.
 
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.9.0**; download it from the
+HentaiNexus). The current release is **0.9.1**; download it from the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.9.0 adds **per-device web-UI themes** to the embedded Tanoshi frontend
-(Settings → Appearance → Themes): 12 preset palettes plus a **New theme**
-builder with Primary/Secondary/Accent colour grids, **Apply** and **Reset to
-default**. The theme is stored only in that browser's `localStorage`
+0.9.1 reworks how the web-UI theme is applied (the 0.9.0 feature and
+per-device storage are unchanged): banners use the primary colour, icons and
+the unread-chapter badge use the secondary, the page background is the accent
+at 30% over the light/dark base, headers/titles and settings panels use the
+accent, and text is contrast-adaptive in both modes. 0.9.0 added the
+**per-device web-UI themes** to the embedded Tanoshi frontend (Settings →
+Appearance → Themes): 12 preset palettes plus a **New theme** builder with
+Primary/Secondary/Accent colour grids, **Apply** and **Reset to default**. The
+theme is stored only in that browser's `localStorage`
 (`settings:theme-palette`), so every device keeps its own and new devices
 default to Auto. The 0.8.0 release added the **Delete History** button, a
 working **catalogue filter** sheet, device-local **Layout Preference** reader
@@ -44,6 +49,18 @@ unchanged).
 
 > The Termux package documented below and the Android app in `android/` are two
 > independent ways to run the same server. You only need one of them.
+
+### What's new in 0.9.1
+
+- **Full-UI theme application** — top and bottom banners use the primary
+  colour, all icons and the library-cover unread-chapter badge use the
+  secondary, the page background is the accent at 30% opacity over the
+  mode's base colour, headers/titles and settings panels use the accent, and
+  all text is contrast-adaptive per light/dark mode. The 0.9.0 presets,
+  custom colour builder and per-device `localStorage` storage are unchanged.
+  See [Web UI themes](android/README.md#web-ui-themes).
+
+Previous release — **0.9.0** — and its features:
 
 ### What's new in 0.9.0
 
@@ -69,7 +86,8 @@ unchanged).
   new repository. The Termux package tarball
   (`tanoshi-termux-aarch64.tar.gz`) keeps its artifact name.
 
-Previous release — **0.7.1** — and its features:
+Earlier releases — **0.8.0** (Delete History, catalogue filter sheet,
+Layout Preference presets, Tap Area) and **0.7.1** below:
 
 ### What's new in 0.7.1
 
@@ -369,7 +387,7 @@ Full details, including the API-level differences and failure modes:
 ### Updating the app
 
 - **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.9.0`), compares the
+  repository's GitHub releases (only tags like `android-v0.9.1`), compares the
   version, downloads the release APK, verifies it when a digest is available and
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.

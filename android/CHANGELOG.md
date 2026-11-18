@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.9.0`). The Termux package in the repository root has
+(for example `android-v0.9.1`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,51 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.9.1
+
+### Changed
+
+- **Web-UI theme application reworked.** The 0.9.0 per-device theme feature and
+  its storage are unchanged, but the palette now applies across the whole
+  frontend in both light and dark mode:
+  - **top and bottom banners** use the **primary** colour (banner text/buttons
+    adapt to its luminance; the top-bar title and active bottom-bar item use a
+    readable accent variant);
+  - **all icons** (SVG, `currentColor`) use the **secondary** colour;
+  - the library-cover **unread-chapter badge** uses the **secondary** colour
+    with contrast-adaptive badge text;
+  - the **page background** is the **accent** colour mixed at **30%** opacity
+    over the mode's base colour (`color-mix`: 30% accent over `#f4f4f4` in
+    light mode, over `#0a0a0a` in dark; the derived background shades
+    (`--background-color-100/200`) and the modal background are tinted too);
+  - **headers and titles** use the **accent** colour, with readable variants
+    for the top-bar title against the primary banner and for manga-cover
+    titles against the dark thumbnail gradient;
+  - **settings panels** (`.reader-settings` and the settings page content) use
+    the **accent** colour as their panel background with adaptive panel text;
+  - **all text is contrast-adaptive per mode**: `theme_settings.rs` computes
+    separate light/dark text colours from the tinted background
+    (`--theme-text-light` / `--theme-text-dark`), readable heading colours per
+    mode, and banner/panel/badge foregrounds, applied via a `body.themed`
+    class. **Reset to default** removes the class and all theme variables and
+    restores the normal Auto/Light/Dark appearance.
+- **Web UI rebuilt and `libtanoshi.so` rebuilt** with the reworked theme
+  CSS/logic; the vendored dist is `android/native/web-dist/` (fresh hashed
+  asset names). No server API, config or storage changes; themes remain
+  per-device in `localStorage`.
+- **Version 0.9.1:** `versionCode` 901 in the Gradle default; the
+  `android-v0.9.1` tag produces `versionCode` 901. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- Theme presets, the custom Primary/Secondary/Accent builder, the
+  **Applied: …** status and per-device `localStorage`
+  (`settings:theme-palette`) behaviour from 0.9.0 are unchanged; only how the
+  chosen palette is rendered changed.
+- The 0.8.0 features (Delete History, catalogue filter sheet, Layout
+  Preference presets, Tap Area) remain included.
 
 ## 0.9.0
 

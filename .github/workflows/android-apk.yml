@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.9.0 (default)}' code '${CODE:-900 (default)}'"
+          echo "Building version '${NAME:-0.9.1 (default)}' code '${CODE:-901 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.9.0}"
-          CODE="${APP_VERSION_CODE:-900}"
+          NAME="${APP_VERSION_NAME:-0.9.1}"
+          CODE="${APP_VERSION_CODE:-901}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.9.0: new per-device themes in Settings -> Appearance (12 preset palettes plus a New theme builder with primary/secondary/accent color pickers and Apply/Reset; stored in the browser/device only, so each device keeps its own theme and new devices default to Auto). Includes the 0.8.0 Delete History, working filters, layout presets and reader tap-area features, 0.7.x backend-only extension management, and the dedicated tanoshi-extension repository."
+          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.9.1: the web-UI theme application was reworked - the top and bottom banners use the primary color, all icons and the unread-chapter library badge use the secondary color, headers/titles use the accent color, the page background is the accent color at 30% opacity, settings panels use the accent color, and all text is contrast-adaptive in both light and dark mode. Includes the 0.9.0 theme presets/custom builder and all 0.8.0 features."
           gh release create "$TAG" \
             android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \

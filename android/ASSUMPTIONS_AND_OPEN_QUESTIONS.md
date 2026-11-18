@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.9.0 / 900, local date).
+three to Gradle; local builds use the Gradle defaults (0.9.1 / 901, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.9.0 / versionCode
-900 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.0`
+The app follows its own `android-vX.Y.Z` version scheme (0.9.1 / versionCode
+901 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.1`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -573,16 +573,34 @@ Themes** section: 12 preset palettes plus a **New theme** builder with
 Primary/Secondary/Accent colour swatches (20 colours each), **Apply** and
 **Reset to default**. The chosen palette is serialized as a small JSON object
 (`kind`, `name`, `primary`, `secondary`, `accent`) into the browser's
-`localStorage` under the key **`settings:theme-palette`**, applied to CSS
-variables on the document root (top bar with luminance-based foreground,
-accent border, secondary hover) and re-applied at boot by
-`apply_stored_theme()` before the UI renders (invalid/non-hex values are
-ignored). It is **not** part of `config.yml`, the database, or any server-side
-settings; there is no sync between devices. Each device/browser keeps its own
-theme, a new device/browser defaults to the stock Auto appearance, and Reset
-or clearing site data removes the stored palette. This is independent of the
-Android app's Material 3 themes (Dark/Light/Nord/Catppuccin), which are stored
-in `AppSettings.themeId` for the app UI only.
+`localStorage` under the key **`settings:theme-palette`** and re-applied at
+boot by `apply_stored_theme()` before the UI renders (invalid/non-hex values
+are ignored). It is **not** part of `config.yml`, the database, or any
+server-side settings; there is no sync between devices. Each device/browser
+keeps its own theme, a new device/browser defaults to the stock Auto
+appearance, and Reset or clearing site data removes the stored palette. This
+is independent of the Android app's Material 3 themes
+(Dark/Light/Nord/Catppuccin), which are stored in `AppSettings.themeId` for the
+app UI only.
+
+**How the palette is applied (0.9.1 rework).** From 0.9.1 the palette is mapped
+across the whole frontend in both light and dark mode via CSS variables plus a
+`body.themed` class: top and bottom banners use **primary** (their text/active
+colours adapt to its luminance, with readable accent variants for the top-bar
+title and active bottom-bar item); all SVG icons use **secondary**; the
+library-cover unread-chapter badge uses **secondary** with contrast-adaptive
+text; the page background is **accent** mixed at **30%** over the mode base
+(`color-mix`: 30% accent over `#f4f4f4` light / `#0a0a0a` dark, with the
+derived background shades and modal background tinted); headers/titles use
+**accent** (readable variants per mode, against the primary banner for the
+top-bar title and against the dark thumbnail gradient for cover titles);
+settings panels (`.reader-settings` and the settings page content) use
+**accent** as their panel background with adaptive panel text. `theme_settings.rs`
+computes the per-mode text colours (`--theme-text-light` / `--theme-text-dark`),
+readable heading colours, and the banner/panel/badge foregrounds; **Reset to
+default** removes the `body.themed` class and all theme variables and restores
+the normal Auto/Light/Dark appearance. (0.9.0 applied the palette mainly to the
+top bar/borders; the storage and per-device semantics did not change.)
 
 *If wrong:* users could expect the theme to follow their account across
 devices; the docs/UI state that themes apply to this browser/device only and
