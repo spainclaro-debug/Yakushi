@@ -135,6 +135,20 @@ apply_android_patches() {
       warn "infinite scroll patch no longer applies; building without auto-load"
     fi
   fi
+
+  # Web UI: Delete History button, working catalogue filter sheet, device-local
+  # layout presets and the reader tap-area option.
+  local web_ui_patch="$PKG_DIR/patches/tanoshi-web-ui.patch"
+  local web_ui_settings_patch="$PKG_DIR/patches/tanoshi-web-ui-settings.patch"
+  for patch in "$web_ui_patch" "$web_ui_settings_patch"; do
+    [ -f "$patch" ] || die "missing $patch"
+    if git -C "$SRC_DIR" apply --check --whitespace=nowarn "$patch" 2>/dev/null; then
+      git -C "$SRC_DIR" apply --whitespace=nowarn "$patch"
+      ok "web UI patch applied: $(basename "$patch")"
+    else
+      die "cannot apply $(basename "$patch"); upstream web UI changed?"
+    fi
+  done
   # Register the new modules/patch anchors that the diff already handled; the
   # copies above only provide file contents.
   ok "helper sources in place"

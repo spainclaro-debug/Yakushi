@@ -1,0 +1,866 @@
+diff --git a/crates/tanoshi-schema/graphql/delete_all_history.graphql b/crates/tanoshi-schema/graphql/delete_all_history.graphql
+new file mode 100644
+index 0000000..6c1fac5
+--- /dev/null
++++ b/crates/tanoshi-schema/graphql/delete_all_history.graphql
+@@ -0,0 +1,3 @@
++mutation DeleteAllHistory {
++  deleteAllHistory
++}
+diff --git a/crates/tanoshi-schema/graphql/schema.graphql b/crates/tanoshi-schema/graphql/schema.graphql
+index a8ce484..2916e6f 100644
+--- a/crates/tanoshi-schema/graphql/schema.graphql
++++ b/crates/tanoshi-schema/graphql/schema.graphql
+@@ -160,6 +160,8 @@ type MutationRoot {
+     # chapter ids
+     chapterIds: [Int!]!
+   ): Int!
++  # Clear every read-history entry for the current user.
++  deleteAllHistory: Int!
+   refreshChapters(
+     # manga id
+     mangaId: Int
+diff --git a/crates/tanoshi-schema/src/lib.rs b/crates/tanoshi-schema/src/lib.rs
+index 31a0ea8..22fd16e 100644
+--- a/crates/tanoshi-schema/src/lib.rs
++++ b/crates/tanoshi-schema/src/lib.rs
+@@ -39,6 +39,14 @@ pub struct GetPopularManga;
+ )]
+ pub struct FetchSourceFilters;
+ 
++#[derive(GraphQLQuery)]
++#[graphql(
++    schema_path = "graphql/schema.graphql",
++    query_path = "graphql/delete_all_history.graphql",
++    response_derives = "Debug, Clone"
++)]
++pub struct DeleteAllHistory;
++
+ #[derive(GraphQLQuery)]
+ #[graphql(
+     schema_path = "graphql/schema.graphql",
+diff --git a/crates/tanoshi-web/src/catalogue.rs b/crates/tanoshi-web/src/catalogue.rs
+index f6a82fb..07e7fdb 100644
+--- a/crates/tanoshi-web/src/catalogue.rs
++++ b/crates/tanoshi-web/src/catalogue.rs
+@@ -130,6 +130,8 @@ impl Catalogue {
+             catalogue.latest = Mutable::new(false);
+             catalogue.keyword = Mutable::new(None);
+             catalogue.is_filter = Mutable::new(false);
++            // Filters are source specific: never reuse another source's sheet.
++            catalogue.input_list_modal = Rc::new(InputList::new(true));
+         }
+ 
+         catalogue.source_id = source_id;
+diff --git a/crates/tanoshi-web/src/common/input_list.rs b/crates/tanoshi-web/src/common/input_list.rs
+index b00b7a6..5b5da39 100644
+--- a/crates/tanoshi-web/src/common/input_list.rs
++++ b/crates/tanoshi-web/src/common/input_list.rs
+@@ -36,10 +36,12 @@ impl InputList {
+     }
+ 
+     pub fn set(&self, input_list: Vec<Input>) {
++        // Groups (genres, tag lists, ...) start expanded so the filter sheet
++        // immediately shows the available choices, like Suwayomi/Mihon do.
+         let collapse_map: BTreeMap<usize, bool> = input_list
+             .iter()
+             .enumerate()
+-            .filter(|&(_index, input)| matches!(input, Input::Sort { .. } | Input::Group { .. })).map(|(index, _input)| (index, false))
++            .filter(|&(_index, input)| matches!(input, Input::Sort { .. } | Input::Group { .. })).map(|(index, _input)| (index, true))
+             .collect();
+         trace!("{:?}", collapse_map);
+         self.collapse.lock_mut().replace_cloned(collapse_map);
+@@ -408,6 +410,14 @@ impl InputList {
+                         })
+                     ])
+                     .children_signal_vec(input_list.input_list.signal_vec_cloned().enumerate().map(clone!(input_list => move |(index, input)| Self::render_input(input_list.clone(), index, input))))
++                    .child_signal(input_list.input_list.signal_vec_cloned().len().map(|len| {
++                        (len == 0).then(|| html!("div", {
++                            .style("padding", "1rem")
++                            .style("opacity", "0.75")
++                            .style("text-align", "center")
++                            .text("This source does not expose any filters.")
++                        }))
++                    }))
+                 }),
+             ])
+             .child_signal(signal::always(use_modal).map(clone!(f => move |use_modal| (!use_modal).then(|| html!("button", {
+diff --git a/crates/tanoshi-web/src/common/layout_preference.rs b/crates/tanoshi-web/src/common/layout_preference.rs
+new file mode 100644
+index 0000000..36f8b10
+--- /dev/null
++++ b/crates/tanoshi-web/src/common/layout_preference.rs
+@@ -0,0 +1,322 @@
++use std::rc::Rc;
++
++use dominator::{clone, events, html, with_node, Dom};
++use futures_signals::signal::{Mutable, SignalExt};
++use futures_signals::signal_vec::{MutableVec, SignalVecExt};
++use serde::{Deserialize, Serialize};
++use web_sys::HtmlInputElement;
++
++use crate::common::reader_settings::{
++    Background, Direction, DisplayMode, Fit, ReaderMode, ReaderSettings, KEY as READER_KEY,
++};
++use crate::common::snackbar;
++use crate::utils::local_storage;
++
++const PRESETS_KEY: &str = "settings:layout_presets";
++const SELECTED_KEY: &str = "settings:layout_selected";
++
++pub const DEFAULT_PRESET_NAME: &str = "default";
++
++/// A named snapshot of the reader options. Presets and the current selection
++/// live in `localStorage`, so they follow the device, not the server account:
++/// a device that has never picked a preset starts from the Default preset.
++#[derive(Debug, Clone, Serialize, Deserialize)]
++pub struct LayoutPreset {
++    pub name: String,
++    pub reader_mode: ReaderMode,
++    pub padding: bool,
++    pub display_mode: DisplayMode,
++    pub direction: Direction,
++    pub background: Background,
++    pub fit: Fit,
++}
++
++impl LayoutPreset {
++    pub fn default_preset() -> Self {
++        Self {
++            name: DEFAULT_PRESET_NAME.to_string(),
++            reader_mode: ReaderMode::Paged,
++            padding: false,
++            display_mode: DisplayMode::Single,
++            direction: Direction::LeftToRight,
++            background: Background::White,
++            fit: Fit::All,
++        }
++    }
++
++    fn summary(&self) -> String {
++        let reader_mode = match self.reader_mode {
++            ReaderMode::Paged => "Paged",
++            ReaderMode::Continous => "Continuous",
++        };
++        let padding = if self.padding { "Padding" } else { "No Padding" };
++        let display_mode = match self.display_mode {
++            DisplayMode::Single => "Single",
++            DisplayMode::Double => "Double",
++            DisplayMode::Auto => "Auto",
++        };
++        let direction = match self.direction {
++            Direction::LeftToRight => "Left to Right",
++            Direction::RightToLeft => "Right to Left",
++        };
++        let background = match self.background {
++            Background::White => "White",
++            Background::Black => "Black",
++        };
++        let fit = match self.fit {
++            Fit::All => "Fit All",
++            Fit::Height => "Fit Height",
++            Fit::Width => "Fit Width",
++        };
++
++        format!(
++            "{reader_mode} • {display_mode} • {direction} • {background} • {fit} • {padding}"
++        )
++    }
++}
++
++pub struct LayoutPreference {
++    presets: Rc<MutableVec<LayoutPreset>>,
++    selected: Mutable<String>,
++    adding: Mutable<bool>,
++    new_name: Mutable<String>,
++}
++
++impl LayoutPreference {
++    pub fn new() -> Rc<Self> {
++        let presets = Self::load_presets();
++        let selected = Self::load_selected(&presets);
++
++        Rc::new(Self {
++            presets: Rc::new(MutableVec::new_with_values(presets)),
++            selected: Mutable::new(selected),
++            adding: Mutable::new(false),
++            new_name: Mutable::new(String::new()),
++        })
++    }
++
++    fn load_presets() -> Vec<LayoutPreset> {
++        let mut presets = vec![LayoutPreset::default_preset()];
++
++        if let Ok(Some(raw)) = local_storage().get_item(PRESETS_KEY) {
++            if let Ok(saved) = serde_json::from_str::<Vec<LayoutPreset>>(&raw) {
++                for preset in saved {
++                    if preset.name != DEFAULT_PRESET_NAME
++                        && !presets.iter().any(|item| item.name == preset.name)
++                    {
++                        presets.push(preset);
++                    }
++                }
++            }
++        }
++
++        presets
++    }
++
++    fn load_selected(presets: &[LayoutPreset]) -> String {
++        local_storage()
++            .get_item(SELECTED_KEY)
++            .ok()
++            .flatten()
++            .filter(|name| presets.iter().any(|preset| &preset.name == name))
++            .unwrap_or_else(|| DEFAULT_PRESET_NAME.to_string())
++    }
++
++    fn persist_presets(presets: &[LayoutPreset]) {
++        let custom: Vec<&LayoutPreset> = presets
++            .iter()
++            .filter(|preset| preset.name != DEFAULT_PRESET_NAME)
++            .collect();
++
++        if let Ok(raw) = serde_json::to_string(&custom) {
++            let _ = local_storage().set_item(PRESETS_KEY, &raw);
++        }
++    }
++
++    /// Per-manga reader settings would shadow the preset, so drop them when a
++    /// preset is chosen; the reader then falls back to the global settings.
++    fn clear_manga_overrides() {
++        let storage = local_storage();
++        let prefix = format!("{READER_KEY}:");
++        let mut keys = Vec::new();
++
++        for index in 0..storage.length().unwrap_or(0) {
++            if let Ok(Some(key)) = storage.key(index) {
++                if key.starts_with(&prefix) {
++                    keys.push(key);
++                }
++            }
++        }
++
++        for key in keys {
++            let _ = storage.delete(&key);
++        }
++    }
++
++    fn select(self: &Rc<Self>, preset: LayoutPreset) {
++        let settings = ReaderSettings::new(false, false);
++        settings.apply_preset(&preset);
++        settings.save();
++        Self::clear_manga_overrides();
++
++        self.selected.set(preset.name.clone());
++        let _ = local_storage().set_item(SELECTED_KEY, &preset.name);
++        snackbar::show(format!("Layout preset \"{}\" applied", preset.name));
++    }
++
++    fn add(self: &Rc<Self>) {
++        let name = self.new_name.get_cloned().trim().to_string();
++        if name.is_empty() {
++            snackbar::show("Enter a preset name first".to_string());
++            return;
++        }
++        if self
++            .presets
++            .lock_ref()
++            .iter()
++            .any(|preset| preset.name.eq_ignore_ascii_case(&name))
++        {
++            snackbar::show("A preset with that name already exists".to_string());
++            return;
++        }
++
++        // Snapshot the reader options currently in effect on this device.
++        let settings = ReaderSettings::new(false, false);
++        let preset = LayoutPreset {
++            name,
++            reader_mode: settings.reader_mode.get(),
++            padding: settings.padding.get(),
++            display_mode: settings.display_mode.get(),
++            direction: settings.direction.get(),
++            background: settings.background.get(),
++            fit: settings.fit.get(),
++        };
++
++        self.presets.lock_mut().push_cloned(preset.clone());
++        Self::persist_presets(&self.presets.lock_ref());
++
++        self.new_name.set(String::new());
++        self.adding.set(false);
++        self.select(preset);
++    }
++
++    pub fn render(self: Rc<Self>) -> Dom {
++        let this = self;
++
++        html!("div", {
++            .class("content")
++            .style("padding", "0.5rem")
++            .children(&mut [
++                html!("p", {
++                    .style("margin", "0.5rem 0")
++                    .style("opacity", "0.8")
++                    .text("Presets bundle the reader options below. They are stored on this device only, so a new device starts from the Default preset.")
++                }),
++                html!("ul", {
++                    .class(["list", "group"])
++                    .style("margin-bottom", "0.5rem")
++                    .children_signal_vec(this.presets.signal_vec_cloned().map(clone!(this => move |preset| {
++                        let name = preset.name.clone();
++                        html!("li", {
++                            .class("list-item")
++                            .style("display", "flex")
++                            .style("align-items", "center")
++                            .style("justify-content", "space-between")
++                            .children(&mut [
++                                html!("div", {
++                                    .style("display", "flex")
++                                    .style("flex-direction", "column")
++                                    .style("min-width", "0")
++                                    .children(&mut [
++                                        html!("span", {
++                                            .text(&name)
++                                        }),
++                                        html!("span", {
++                                            .style("font-size", "0.75rem")
++                                            .style("opacity", "0.7")
++                                            .text(&preset.summary())
++                                        }),
++                                    ])
++                                }),
++                                html!("div", {
++                                    .style("display", "flex")
++                                    .style("align-items", "center")
++                                    .style("margin-left", "0.5rem")
++                                    .child_signal(this.selected.signal_cloned().map(clone!(this, preset => move |selected| {
++                                        if selected == preset.name {
++                                            Some(html!("span", {
++                                                .style("color", "var(--primary-color)")
++                                                .style("font-weight", "bold")
++                                                .text("Selected")
++                                            }))
++                                        } else {
++                                            Some(html!("button", {
++                                                .text("Use")
++                                                .event(clone!(this, preset => move |_: events::Click| {
++                                                    this.select(preset.clone());
++                                                }))
++                                            }))
++                                        }
++                                    })))
++                                }),
++                            ])
++                        })
++                    })))
++                }),
++                html!("div", {
++                    .child_signal(this.adding.signal().map(clone!(this => move |adding| {
++                        if adding {
++                            Some(html!("div", {
++                                .style("display", "flex")
++                                .style("align-items", "center")
++                                .style("flex-wrap", "wrap")
++                                .style("gap", "0.5rem")
++                                .children(&mut [
++                                    html!("input" => HtmlInputElement, {
++                                        .style("flex", "1")
++                                        .style("min-width", "8rem")
++                                        .attr("type", "text")
++                                        .attr("placeholder", "Preset name")
++                                        .attr_signal("value", this.new_name.signal_cloned())
++                                        .with_node!(input => {
++                                            .event(clone!(this => move |_: events::Input| {
++                                                this.new_name.set(input.value());
++                                            }))
++                                            .event_with_options(&dominator::EventOptions::preventable(), clone!(this => move |e: events::KeyDown| {
++                                                if e.key() == "Enter" {
++                                                    e.prevent_default();
++                                                    this.add();
++                                                }
++                                            }))
++                                        })
++                                    }),
++                                    html!("button", {
++                                        .text("Create")
++                                        .event(clone!(this => move |_: events::Click| {
++                                            this.add();
++                                        }))
++                                    }),
++                                    html!("button", {
++                                        .text("Cancel")
++                                        .event(clone!(this => move |_: events::Click| {
++                                            this.adding.set(false);
++                                            this.new_name.set(String::new());
++                                        }))
++                                    }),
++                                ])
++                            }))
++                        } else {
++                            Some(html!("button", {
++                                .style("margin-top", "0.5rem")
++                                .text("Add New Preset")
++                                .event(clone!(this => move |_: events::Click| {
++                                    this.adding.set(true);
++                                }))
++                            }))
++                        }
++                    })))
++                }),
++            ])
++        })
++    }
++}
+diff --git a/crates/tanoshi-web/src/common/mod.rs b/crates/tanoshi-web/src/common/mod.rs
+index c5b8149..19cdc86 100644
+--- a/crates/tanoshi-web/src/common/mod.rs
++++ b/crates/tanoshi-web/src/common/mod.rs
+@@ -16,6 +16,9 @@ pub use appearance_settings::*;
+ mod reader_settings;
+ pub use reader_settings::*;
+ 
++mod layout_preference;
++pub use layout_preference::{LayoutPreset, LayoutPreference};
++
+ pub mod events;
+ 
+ mod login;
+diff --git a/crates/tanoshi-web/src/common/reader_settings.rs b/crates/tanoshi-web/src/common/reader_settings.rs
+index a2b2f1c..f630aa8 100644
+--- a/crates/tanoshi-web/src/common/reader_settings.rs
++++ b/crates/tanoshi-web/src/common/reader_settings.rs
+@@ -8,16 +8,16 @@ use std::rc::Rc;
+ 
+ use crate::utils::{document, local_storage};
+ 
+-const KEY: &str = "settings:reader";
++pub const KEY: &str = "settings:reader";
+ 
+-#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+ pub enum ReaderMode {
+     Continous,
+     #[default]
+     Paged,
+ }
+ 
+-#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+ pub enum DisplayMode {
+     #[default]
+     Single,
+@@ -54,21 +54,21 @@ impl DisplayMode {
+     }
+ }
+ 
+-#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+ pub enum Direction {
+     #[default]
+     LeftToRight,
+     RightToLeft,
+ }
+ 
+-#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+ pub enum Background {
+     #[default]
+     White,
+     Black,
+ }
+ 
+-#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+ pub enum Fit {
+     Height,
+     Width,
+@@ -76,6 +76,21 @@ pub enum Fit {
+     All,
+ }
+ 
++#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
++pub enum TapArea {
++    /// Tap the right side for the next page and the left side for the previous.
++    #[default]
++    RightNext,
++    /// Tap the left side for the next page and the right side for the previous.
++    LeftNext,
++}
++
++impl TapArea {
++    pub fn is_right_next(&self) -> bool {
++        matches!(self, TapArea::RightNext)
++    }
++}
++
+ #[allow(dead_code)]
+ pub struct ReaderSettingSignal {
+     pub use_modal: bool,
+@@ -85,6 +100,7 @@ pub struct ReaderSettingSignal {
+     pub direction: Direction,
+     pub background: Background,
+     pub fit: Fit,
++    pub tap_area: TapArea,
+ }
+ 
+ #[derive(Clone, Default, Serialize, Deserialize)]
+@@ -103,6 +119,8 @@ pub struct ReaderSettings {
+     pub direction: Mutable<Direction>,
+     pub background: Mutable<Background>,
+     pub fit: Mutable<Fit>,
++    #[serde(default)]
++    pub tap_area: Mutable<TapArea>,
+ }
+ 
+ impl ReaderSettings {
+@@ -150,6 +168,17 @@ impl ReaderSettings {
+         self.direction.replace(settings.direction.get());
+         self.background.replace(settings.background.get());
+         self.fit.replace(settings.fit.get());
++        self.tap_area.replace(settings.tap_area.get());
++    }
++
++    /// Replace the reader options with the values stored in a layout preset.
++    pub fn apply_preset(&self, preset: &crate::common::LayoutPreset) {
++        self.reader_mode.set(preset.reader_mode);
++        self.padding.set(preset.padding);
++        self.display_mode.set(preset.display_mode);
++        self.direction.set(preset.direction);
++        self.background.set(preset.background);
++        self.fit.set(preset.fit);
+     }
+ 
+     pub fn toggle_show(&self) {
+@@ -157,7 +186,7 @@ impl ReaderSettings {
+         self.first_render.replace_with(|_| false);
+     }
+ 
+-    fn save(&self) {
++    pub fn save(&self) {
+         let mut key = KEY.to_string();
+         if *self.manga_id.lock_ref() > 0 {
+             key = [key, (*self.manga_id.lock_ref()).to_string()].join(":");
+@@ -465,6 +494,36 @@ impl ReaderSettings {
+         })
+     }
+ 
++    fn render_tap_area(settings: Rc<Self>) -> Dom {
++        html!("div", {
++            .children(&mut [
++                html!("label", {
++                    .style("margin", "0.5rem")
++                    .text("Tap Area")
++                }),
++                html!("div", {
++                    .class("reader-settings-row")
++                    .children(&mut [
++                        html!("button", {
++                            .style("width", "50%")
++                            .style("font-size", "0.75rem")
++                            .class_signal("active", settings.tap_area.signal().map(|x| x.is_right_next()))
++                            .text("Bottom right: NEXT, bottom left: PREV")
++                            .event(clone!(settings => move |_: events::Click| settings.tap_area.set_neq(TapArea::RightNext)))
++                        }),
++                        html!("button", {
++                            .style("width", "50%")
++                            .style("font-size", "0.75rem")
++                            .class_signal("active", settings.tap_area.signal().map(|x| !x.is_right_next()))
++                            .text("Bottom left: NEXT, bottom right: PREV")
++                            .event(clone!(settings => move |_: events::Click| settings.tap_area.set_neq(TapArea::LeftNext)))
++                        }),
++                    ])
++                })
++            ])
++        })
++    }
++
+     fn signal(&self) -> impl Signal<Item = ReaderSettingSignal> + use<> {
+         map_ref! {
+             let use_modal = signal::always(self.use_modal),
+@@ -473,7 +532,8 @@ impl ReaderSettings {
+             let display_mode = self.display_mode.signal_cloned(),
+             let direction = self.direction.signal_cloned(),
+             let background = self.background.signal_cloned(),
+-            let fit = self.fit.signal_cloned() =>
++            let fit = self.fit.signal_cloned(),
++            let tap_area = self.tap_area.signal_cloned() =>
+ 
+             ReaderSettingSignal {
+                 use_modal: *use_modal,
+@@ -483,6 +543,7 @@ impl ReaderSettings {
+                 direction: *direction,
+                 background: *background,
+                 fit: *fit,
++                tap_area: *tap_area,
+             }
+         }
+     }
+@@ -524,7 +585,8 @@ impl ReaderSettings {
+                         Self::render_display_mode(settings.clone()),
+                         Self::render_direction(settings.clone()),
+                         Self::render_background(settings.clone()),
+-                        Self::render_fit_screen(settings),
++                        Self::render_fit_screen(settings.clone()),
++                        Self::render_tap_area(settings),
+                     ])
+                 })
+             ])
+diff --git a/crates/tanoshi-web/src/common/route.rs b/crates/tanoshi-web/src/common/route.rs
+index e23f2a2..ede9e77 100644
+--- a/crates/tanoshi-web/src/common/route.rs
++++ b/crates/tanoshi-web/src/common/route.rs
+@@ -10,6 +10,7 @@ pub enum SettingCategory {
+     Appearance,
+     Chapters,
+     Reader,
++    LayoutPreference,
+     Library,
+     Category,
+     SourceList,
+@@ -134,6 +135,7 @@ impl Route {
+                         "library" => Route::Settings(SettingCategory::Library),
+                         "category" => Route::Settings(SettingCategory::Category),
+                         "reader" => Route::Settings(SettingCategory::Reader),
++                        "layout-preference" => Route::Settings(SettingCategory::LayoutPreference),
+                         "sources" => Route::Settings(SettingCategory::SourceList),
+                         "users" => Route::Settings(SettingCategory::Users),
+                         "user" => Route::Settings(SettingCategory::User),
+@@ -225,6 +227,9 @@ impl Route {
+             Route::Settings(SettingCategory::Library) => "/settings/library".to_string(),
+             Route::Settings(SettingCategory::Category) => "/settings/category".to_string(),
+             Route::Settings(SettingCategory::Reader) => "/settings/reader".to_string(),
++            Route::Settings(SettingCategory::LayoutPreference) => {
++                "/settings/layout-preference".to_string()
++            }
+             Route::Settings(SettingCategory::SourceList) => "/settings/sources".to_string(),
+             Route::Settings(SettingCategory::Source(source_id)) => {
+                 format!("/settings/sources/{source_id}")
+diff --git a/crates/tanoshi-web/src/histories.rs b/crates/tanoshi-web/src/histories.rs
+index 9ae967c..ae3f1ad 100644
+--- a/crates/tanoshi-web/src/histories.rs
++++ b/crates/tanoshi-web/src/histories.rs
+@@ -30,6 +30,7 @@ pub struct Histories {
+     spinner: Rc<Spinner>,
+     entries: MutableVec<Entry>,
+     is_entries_empty: Mutable<bool>,
++    confirm_delete: Mutable<bool>,
+ }
+ 
+ impl Histories {
+@@ -39,6 +40,7 @@ impl Histories {
+             loader: AsyncLoader::new(),
+             entries: MutableVec::new(),
+             is_entries_empty: Mutable::new(true),
++            confirm_delete: Mutable::new(false),
+         })
+     }
+ 
+@@ -71,7 +73,25 @@ impl Histories {
+         }));
+     }
+ 
+-    pub fn render_topbar() -> Dom {
++    pub fn delete_all(histories: Rc<Self>) {
++        histories.confirm_delete.set(false);
++        histories.spinner.set_active(true);
++        histories.loader.load(clone!(histories => async move {
++            match query::delete_all_history().await {
++                Ok(_) => {
++                    histories.entries.lock_mut().clear();
++                    histories.is_entries_empty.set(true);
++                    snackbar::show("History deleted".to_string());
++                }
++                Err(err) => {
++                    snackbar::show(format!("{err}"));
++                }
++            }
++            histories.spinner.set_active(false);
++        }));
++    }
++
++    pub fn render_topbar(histories: Rc<Self>) -> Dom {
+         html!("div", {
+             .class("topbar")
+             .class_signal("tauri", is_tauri_signal())
+@@ -83,6 +103,42 @@ impl Histories {
+                     .text("History")
+                 }),
+                 html!("div", {
++                    .style("display", "flex")
++                    .style("justify-content", "flex-end")
++                    .style("align-items", "center")
++                    .child_signal(histories.confirm_delete.signal().map(clone!(histories => move |confirm| {
++                        if confirm {
++                            Some(html!("div", {
++                                .style("display", "flex")
++                                .style("align-items", "center")
++                                .children(&mut [
++                                    html!("button", {
++                                        .text("Delete")
++                                        .event(clone!(histories => move |_: events::Click| {
++                                            Self::delete_all(histories.clone());
++                                        }))
++                                    }),
++                                    html!("button", {
++                                        .text("Cancel")
++                                        .event(clone!(histories => move |_: events::Click| {
++                                            histories.confirm_delete.set(false);
++                                        }))
++                                    }),
++                                ])
++                            }))
++                        } else {
++                            Some(html!("button", {
++                                .style("white-space", "nowrap")
++                                .text("Delete History")
++                                .event(clone!(histories => move |_: events::Click| {
++                                    if histories.entries.lock_ref().is_empty() {
++                                        return;
++                                    }
++                                    histories.confirm_delete.set(true);
++                                }))
++                            }))
++                        }
++                    })))
+                 })
+             ])
+         })
+@@ -182,7 +238,7 @@ impl Histories {
+         html!("div", {
+             .class("main")
+             .children(&mut [
+-                Self::render_topbar(),
++                Self::render_topbar(histories.clone()),
+                 html!("div", {
+                     .class("topbar-spacing")
+                 }),
+diff --git a/crates/tanoshi-web/src/query.rs b/crates/tanoshi-web/src/query.rs
+index 546c8a1..f5858b4 100644
+--- a/crates/tanoshi-web/src/query.rs
++++ b/crates/tanoshi-web/src/query.rs
+@@ -496,6 +496,11 @@ pub async fn mark_chapter_as_unread(chapter_ids: &[i64]) -> Result<(), Box<dyn E
+     Ok(())
+ }
+ 
++pub async fn delete_all_history() -> Result<(), Box<dyn Error>> {
++    let _ = post_graphql::<DeleteAllHistory>(delete_all_history::Variables).await?;
++    Ok(())
++}
++
+ pub async fn download_chapters(chapter_ids: &[i64]) -> Result<(), Box<dyn Error>> {
+     let var = download_chapters::Variables {
+         ids: Some(chapter_ids.iter().map(|id| Some(*id)).collect()),
+diff --git a/crates/tanoshi-web/src/reader.rs b/crates/tanoshi-web/src/reader.rs
+index 800e271..2567354 100644
+--- a/crates/tanoshi-web/src/reader.rs
++++ b/crates/tanoshi-web/src/reader.rs
+@@ -4,7 +4,7 @@ use std::rc::Rc;
+ use crate::common::{Fit, ReaderSettings, Spinner, events, snackbar};
+ use crate::utils::{document, proxied_image_url, window, AsyncLoader, format_number_title};
+ use crate::{
+-    common::{Background, Direction, DisplayMode, ReaderMode},
++    common::{Background, Direction, DisplayMode, ReaderMode, TapArea},
+     query,
+     utils::history,
+ };
+@@ -944,9 +944,11 @@ impl Reader {
+             .style("height", "100vh")
+             .style("z-index", "10")
+             .style("cursor", "pointer")
+-            .style_signal("flex-direction", this.reader_settings.direction.signal_cloned().map(|x| match x {
+-                Direction::LeftToRight => "row-reverse",
+-                Direction::RightToLeft => "row",
++            .style_signal("flex-direction", this.reader_settings.tap_area.signal().map(|tap_area| match tap_area {
++                // Children are ordered next | hide-bar | prev, so `row-reverse`
++                // puts the next-page zone on the right.
++                TapArea::RightNext => "row-reverse",
++                TapArea::LeftNext => "row",
+             }))
+             .global_event(clone!(this => move |e: events::KeyDown| {
+                 let direction = this.reader_settings.direction.get();
+diff --git a/crates/tanoshi/src/domain/repositories/history.rs b/crates/tanoshi/src/domain/repositories/history.rs
+index 1f893ea..bd4c86f 100644
+--- a/crates/tanoshi/src/domain/repositories/history.rs
++++ b/crates/tanoshi/src/domain/repositories/history.rs
+@@ -76,6 +76,9 @@ pub trait HistoryRepository: Send + Sync {
+         chapter_ids: &[i64],
+     ) -> Result<(), HistoryRepositoryError>;
+ 
++    /// Remove every read-history row belonging to the user.
++    async fn delete_all_history(&self, user_id: i64) -> Result<u64, HistoryRepositoryError>;
++
+     async fn get_unread_chapters_by_manga_ids(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/domain/services/history.rs b/crates/tanoshi/src/domain/services/history.rs
+index 9a3e209..24288b4 100644
+--- a/crates/tanoshi/src/domain/services/history.rs
++++ b/crates/tanoshi/src/domain/services/history.rs
+@@ -109,6 +109,10 @@ where
+         Ok(())
+     }
+ 
++    pub async fn delete_all_history(&self, user_id: i64) -> Result<u64, HistoryError> {
++        Ok(self.repo.delete_all_history(user_id).await?)
++    }
++
+     pub async fn get_next_chapter(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/infrastructure/domain/repositories/history.rs b/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
+index af06f12..f0aab09 100644
+--- a/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
++++ b/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
+@@ -289,6 +289,26 @@ impl HistoryRepository for HistoryRepositoryImpl {
+         Ok(())
+     }
+ 
++    async fn delete_all_history(&self, user_id: i64) -> Result<u64, HistoryRepositoryError> {
++        let mut tx = self.pool.write().begin().await?;
++
++        // Deleting the per-manga summary first keeps the row-level triggers on
++        // `user_history` from rewriting it while the detail rows go away.
++        sqlx::query("DELETE FROM user_manga_history WHERE user_id = ?")
++            .bind(user_id)
++            .execute(&mut *tx)
++            .await?;
++
++        let result = sqlx::query("DELETE FROM user_history WHERE user_id = ?")
++            .bind(user_id)
++            .execute(&mut *tx)
++            .await?;
++
++        tx.commit().await?;
++
++        Ok(result.rows_affected())
++    }
++
+     async fn get_unread_chapters_by_manga_ids(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/presentation/graphql/library.rs b/crates/tanoshi/src/presentation/graphql/library.rs
+index 0bc3cb2..c42dacf 100644
+--- a/crates/tanoshi/src/presentation/graphql/library.rs
++++ b/crates/tanoshi/src/presentation/graphql/library.rs
+@@ -370,6 +370,19 @@ impl LibraryMutationRoot {
+         Ok(1)
+     }
+ 
++    async fn delete_all_history(&self, ctx: &Context<'_>) -> Result<u64> {
++        let claims = ctx
++            .data::<Claims>()
++            .map_err(|_| "token not exists, please login")?;
++
++        let deleted = ctx
++            .data::<HistoryService<ChapterRepositoryImpl, HistoryRepositoryImpl>>()?
++            .delete_all_history(claims.sub)
++            .await?;
++
++        Ok(deleted)
++    }
++
+     async fn refresh_chapters(
+         &self,
+         ctx: &Context<'_>,

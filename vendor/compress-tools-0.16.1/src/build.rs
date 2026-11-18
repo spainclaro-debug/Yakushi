@@ -25,11 +25,23 @@ fn find_libarchive() {
     }
 
     // Termux ships the compression libs as shared objects; probe them without
-    // requiring a full static-only archive of every codec.
+    // requiring a full static-only archive of every codec. On Android the
+    // bundled libarchive is compiled without lz4/zstd/xz support and the host
+    // pkg-config would otherwise inject x86_64 libraries into the aarch64
+    // link, so those probes are skipped there entirely.
+    // Build scripts run for the host, so the target OS comes from cargo's env.
+    let target_android = std::env::var("CARGO_CFG_TARGET_OS")
+        .map(|os| os == "android")
+        .unwrap_or(false);
     let probe = |pc_name: &str| {
-        pkg_config::Config::new()
-            .probe(pc_name)
-            .unwrap_or_else(|e| panic!("Unable to find {pc_name}: {e}"));
+        if target_android {
+            return;
+        }
+        if let Err(error) = pkg_config::Config::new().probe(pc_name) {
+            println!(
+                "cargo:warning=optional compression codec {pc_name} not found; skipping ({error})"
+            );
+        }
     };
     let probe_static = &probe;
 
@@ -45,16 +57,12 @@ fn find_libarchive() {
     if cfg!(feature = "static_lzma") {
         probe_static("liblzma");
     }
-    if cfg!(feature = "static_bz2") {
+    if cfg!(feature = "static_bz2") && !target_android {
         // bzip2 upstream (and Ubuntu's libbz2-dev) ships no .pc file, but
         // Homebrew's bzip2 does. Try pkg-config so we pick up search paths on
         // macOS; fall back to a bare link directive when pkg-config has
         // nothing, relying on the system library search path.
-        if pkg_config::Config::new()
-            .statik(true)
-            .probe("bzip2")
-            .is_err()
-        {
+        if pkg_config::Config::new().statik(true).probe("bzip2").is_err() {
             println!("cargo:rustc-link-lib=static=bz2");
         }
     }

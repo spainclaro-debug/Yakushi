@@ -74,6 +74,30 @@ tanoshi-infinite-scroll.patch
     into "No more results" once a page comes back empty. Also enables the
     web-sys IntersectionObserverInit feature.
 
+tanoshi-web-ui.patch
+    Applies to the Tanoshi source tree (after tanoshi-infinite-scroll.patch).
+    Front-end features for the embedded web UI:
+
+    - History: a "Delete History" button in the topbar that clears every read
+      history entry for the signed-in user after an inline confirmation. Needs
+      the matching deleteAllHistory GraphQL mutation added in the server crate.
+    - Catalogue: the filter sheet no longer inherits another source's cached
+      filters, starts with groups expanded (so the genres/tags are visible like
+      in Suwayomi/Mihon), and shows an explicit message for sources that expose
+      no filters.
+    - Settings: a "Layout Preference" screen that saves reader-option presets
+      (Reading mode, Padding, Display mode, Direction, Background, Fit) in the
+      device's localStorage, with a built-in "default" preset and "Add New
+      Preset". The selection is per device, so a new device starts at default
+      even against the same server.
+    - Reader settings: a "Tap Area" option choosing "bottom right: NEXT, bottom
+      left: PREV" or "bottom left: NEXT, bottom right: PREV".
+
+tanoshi-web-ui-settings.patch
+    The settings.rs hunks of tanoshi-web-ui.patch, generated with minimal
+    context so the same file applies to both the Termux build (which does not
+    apply android/native/patches/0003) and the Android app build (which does).
+
 extension-icons.patch
     Applies to the extensions workspace. Replaces the MangaDex icon URL:
     mangadex.org answers every favicon path with an HTML bot-challenge page, so
@@ -87,6 +111,9 @@ vendor/compress-tools-0.16.1/
     - drops libb2 (BLAKE2) from the blanket "static" feature list; Termux has no
       libb2 and its libarchive needs none
     - probes shared libraries instead of static-only ones
+    - treats the optional codec probes (lz4, zstd, xz, zlib, bzip2) as best
+      effort instead of fatal: the Android/NDK libarchive is built without
+      those codecs and `--as-needed` drops the unused libraries
     - teaches the locale guard about target_os = "android"
 
 Applying by hand
@@ -97,6 +124,9 @@ In a checkout of the tag you want:
     git apply patches/tanoshi-android.patch
     cp patches/http.rs.new crates/tanoshi/src/infrastructure/http.rs
     cp patches/extension-build.rs.new crates/tanoshi-vm/src/extension/build.rs
+    git apply patches/tanoshi-infinite-scroll.patch
+    git apply patches/tanoshi-web-ui.patch
+    git apply patches/tanoshi-web-ui-settings.patch
 
     # cargo config
     mkdir -p "$HOME/.tanoshi-build/cargo-home"

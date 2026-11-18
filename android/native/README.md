@@ -33,8 +33,10 @@ does not execute them itself).
 `libtanoshi.so` also embeds the Tanoshi web UI: the wasm bundle from
 `android/native/web-dist/` is compiled into the server binary, so the
 catalogue/infinite-scroll behaviour and UI changes ship with the server rather
-than with the Android app. For 0.7.0 the dist was rebuilt from source with
-`patches/tanoshi-infinite-scroll.patch` and
+than with the Android app. The dist is rebuilt from source with
+`patches/tanoshi-infinite-scroll.patch`,
+`patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
+(Delete History, catalogue filter sheet, layout presets, reader tap area) and
 `native/patches/0003-web-ui-hide-source-management.patch` (extension
 management is app-only; see step 3).
 

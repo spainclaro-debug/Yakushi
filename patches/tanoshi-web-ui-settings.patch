@@ -1,0 +1,23 @@
+diff --git a/crates/tanoshi-web/src/settings.rs b/crates/tanoshi-web/src/settings.rs
+index 6c33f31..e09d4c8 100644
+--- a/crates/tanoshi-web/src/settings.rs
++++ b/crates/tanoshi-web/src/settings.rs
+@@ -4,2 +4,3 @@ use crate::{
+         ChapterSettings, 
++        LayoutPreference,
+         LibrarySettings,
+@@ -306,2 +307,3 @@ impl Settings {
+                             SettingCategory::Reader => "Reader",
++                            SettingCategory::LayoutPreference => "Layout Preference",
+                             SettingCategory::SourceList => "Sources",
+@@ -402,2 +404,6 @@ impl Settings {
+                     .text("Reader")
++                }),
++                link!(Route::Settings(SettingCategory::LayoutPreference).url(), {
++                    .class("list-item")
++                    .text("Layout Preference")
+                 })
+@@ -777,2 +783,3 @@ impl Settings {
+                     SettingCategory::Reader => Some(ReaderSettings::render(settings.reader_settings.clone())),
++                    SettingCategory::LayoutPreference => Some(LayoutPreference::render(LayoutPreference::new())),
+                     SettingCategory::SourceList => Some(html!("div", {
