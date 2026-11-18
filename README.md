@@ -22,10 +22,13 @@ APK, tap **Start server**, and open the web UI.
 
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.9.1**; download it from the
+HentaiNexus). The current release is **0.9.2**; download it from the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.9.1 reworks how the web-UI theme is applied (the 0.9.0 feature and
+0.9.2 fixes the web-UI Settings list cells (Appearance, Chapters, Library,
+Categories, …): they now follow the selected theme with their own tinted
+surface and contrast-adaptive text in both light and dark mode. 0.9.1 reworks
+how the web-UI theme is applied (the 0.9.0 feature and
 per-device storage are unchanged): banners use the primary colour, icons and
 the unread-chapter badge use the secondary, the page background is the accent
 at 30% over the light/dark base, headers/titles and settings panels use the
@@ -49,6 +52,18 @@ unchanged).
 
 > The Termux package documented below and the Android app in `android/` are two
 > independent ways to run the same server. You only need one of them.
+
+### What's new in 0.9.2
+
+- **Themed Settings list cells** — the Settings-page cells (Appearance,
+  Chapters, Library, Categories, Reader, Sources, Users, Download Queue,
+  Migrate, …) now use their own themed surface
+  (`--theme-cell-light`/`--theme-cell-dark`) with contrast-adaptive cell
+  text in both light and dark mode, instead of the stock white cell
+  background that could make setting names unreadable under a dark theme.
+  Everything else from 0.9.1 is unchanged.
+
+Previous release — **0.9.1** — and its features:
 
 ### What's new in 0.9.1
 
@@ -387,7 +402,7 @@ Full details, including the API-level differences and failure modes:
 ### Updating the app
 
 - **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.9.1`), compares the
+  repository's GitHub releases (only tags like `android-v0.9.2`), compares the
   version, downloads the release APK, verifies it when a digest is available and
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.

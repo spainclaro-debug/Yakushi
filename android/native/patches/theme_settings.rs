@@ -230,6 +230,10 @@ const THEME_VARS: &[&str] = &[
     "--bottombar-active-color",
     "--panel-text",
     "--unread-text",
+    "--theme-cell-light",
+    "--theme-cell-dark",
+    "--theme-cell-text-light",
+    "--theme-cell-text-dark",
 ];
 
 fn blend(from: &str, to: &str, amount: f32) -> String {
@@ -321,8 +325,16 @@ pub fn apply_palette(primary: &str, secondary: &str, accent: &str) {
         &ensure_contrast(accent, "#101010", 3.0),
     );
 
-    // Settings panels use the accent color directly.
+    // Settings panels use the accent color directly; the list cells inside the
+    // settings pages need their own themed surface because the stock
+    // --list-group-background-color resolves at :root and would stay white.
     set_var("--panel-text", contrast_text(accent));
+    let cell_light = blend("#ffffff", accent, 0.22);
+    let cell_dark = blend("#111111", accent, 0.30);
+    set_var("--theme-cell-light", &cell_light);
+    set_var("--theme-cell-dark", &cell_dark);
+    set_var("--theme-cell-text-light", contrast_text(&cell_light));
+    set_var("--theme-cell-text-dark", contrast_text(&cell_dark));
     // Unread-chapter badges use the secondary color in both modes.
     set_var("--unread-text", contrast_text(secondary));
 

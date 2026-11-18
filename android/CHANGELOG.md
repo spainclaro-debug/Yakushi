@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.9.1`). The Termux package in the repository root has
+(for example `android-v0.9.2`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,37 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.9.2
+
+### Fixed
+
+- **Settings list cells now follow the web-UI theme.** On the Settings page the
+  list cells (**Appearance**, **Chapters**, **Library**, **Categories**,
+  **Reader**, **Sources**, **Users**, **Download Queue**, **Migrate**, etc.)
+  kept the stock light `--list-group-background-color`, which resolves at
+  `:root` and therefore ignored the themed background. With a dark theme (and
+  especially the light appearance mode) their text could turn light while the
+  cell stayed white, making the setting names unreadable. `theme_settings.rs`
+  now computes **`--theme-cell-light`** (accent mixed 22% into white),
+  **`--theme-cell-dark`** (accent mixed 30% into `#111111`) and
+  contrast-adaptive **`--theme-cell-text-light`** / **`--theme-cell-text-dark`**
+  (black/white chosen for the cell surface); the CSS themes
+  `body.themed .settings-page .list.group` for both modes and makes the cell
+  contents inherit the adaptive cell text. No other behaviour changed from
+  0.9.1 (banners/icons/badge/background/titles/panels/adaptive body
+  text/presets/custom builder/per-device storage are unchanged).
+- **Web UI and `libtanoshi.so` rebuilt** with the cell fix; the vendored dist
+  in `android/native/web-dist/` and the embedded server binary were rebuilt.
+- **Version 0.9.2:** `versionCode` 902 in the Gradle default; the
+  `android-v0.9.2` tag produces `versionCode` 902. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- Settings cells use their own tinted surface in light/dark mode; the theme
+  presets, custom Primary/Secondary/Accent builder and per-device
+  `localStorage` (`settings:theme-palette`) behaviour are unchanged.
 
 ## 0.9.1
 

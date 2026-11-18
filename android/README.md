@@ -5,14 +5,18 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.9.1** — see the
+Current release: **0.9.2** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.9.1 reworks **how** the per-device
-web-UI theme is applied (the 0.9.0 feature is unchanged): top and bottom
-banners use the primary colour, icons and the unread-chapter badge use the
-secondary, page background is the accent at 30% over the light/dark base,
-headers/titles and settings panels use the accent, and all text is
-contrast-adaptive per mode. 0.9.0 added the **per-device web-UI themes** in the
+and [`CHANGELOG.md`](CHANGELOG.md). 0.9.2 fixes the web-UI **Settings list
+cells** (Appearance, Chapters, Library, Categories, Reader, Sources, Users,
+Download Queue, Migrate, …): they now use their own tinted cell surface and
+contrast-adaptive text in both light and dark mode, instead of keeping the
+stock white `--list-group-background-color` that made them unreadable with
+some themes. 0.9.1 reworks **how** the per-device web-UI theme is applied (the
+0.9.0 feature is unchanged): top and bottom banners use the primary colour,
+icons and the unread-chapter badge use the secondary, page background is the
+accent at 30% over the light/dark base, headers/titles and settings panels use
+the accent, and all text is contrast-adaptive per mode. 0.9.0 added the **per-device web-UI themes** in the
 Tanoshi frontend (Settings → Appearance → Themes): 12 preset palettes plus a
 **New theme** builder with Primary/Secondary/Accent colour grids, **Apply** and
 **Reset to default**; the choice is stored only in the browser's
@@ -46,7 +50,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.9.1](#whats-new-in-091)
+- [What's new in 0.9.2](#whats-new-in-092)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -95,6 +99,32 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.9.2
+
+- **Settings list cells follow the web-UI theme.** On the Settings page the
+  list cells (**Appearance**, **Chapters**, **Library**, **Categories**,
+  **Reader**, **Sources**, **Users**, **Download Queue**, **Migrate**, etc.)
+  previously used the stock `--list-group-background-color`, which resolves at
+  `:root` and stayed light/white regardless of the palette (their text could
+  then be unreadable with a dark theme, especially in light appearance mode).
+  They now get a themed cell surface in both modes:
+  - **light mode**: `--theme-cell-light` = accent mixed **22%** into white;
+  - **dark mode**: `--theme-cell-dark` = accent mixed **30%** into `#111111`;
+  - **cell text** uses contrast-adaptive `--theme-cell-text-light` /
+    `--theme-cell-text-dark` (black or white for the cell surface), and the
+    cell contents inherit it.
+  The CSS targets `body.themed .settings-page .list.group` (and the dark
+  variant). Everything else from 0.9.1 is unchanged (banners, icons, badge,
+  background, titles, settings panels, adaptive body text, presets, custom
+  builder and per-device storage).
+- **Web UI and server rebuilt** — the wasm dist was rebuilt with the cell
+  fix and vendored in `android/native/web-dist/`; the embedded
+  `libtanoshi.so` was rebuilt with it.
+- **Version 0.9.2** — `versionCode` 902; the `android-v0.9.2` tag produces
+  `versionCode` 902. The APK filename scheme is unchanged.
+
+Previous release — **0.9.1** — and its features:
 
 ## What's new in 0.9.1
 
@@ -291,12 +321,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.9.1**,
-`versionCode` 901) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.9.2**,
+`versionCode` 902) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.9.1 -PappVersionCode=901 \
+./gradlew :app:assembleDebug -PappVersionName=0.9.2 -PappVersionCode=902 \
   -PapkDate=2026-11-14
 ```
 
@@ -357,18 +387,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.9.1`. For a tag, CI derives everything from the tag and
+example `android-v0.9.2`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.1` → `901`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.2` → `902`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.9.1 /
-versionCode 901) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.9.2 /
+versionCode 902) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -601,7 +631,13 @@ browser) has its own **Settings → Appearance → Themes** section, added in
     computes separate light/dark text colours from the tinted background plus
     readable heading, banner, panel and badge foregrounds, applied through the
     `body.themed` class. **Reset to default** removes the class/variables and
-    restores the normal Auto/Light/Dark appearance.
+    restores the normal Auto/Light/Dark appearance;
+  - **settings list cells** (Appearance, Chapters, Library, Categories,
+    Reader, Sources, Users, Download Queue, Migrate, …) → their own themed
+    surface in both modes: `--theme-cell-light` (accent 22% into white) in
+    light mode, `--theme-cell-dark` (accent 30% into `#111111`) in dark mode,
+    with contrast-adaptive `--theme-cell-text-light` / `--theme-cell-text-dark`
+    and cell contents inheriting it (0.9.2).
 
 **Per-device storage.** The theme is stored **only in the browser's
 `localStorage`** under the key `settings:theme-palette` (a small JSON object
@@ -618,7 +654,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.9.1-debug`; the updater strips it before
+`-debug` version suffix such as `0.9.2-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1472,6 +1508,14 @@ Expected: web-UI themes are stored per browser/device in `localStorage`
 (`settings:theme-palette`) and are not synced through the server. Pick the
 theme on each device; a new device starts at the Auto/default appearance.
 
+**Settings page cells stayed white / setting names were unreadable with a
+dark web-UI theme.** That was fixed in 0.9.2: the Settings list cells
+(Appearance, Chapters, Library, Categories, Reader, Sources, Users, Download
+Queue, Migrate, …) now use a themed cell surface (`--theme-cell-light` /
+`--theme-cell-dark`) with contrast-adaptive cell text in both modes. Update the
+app to 0.9.2 or later and restart the server if the embedded UI still looks
+stale.
+
 **The web-UI theme is not applied / I want to undo it.** In the Tanoshi web UI
 open **Settings → Appearance → Themes**, select a preset (or use **New
 theme**) and press **Apply**; **Reset to default** clears the stored palette
@@ -1585,14 +1629,14 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches (`native/patches/0004-web-ui-themes.patch` + `theme_settings.rs`), embedded in `libtanoshi.so`; 0.9.1 rebuilt it with the full-palette application and adaptive text |
-| Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1 |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches (`native/patches/0004-web-ui-themes.patch` + `theme_settings.rs`), embedded in `libtanoshi.so`; 0.9.1 rebuilt it with the full-palette application/adaptive text and 0.9.2 with themed settings cells |
+| Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.9.1 (`versionName`); `versionCode` 901 in local builds and for the `android-v0.9.1` tag |
+| App version | 0.9.2 (`versionName`); `versionCode` 902 in local builds and for the `android-v0.9.2` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

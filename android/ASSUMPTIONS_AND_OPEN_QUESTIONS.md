@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.9.1 / 901, local date).
+three to Gradle; local builds use the Gradle defaults (0.9.2 / 902, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.9.1 / versionCode
-901 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.1`
+The app follows its own `android-vX.Y.Z` version scheme (0.9.2 / versionCode
+902 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.2`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -601,6 +601,19 @@ readable heading colours, and the banner/panel/badge foregrounds; **Reset to
 default** removes the `body.themed` class and all theme variables and restores
 the normal Auto/Light/Dark appearance. (0.9.0 applied the palette mainly to the
 top bar/borders; the storage and per-device semantics did not change.)
+
+**Settings list cells (0.9.2).** The Settings-page list cells (Appearance,
+Chapters, Library, Categories, Reader, Sources, Users, Download Queue,
+Migrate, …) previously kept the stock `--list-group-background-color`, which
+resolves at `:root`, so they stayed white regardless of the themed background
+(and could show light text on white in some theme/mode combinations). From
+0.9.2 `theme_settings.rs` computes **`--theme-cell-light`** (accent mixed
+**22%** into white), **`--theme-cell-dark`** (accent mixed **30%** into
+`#111111`) and contrast-adaptive **`--theme-cell-text-light`** /
+**`--theme-cell-text-dark`**; the CSS themes
+`body.themed .settings-page .list.group` in both modes and makes the cell
+contents inherit the adaptive cell text. No other theme behaviour changed from
+0.9.1.
 
 *If wrong:* users could expect the theme to follow their account across
 devices; the docs/UI state that themes apply to this browser/device only and

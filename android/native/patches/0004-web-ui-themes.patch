@@ -49,7 +49,7 @@
              .children(&mut [
 --- a/crates/tanoshi-web/static/css/styles.scss
 +++ b/crates/tanoshi-web/static/css/styles.scss
-@@ -1019,3 +1019,180 @@
+@@ -1019,3 +1019,197 @@
      user-select: none;
      touch-action: manipulation;
  }
@@ -147,6 +147,23 @@
 +body.themed .manga-cover .unread-badge {
 +    background-color: var(--secondary-color);
 +    color: var(--unread-text);
++}
++
++/* Settings list cells (Appearance, Chapters, Library, Categories, ...). The
++   stock cells use --list-group-background-color which resolves at :root, so
++   they must be explicitly re-colored for the theme in both modes. */
++body.themed .settings-page .list.group {
++    background-color: var(--theme-cell-light);
++    color: var(--theme-cell-text-light);
++}
++
++body.themed.dark .settings-page .list.group {
++    background-color: var(--theme-cell-dark);
++    color: var(--theme-cell-text-dark);
++}
++
++body.themed .settings-page .list.group :where(span, div, label, p, a, li, text) {
++    color: inherit;
 +}
 +
 +/* Settings panels use the accent color; their text adapts to it. */
