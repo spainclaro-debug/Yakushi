@@ -22,23 +22,54 @@ APK, tap **Start server**, and open the web UI.
 
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.7.1**; download it from the
+HentaiNexus). The current release is **0.9.0**; download it from the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.7.1 is a small UI fix in the Sources → Add extension list (the
-repository/Ported-to-Rust badges are stacked and the Install/Update button has
-a minimum width, so it stays readable). 0.7.0 makes extension management
-**app-only**: the embedded Tanoshi web UI no longer offers the Available
-sources list or the non-working Install/Update/Uninstall buttons. The built-in
-extension repository now points
-at the dedicated [**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
-repository, which hosts the prebuilt plugins, catalog, ported sources and
-build tools. The previous releases' custom repositories,
-Enable/Disable/Uninstall, background keep-alive/watchdog and the rest of the
-app are unchanged.
+0.9.0 adds **per-device web-UI themes** to the embedded Tanoshi frontend
+(Settings → Appearance → Themes): 12 preset palettes plus a **New theme**
+builder with Primary/Secondary/Accent colour grids, **Apply** and **Reset to
+default**. The theme is stored only in that browser's `localStorage`
+(`settings:theme-palette`), so every device keeps its own and new devices
+default to Auto. The 0.8.0 release added the **Delete History** button, a
+working **catalogue filter** sheet, device-local **Layout Preference** reader
+presets and a **Tap Area** reader option. The 0.7.x line makes extension
+management **app-only** (the embedded web UI no longer shows the Available
+sources list or the non-working Install/Update/Uninstall buttons), with the
+built-in extension repository at
+[**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension).
+The project repository is now
+[`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile)
+(the old `tanoshi-termux` URL redirects; the Termux package tarball name is
+unchanged).
 
 > The Termux package documented below and the Android app in `android/` are two
 > independent ways to run the same server. You only need one of them.
+
+### What's new in 0.9.0
+
+- **Per-device web-UI themes** — the embedded Tanoshi frontend has a new
+  **Settings → Appearance → Themes** section with **12 preset palettes**
+  (Monochromatic Blue, Complementary Orange, Triadic Yellow + Teal + Magenta,
+  Analogous Green + Blue + Teal, High Contrast Black + Yellow + White, Google
+  Material Blue, Airbnb Coral, Wise Mint, Duolingo Amber, Headspace Warmth,
+  Slack Aubergine, Pinterest Cherry) and a **New theme** button that opens
+  Primary/Secondary/Accent colour swatch grids (20 colours each). Pick
+  colours and press **Apply**, or **Reset to default**. The palette themes the
+  top bar (luminance-based readable text), accent borders and hover colours.
+  See [Web UI themes](android/README.md#web-ui-themes).
+- **Stored per device only** — the choice lives in the browser's
+  `localStorage` under `settings:theme-palette` and is re-applied at boot;
+  nothing is server-side or synced. Other devices keep their own theme, and a
+  new device/browser starts at Auto/default.
+- **Includes the 0.8.0 features** — Delete History button, working catalogue
+  filter sheet, device-local Layout Preference presets and the reader Tap Area
+  option.
+- **Repository renamed** to `spainclaro-debug/tanoshi-mobile` (old
+  `tanoshi-termux` URL redirects); the app's in-app updater already uses the
+  new repository. The Termux package tarball
+  (`tanoshi-termux-aarch64.tar.gz`) keeps its artifact name.
+
+Previous release — **0.7.1** — and its features:
 
 ### What's new in 0.7.1
 
@@ -338,7 +369,7 @@ Full details, including the API-level differences and failure modes:
 ### Updating the app
 
 - **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.7.1`), compares the
+  repository's GitHub releases (only tags like `android-v0.9.0`), compares the
   version, downloads the release APK, verifies it when a digest is available and
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.

@@ -96,6 +96,9 @@ apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-settings.patch"
 # Android app: extension install/update/remove and the "Available" source list
 # are managed by the app's Sources tab, so the embedded web UI hides them.
 apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"
+# Web UI: per-device theme palettes (Settings -> Appearance -> Themes).
+cp "$HERE/patches/theme_settings.rs" crates/tanoshi-web/src/common/theme_settings.rs
+apply_patch "$HERE/patches/0004-web-ui-themes.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the

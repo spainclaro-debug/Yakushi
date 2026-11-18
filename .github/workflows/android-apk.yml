@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.8.0 (default)}' code '${CODE:-800 (default)}'"
+          echo "Building version '${NAME:-0.9.0 (default)}' code '${CODE:-900 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.8.0}"
-          CODE="${APP_VERSION_CODE:-800}"
+          NAME="${APP_VERSION_NAME:-0.9.0}"
+          CODE="${APP_VERSION_CODE:-900}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.8.0: a Delete History button on the History page, a working catalogue filter sheet that shows every filter choice (genres/tags/status, expanded like Suwayomi/Mihon), device-local Layout Preference presets for the reader (with a Default preset and Add New Preset), and a Tap Area reader option that chooses which screen edge turns the page. Also includes all 0.7.x features (app-only extension management, rebuilt web UI, dedicated tanoshi-extension repository). Install: download tanoshi-mobile-server-release-<date>.apk and sideload it, then open the app, start the server and register the first admin account. Upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and android/README.md."
+          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.9.0: new per-device themes in Settings -> Appearance (12 preset palettes plus a New theme builder with primary/secondary/accent color pickers and Apply/Reset; stored in the browser/device only, so each device keeps its own theme and new devices default to Auto). Includes the 0.8.0 Delete History, working filters, layout presets and reader tap-area features, 0.7.x backend-only extension management, and the dedicated tanoshi-extension repository."
           gh release create "$TAG" \
             android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \

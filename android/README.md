@@ -5,24 +5,25 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.8.0** — see the
+Current release: **0.9.0** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.8.0 adds a **Delete History** button,
-a working **catalogue filter** sheet that shows every filter choice
-(genres/tags/status, expanded like Suwayomi/Mihon), device-local **Layout
-Preference** reader presets (Default + Add New Preset), and a **Tap Area**
-reader option for which screen edge turns the page. The 0.7.x line makes
-extension management **app-only**: the embedded Tanoshi web UI no longer shows
-the "Available" sources list or the non-working Install/Update/Uninstall
-buttons (it still lists installed sources and their preferences), so the app's
-**Sources** tab is the one place to manage extensions. The built-in extension
-repository points at the dedicated
-[**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
-repository, which hosts the prebuilt plugins, catalog, ported sources and
-`tools/build_extension.sh`. The APK name is unchanged
-(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It also includes the 0.6.0
-custom repositories / Enable/Disable / exported-sources tooling and the
-earlier features.
+and [`CHANGELOG.md`](CHANGELOG.md). 0.9.0 adds **per-device web-UI themes** in
+the Tanoshi frontend (Settings → Appearance → Themes): 12 preset palettes
+plus a **New theme** builder with Primary/Secondary/Accent colour grids,
+**Apply** and **Reset to default**. The choice is stored only in the browser's
+`localStorage` (`settings:theme-palette`) and applied at boot, so each
+device/browser keeps its own theme and a new device defaults to Auto. The
+0.8.0 release (still included) added the **Delete History** button, a working
+**catalogue filter** sheet, device-local **Layout Preference** reader presets
+and the **Tap Area** reader option. The 0.7.x line makes extension management
+**app-only** (the web UI no longer shows the Available sources list or the
+non-working Install/Update/Uninstall buttons), with the built-in extension
+repository at
+[**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension).
+The repository is now
+[`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile)
+(the old `tanoshi-termux` URL redirects); the APK name is unchanged
+(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
 
 This directory is the Android Gradle project (`dev.spainclaro.tanoshi`).
 The `arm64-v8a` native binaries are prebuilt and checked in, so building the
@@ -40,7 +41,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.8.0](#whats-new-in-080)
+- [What's new in 0.9.0](#whats-new-in-090)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -89,6 +90,41 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.9.0
+
+- **Per-device web-UI themes** — the embedded Tanoshi frontend has a new
+  **Settings → Appearance → Themes** section with 12 preset palettes
+  (Monochromatic Blue, Complementary Orange, Triadic Yellow + Teal + Magenta,
+  Analogous Green + Blue + Teal, High Contrast Black + Yellow + White, Google
+  Material Blue, Airbnb Coral, Wise Mint, Duolingo Amber, Headspace Warmth,
+  Slack Aubergine, Pinterest Cherry). A **New theme** button at the bottom
+  opens Primary/Secondary/Accent colour swatch grids (20 colours each);
+  picking colours and pressing **Apply** sets a custom palette, and **Reset to
+  default** clears it. The palette changes the app's top bar (with
+  luminance-based text colour), accent borders and hover colours. It is a
+  **web-UI** theme, separate from the Android app's Dark/Light/Nord/Catppuccin
+  themes; see [Web UI themes](#web-ui-themes).
+- **Stored per device only** — the selection lives in the browser's
+  `localStorage` under `settings:theme-palette` and is re-applied at boot;
+  nothing is stored server-side. Other devices keep their own theme, and a new
+  device/browser starts at **Auto/default**.
+- **Web UI rebuilt** — the embedded frontend was rebuilt with the 0.8.0 web
+  patches, the infinite-scroll and app-only extension-management patches, and
+  the new `native/patches/0004-web-ui-themes.patch` (+ copied
+  `theme_settings.rs`); the dist is vendored in `android/native/web-dist/` and
+  embedded in the rebuilt `libtanoshi.so`.
+- **Version 0.9.0** — `versionCode` 900; the `android-v0.9.0` tag produces
+  `versionCode` 900. The APK filename scheme is unchanged. Includes the 0.8.0
+  features (Delete History, catalogue filter sheet, Layout Preference presets,
+  Tap Area) and everything from earlier releases.
+- **Repository renamed** — the project now lives at
+  [`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile);
+  the old `tanoshi-termux` URL redirects, and the app updater already targets
+  the new repository. The Termux package tarball/asset names
+  (`tanoshi-termux-aarch64.tar.gz`) are unchanged package artifact names.
+
+Previous release — **0.8.0** — and its features:
 
 ## What's new in 0.8.0
 
@@ -218,12 +254,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.8.0**,
-`versionCode` 800) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.9.0**,
+`versionCode` 900) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.8.0 -PappVersionCode=800 \
+./gradlew :app:assembleDebug -PappVersionName=0.9.0 -PappVersionCode=900 \
   -PapkDate=2026-11-14
 ```
 
@@ -284,18 +320,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.8.0`. For a tag, CI derives everything from the tag and
+example `android-v0.9.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.8.0` → `800`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.0` → `900`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.8.0 /
-versionCode 800) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.9.0 /
+versionCode 900) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -390,7 +426,7 @@ The app has four screens plus an embedded browser:
 | **Server** | Server state (`STOPPED` / `STARTING` / `RUNNING` / `STOPPING` / `ERROR`), PID, port, bind address (`127.0.0.1` or `0.0.0.0`), uptime, Start/Stop, the local URL, **Open in browser**, **Open in app**, and (when LAN-exposed) the **Share on your network** QR card. The first-run admin dialog appears here. |
 | **Sources** | Suwayomi-style extension manager: built-in + custom repositories, installed extensions (bundled/user/disabled), **Add extension** from merged catalogs, install/update/enable/disable/remove, and the restart prompt. See [Extensions (Sources tab)](#extensions-sources-tab). |
 | **Logs** | Live server stdout/stderr with timestamps and stream colouring; auto-scroll toggle; copy-all and clear. `server.log` in the data directory mirrors the same output. |
-| **Settings** | Appearance (themes), port, "Expose on LAN", raw `config.yml` editor, notification/battery permissions, in-app updates, and the storage paths. |
+| **Settings** | Appearance (Android app themes + web-UI themes), port, "Expose on LAN", raw `config.yml` editor, notification/battery permissions, in-app updates, and the storage paths. |
 | **Browser** | WebView pointed at the local server (JavaScript and DOM storage enabled) with Back and Reload buttons; the catalogue auto-loads the next page as you scroll. The system back button exits the WebView before leaving the app. |
 
 **Default port: 8080.** The advertised URL uses `127.0.0.1`; when LAN exposure
@@ -487,8 +523,39 @@ only the Android UI around it.
 
 The choice applies immediately, is persisted in `AppSettings.themeId`
 (unknown ids fall back to Dark) and also switches the system-bar icon
-contrast. It affects the Android UI only — the embedded Tanoshi web UI keeps
-its own theme.
+contrast. It affects the Android UI only — the embedded Tanoshi web UI has its
+own theme, described next.
+
+### Web UI themes
+
+The embedded Tanoshi frontend (the same UI you open in **Open in app** or a
+browser) has its own **Settings → Appearance → Themes** section, added in
+0.9.0:
+
+- **12 preset palettes**, each with a primary/secondary/accent triplet:
+  Monochromatic Blue, Complementary Orange, Triadic Yellow + Teal + Magenta,
+  Analogous Green + Blue + Teal, High Contrast Black + Yellow + White, Google
+  Material Blue, Airbnb Coral, Wise Mint, Duolingo Amber, Headspace Warmth,
+  Slack Aubergine, Pinterest Cherry. A preset row shows the three colour
+  swatches and its name; select it and press **Apply**.
+- **New theme** at the bottom opens **Primary**, **Secondary** and **Accent**
+  colour swatch grids (20 colours each). Pick one colour per group and press
+  **Apply** to use the custom palette; **Reset to default** clears the custom
+  theme and returns to the stock appearance (your existing Auto/Light/Dark
+  appearance choice).
+- The section shows which theme is applied (**Applied: …**) and confirms
+  actions with a snackbar. The palette themes the top bar (text/button colour
+  is chosen from the primary colour's luminance so it stays readable), accent
+  borders and secondary hover colours.
+
+**Per-device storage.** The theme is stored **only in the browser's
+`localStorage`** under the key `settings:theme-palette` (a small JSON object
+with `kind`, `name`, `primary`, `secondary`, `accent`) and is re-applied at
+boot before the UI renders. It is **not stored server-side or synced**: each
+device/browser keeps its own selection, every new device/browser starts at the
+Auto/default appearance, and clearing site data or pressing **Reset to
+default** removes it. Other Android app themes ([above](#themes)) are
+independent of this web-UI theme.
 
 ## In-app updates
 
@@ -496,7 +563,7 @@ its own theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.7.1-debug`; the updater strips it before
+`-debug` version suffix such as `0.9.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1132,7 +1199,8 @@ Notes:
 
 The Settings screen controls the Android wrapper and the server's config:
 
-- **Appearance** — the four app themes ([Themes](#themes)).
+- **Appearance** — the four Android app themes ([Themes](#themes)) and the
+  embedded web UI's per-device themes ([Web UI themes](#web-ui-themes)).
 - **Updates** — the in-app updater ([In-app updates](#in-app-updates)).
 - **Port** — 1024–65535 (Android does not allow unprivileged apps to bind
   below 1024). The value is written to `config.yml` and remembered; the
@@ -1344,6 +1412,19 @@ plugins must be built for the exact Tanoshi version, `tanoshi-lib` ABI and
 Check the Logs tab for a version/load error, then remove the user copy and
 retry with a compatible build.
 
+**I picked a web-UI theme, but another device still shows the default.**
+Expected: web-UI themes are stored per browser/device in `localStorage`
+(`settings:theme-palette`) and are not synced through the server. Pick the
+theme on each device; a new device starts at the Auto/default appearance.
+
+**The web-UI theme is not applied / I want to undo it.** In the Tanoshi web UI
+open **Settings → Appearance → Themes**, select a preset (or use **New
+theme**) and press **Apply**; **Reset to default** clears the stored palette
+and returns to the stock appearance. Clearing the browser site data also
+resets it. Note this is separate from the Android app themes in the app's
+[Settings → Appearance](#themes) — the app theme affects the Android UI, the
+web-UI theme affects the Tanoshi frontend pages.
+
 **Cannot reach the server from another device on the LAN.** Enable "Expose on
 LAN", restart, and check the status card shows `0.0.0.0`. Make sure both
 devices are on the same network (guest Wi-Fi / AP isolation blocks this), and
@@ -1449,13 +1530,14 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the infinite-scroll + backend-only extension-management patches (0.7.0), embedded in `libtanoshi.so` |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.0 theme patches (`native/patches/0004-web-ui-themes.patch` + `theme_settings.rs`), embedded in `libtanoshi.so` |
+| Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.8.0 (`versionName`); `versionCode` 800 in local builds and for the `android-v0.8.0` tag |
+| App version | 0.9.0 (`versionName`); `versionCode` 900 in local builds and for the `android-v0.9.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1479,7 +1561,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0003, build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0004 + theme_settings.rs, build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

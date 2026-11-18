@@ -36,9 +36,11 @@ catalogue/infinite-scroll behaviour and UI changes ship with the server rather
 than with the Android app. The dist is rebuilt from source with
 `patches/tanoshi-infinite-scroll.patch`,
 `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
-(Delete History, catalogue filter sheet, layout presets, reader tap area) and
+(Delete History, catalogue filter sheet, layout presets, reader tap area),
 `native/patches/0003-web-ui-hide-source-management.patch` (extension
-management is app-only; see step 3).
+management is app-only) and
+`native/patches/0004-web-ui-themes.patch` + `native/patches/theme_settings.rs`
+(per-device theme palettes; see step 3).
 
 ---
 
@@ -101,7 +103,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set and the Android app/extension-loader/web-UI patches (0001 + 0002 + 0003), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004) and the Android app/extension-loader patches (0001 + 0002), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -139,17 +141,27 @@ the equivalent manual steps, which is what the scripts automate.
    not treated as extensions) — see
    [Extension loader](#5-extension-loader-and-publishing-to-the-catalog).
 4. Optionally `patches/tanoshi-infinite-scroll.patch` (the Termux package's
-   auto-loading catalogue), then
-   **`native/patches/0003-web-ui-hide-source-management.patch`**:
-   - the embedded web UI keeps the infinite-scroll catalogue but becomes
-     **backend-only** for extensions: Settings → Sources hides the
-     **Available** sources list, the source-list **Install/Update** buttons and
-     the per-source **Uninstall** button (they never worked on Android). The
-     installed sources list and per-source preferences remain; extension
-     management is done in the app's Sources tab.
-   - Both web patches only matter when regenerating the wasm UI: the vendored
+   auto-loading catalogue), then the web-UI patch series:
+   - `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
+     (the 0.8.0 web features: Delete History button, working catalogue filter
+     sheet, device-local Layout Preference presets, reader Tap Area);
+   - **`native/patches/0003-web-ui-hide-source-management.patch`**: the
+     embedded web UI becomes **backend-only** for extensions: Settings →
+     Sources hides the **Available** sources list, the source-list
+     **Install/Update** buttons and the per-source **Uninstall** button (they
+     never worked on Android). The installed sources list and per-source
+     preferences remain; extension management is done in the app's Sources
+     tab.
+   - **`native/patches/0004-web-ui-themes.patch`** plus the new source file
+     `native/patches/theme_settings.rs` (copied to
+     `crates/tanoshi-web/src/common/theme_settings.rs`): per-device theme
+     palettes (12 presets + custom Primary/Secondary/Accent picker) in
+     Settings → Appearance → Themes, stored in `localStorage` only.
+   - These web patches only matter when regenerating the wasm UI: the vendored
      `native/web-dist/` already contains the patched output, so a normal server
-     rebuild uses it as-is. `build_tanoshi.sh` applies 0003 automatically.
+     rebuild uses it as-is. `build_tanoshi.sh` applies them automatically,
+     in this order (infinite scroll → web features → 0003 →
+     `theme_settings.rs` + 0004).
 
 Manually:
 
@@ -163,8 +175,15 @@ git apply ../patches/tanoshi-android.patch
 cp ../patches/http.rs.new      crates/tanoshi/src/infrastructure/http.rs
 cp ../patches/extension-build.rs.new crates/tanoshi-vm/src/extension/build.rs
 git apply ../patches/tanoshi-infinite-scroll.patch   # optional
+# 0.8.0 web features (Delete History, filters, layout presets, tap area)
+git apply ../patches/tanoshi-web-ui.patch
+git apply ../patches/tanoshi-web-ui-settings.patch
 # Embedded web UI is backend-only for extensions (on top of infinite scroll)
 git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
+# Per-device web-UI themes: copy the new module, then apply the patch
+cp ../android/native/patches/theme_settings.rs \
+   crates/tanoshi-web/src/common/theme_settings.rs
+git apply ../android/native/patches/0004-web-ui-themes.patch
 
 # Android app layer
 git apply ../android/native/patches/0001-android-app.patch
@@ -226,22 +245,34 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.7.0+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.9.0+:
   upstream Tanoshi 0.40.0's wasm UI built with
-  `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue) and
-  `native/patches/0003-web-ui-hide-source-management.patch` (the extension
-  Available list and Install/Update/Uninstall buttons are hidden; extension
-  management is app-only). Its wasm bundle still contains the
-  `catalogue-scroll-sentinel`, which auto-loads the next catalogue page about
-  600 px before the viewport and turns the **Load More** button into *No more
-  results* at the end.
+  `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
+  `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
+  (Delete History, catalogue filter sheet, Layout Preference presets, Tap
+  Area), `native/patches/0003-web-ui-hide-source-management.patch`
+  (extension Available list and Install/Update/Uninstall hidden — app-only
+  management) and `native/patches/0004-web-ui-themes.patch` + copied
+  `theme_settings.rs` (per-device theme palettes, Settings → Appearance →
+  Themes). Its wasm bundle still contains the `catalogue-scroll-sentinel`,
+  which auto-loads the next catalogue page about 600 px before the viewport and
+  turns the **Load More** button into *No more results* at the end.
+  Current dist asset names (0.9.0):
+  `tanoshi-web-dcb86240b5199fae.js`, `tanoshi-web-ee60348ae5b3947e_bg.wasm`,
+  `styles-45acda5da1659ded.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.7.0**
-  (0.2.0/0.5.0/0.6.0 used earlier dists).
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.9.0**
+  (0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older dists).
+
+The theme palette is stored by the browser in
+`localStorage["settings:theme-palette"]`, so **it is not embedded or served by
+the server**; the server only ships the frontend code. Regenerating the dist
+changes the hashed asset names, so the binary must be rebuilt (and
+`native/web-dist/` refreshed) after any web-UI change.
 
 To change the web UI itself, rebuild the wasm dist from a patched checkout
 using the pinned toolchain versions from the prerequisites (trunk **0.22.1**,
@@ -251,7 +282,12 @@ wasm-bindgen **0.2.129**, sass **1.106.1**, wasm-opt **133**,
 ```bash
 # in the Tanoshi source tree, after applying the root Termux patches:
 git apply ../patches/tanoshi-infinite-scroll.patch
+git apply ../patches/tanoshi-web-ui.patch
+git apply ../patches/tanoshi-web-ui-settings.patch
 git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
+cp ../android/native/patches/theme_settings.rs \
+   crates/tanoshi-web/src/common/theme_settings.rs
+git apply ../android/native/patches/0004-web-ui-themes.patch
 
 cd crates/tanoshi-web
 CARGO_TARGET_DIR="$PWD/../../target-wasm" trunk build --release
@@ -270,7 +306,10 @@ CARGO_TARGET_DIR="$PWD/target-android" \
   cargo build -p tanoshi --release --target aarch64-linux-android
 ```
 
-Result: `target-android/aarch64-linux-android/release/tanoshi`.
+Result: `target-android/aarch64-linux-android/release/tanoshi`. The same
+patched checkout is what the Termux package builds, except the Android build
+adds patches 0001–0004; keep `patches/` (web features) and
+`native/patches/0003/0004` in sync with `android/native/web-dist/`.
 
 ### 4. Extension plugins (bundled and exported sources)
 
@@ -483,10 +522,12 @@ readelf -d libtanoshi.so | grep -E 'RPATH|RUNPATH'   # expect no output
 readelf -lW libtanoshi.so | grep LOAD
 #   expected alignment: 0x4000 in the last column
 
-# 5. The embedded web UI is the vendored dist (v0.2.0+; rebuilt for 0.7.0)
+# 5. The embedded web UI is the vendored dist (v0.2.0+; rebuilt for 0.9.0)
 grep -c -a "catalogue-scroll-sentinel" libtanoshi.so   # expect 1
-#   For 0.7.0+ the js/wasm asset names embedded in libtanoshi.so should match
-#   the names in android/native/web-dist/index.html
+grep -c -a "settings:theme-palette" libtanoshi.so      # expect 1 (0.9.0+)
+grep -c -a "Monochromatic Blue" libtanoshi.so          # expect 1 (0.9.0+ preset)
+#   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
+#   match the names in android/native/web-dist/index.html
 
 # 6. The Android extension loader is compiled in (v0.5.0 and later)
 grep -c -a "android_dlopen_ext failed" libtanoshi.so   # expect 1
@@ -518,11 +559,15 @@ output of this pipeline, built on an x86_64 Linux host with:
 - Android NDK r26+ (aarch64 clang wrapper for API 26),
 - Rust 1.99.1 with the `aarch64-linux-android` target,
 - upstream Tanoshi checked out at the tag in `VERSION` (`0.40.0`) and patched
-  with the Termux patch set + `native/patches/0001-android-app.patch` +
+  with the Termux patch set + the web-UI patch series
+  (`patches/tanoshi-web-ui.patch`, `patches/tanoshi-web-ui-settings.patch`,
+  `native/patches/0003-web-ui-hide-source-management.patch`,
+  `native/patches/0004-web-ui-themes.patch` + copied `theme_settings.rs`) +
+  `native/patches/0001-android-app.patch` +
   `native/patches/0002-android-extension-loader.patch` (+ `android_loader.rs`),
 - the embedded web UI from `android/native/web-dist/` (rebuilt from source for
-  0.7.0 with the infinite-scroll + backend-only extension-management
-  patches),
+  0.9.0 with the 0.8.0 web features, infinite-scroll, app-only
+  extension-management and per-device theme patches),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -534,11 +579,16 @@ changed. The 0.3.0/0.4.0 app releases did not change `libtanoshi.so`; **0.5.0
 did** (extension loader + catalog), **0.6.0 rebuilt it again** with the
 host-library filtering fix and the `.tanoshi-disabled` marker support, and
 **0.7.0 rebuilt it once more** to embed the rebuilt web UI with the
-backend-only extension-management patch. The exported extension sources
+backend-only extension-management patch, **0.8.0 rebuilt it** for the Delete
+History/filters/layout-preset/tap-area web features, and **0.9.0 rebuilt it
+again** for the per-device theme palettes. The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
-`tanoshi-extension` repository in 0.7.0. App releases after that (e.g. 0.7.1)
-have not changed the native binaries — 0.7.1 is an app-only UI fix.
+`tanoshi-extension` repository in 0.7.0. Releases that only change the app UI
+(e.g. 0.7.1) do not change the native binaries. The project repository was
+renamed to `spainclaro-debug/tanoshi-mobile` (old `tanoshi-termux` URLs
+redirect); the Termux tarball/asset name `tanoshi-termux-aarch64.tar.gz` is
+unchanged.
 
 ### Reproducibility caveats
 
@@ -548,9 +598,10 @@ Bit-for-bit identical binaries are **not** expected between rebuilds:
   pinned, so upstream may have moved.
 - Cargo resolves dependencies from the lock files; a `Cargo.lock` update or a
   different Rust/NDK toolchain changes code generation.
-- The web UI is the vendored package-3 dist; its hashed asset names and
+- The web UI is the vendored rebuilt dist; its hashed asset names and
   embedded build output change if it is regenerated with another
-  `trunk`/`wasm-bindgen`/`sass`/`wasm-opt` toolchain.
+  `trunk`/`wasm-bindgen`/`sass`/`wasm-opt` toolchain or after another web-UI
+  patch.
 - Timestamps and absolute build paths can end up in binaries and archives.
 
 Functionally equivalent is what matters: the server version, the

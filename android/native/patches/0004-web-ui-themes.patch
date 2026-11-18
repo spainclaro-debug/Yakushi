@@ -1,0 +1,128 @@
+--- a/crates/tanoshi-web/src/common/mod.rs
++++ b/crates/tanoshi-web/src/common/mod.rs
+@@ -13,6 +13,8 @@
+ mod appearance_settings;
+ pub use appearance_settings::*;
+ 
++pub mod theme_settings;
++
+ mod reader_settings;
+ pub use reader_settings::*;
+ 
+--- a/crates/tanoshi-web/src/common/appearance_settings.rs
++++ b/crates/tanoshi-web/src/common/appearance_settings.rs
+@@ -6,6 +6,7 @@
+ use serde::{Deserialize, Serialize};
+ use std::rc::Rc;
+ 
++use super::theme_settings::ThemeSettings;
+ use crate::utils::{apply_theme, local_storage};
+ 
+ #[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Default)]
+@@ -124,6 +125,7 @@
+             .class("non-modal")
+             .children(&mut [
+                 Self::render_theme(reader),
++                ThemeSettings::render(ThemeSettings::new()),
+             ])
+         })
+     }
+--- a/crates/tanoshi-web/src/lib.rs
++++ b/crates/tanoshi-web/src/lib.rs
+@@ -44,6 +44,7 @@
+     }
+ 
+     utils::apply_theme(local_storage().get("theme").unwrap_throw());
++    common::theme_settings::apply_stored_theme();
+ 
+     let closure = Closure::wrap(Box::new(|e: MediaQueryListEvent| {
+         let mut status_bar_color = "#5b749b";
+--- a/crates/tanoshi-web/static/css/styles.scss
++++ b/crates/tanoshi-web/static/css/styles.scss
+@@ -1019,3 +1019,86 @@
+     user-select: none;
+     touch-action: manipulation;
+ }
++
++
++/* --- Per-device theme palette (Settings -> Appearance -> Themes) ----------
++   The chosen palette sets these variables inline on :root/documentElement and
++   is stored in localStorage, so it is local to the device/browser. */
++:root {
++    --secondary-color: #{$color-gray-300};
++    --accent-color: #{$primary-color-600};
++}
++
++body.dark {
++    --secondary-color: #{$color-gray-700};
++    --accent-color: #{$primary-color-300};
++}
++
++.theme-preset-list {
++    display: flex;
++    flex-direction: column;
++    gap: 0.25rem;
++    margin: 0.5rem;
++}
++
++.theme-preset-row {
++    display: flex;
++    align-items: center;
++    gap: 0.4rem;
++    padding: 0.5rem;
++    border: 2px solid transparent;
++    border-radius: 0.5rem;
++    cursor: pointer;
++
++    &.active {
++        border-color: var(--accent-color);
++        background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
++    }
++}
++
++.theme-preset-name {
++    margin-left: 0.25rem;
++}
++
++.theme-swatch {
++    display: inline-block;
++    width: 1.1rem;
++    height: 1.1rem;
++    border: 1px solid rgba(0, 0, 0, 0.15);
++    border-radius: 50%;
++}
++
++.theme-colors {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 0.4rem;
++    margin: 0.25rem 0.5rem 0.75rem 0.5rem;
++}
++
++.theme-color-swatch {
++    width: 2rem;
++    height: 2rem;
++    min-width: 0;
++    padding: 0;
++    border: 2px solid transparent;
++    border-radius: 0.4rem;
++    cursor: pointer;
++
++    &.active {
++        border-color: var(--accent-color);
++    }
++}
++
++.theme-new-btn {
++    margin: 0.5rem;
++}
++
++.theme-actions {
++    display: flex;
++    gap: 0.5rem;
++    margin: 0.5rem;
++}
++
++.list-item:hover {
++    background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
++}

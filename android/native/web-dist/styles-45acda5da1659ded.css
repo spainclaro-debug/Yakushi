@@ -871,3 +871,83 @@ input[type=submit]:hover, input[type=button]:hover {
   user-select: none;
   touch-action: manipulation;
 }
+
+/* --- Per-device theme palette (Settings -> Appearance -> Themes) ----------
+   The chosen palette sets these variables inline on :root/documentElement and
+   is stored in localStorage, so it is local to the device/browser. */
+:root {
+  --secondary-color: rgb(76.6666666667%, 76.6666666667%, 76.6666666667%);
+  --accent-color: rgb(26.4383070301%, 33.7015781923%, 45.0322812052%);
+}
+
+body.dark {
+  --secondary-color: rgb(28.3333333333%, 28.3333333333%, 28.3333333333%);
+  --accent-color: rgb(67.3840267814%, 72.6446676231%, 80.8512673362%);
+}
+
+.theme-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem;
+}
+
+.theme-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.theme-preset-row.active {
+  border-color: var(--accent-color);
+  background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
+}
+
+.theme-preset-name {
+  margin-left: 0.25rem;
+}
+
+.theme-swatch {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+}
+
+.theme-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0.5rem 0.75rem 0.5rem;
+}
+
+.theme-color-swatch {
+  width: 2rem;
+  height: 2rem;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.theme-color-swatch.active {
+  border-color: var(--accent-color);
+}
+
+.theme-new-btn {
+  margin: 0.5rem;
+}
+
+.theme-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem;
+}
+
+.list-item:hover {
+  background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
+}

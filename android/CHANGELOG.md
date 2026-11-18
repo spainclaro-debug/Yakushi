@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.7.0`). The Termux package in the repository root has
+(for example `android-v0.9.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -15,6 +15,53 @@ named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
 UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
+
+## 0.9.0
+
+### Added
+
+- **Per-device web-UI themes.** The embedded Tanoshi frontend gains
+  **Settings → Appearance → Themes** with **12 preset palettes**
+  (Monochromatic Blue, Complementary Orange, Triadic Yellow + Teal + Magenta,
+  Analogous Green + Blue + Teal, High Contrast Black + Yellow + White, Google
+  Material Blue, Airbnb Coral, Wise Mint, Duolingo Amber, Headspace Warmth,
+  Slack Aubergine, Pinterest Cherry; each with primary/secondary/accent
+  colours) and a **New theme** builder at the bottom that opens
+  Primary/Secondary/Accent colour swatch grids (20 colours each) with
+  **Apply** and **Reset to default** (which removes the palette and restores
+  the stock Auto/Light/Dark appearance). The palette themes the top bar (with
+  luminance-based readable text/buttons), accent borders and hover colours.
+- **Per-device storage only.** The selected theme (preset or custom) is saved
+  in the browser's **`localStorage`** under `settings:theme-palette` and
+  re-applied at boot via CSS variables; it is never stored server-side or
+  synced. Other devices keep their own theme, and a new device/browser
+  defaults to the stock Auto appearance.
+- New web-UI patch set `android/native/patches/0004-web-ui-themes.patch` plus
+  the new source file `android/native/patches/theme_settings.rs`
+  (`build_tanoshi.sh` copies it into `crates/tanoshi-web/src/common/`).
+
+### Changed
+
+- **Web UI rebuilt and embedded.** The wasm frontend was rebuilt with all
+  existing patches (0.8.0 Delete History/filters/layout presets/tap area,
+  infinite scroll, app-only extension management) plus the theme support; the
+  new dist is vendored in `android/native/web-dist/` and the checked-in
+  `libtanoshi.so` was rebuilt with it.
+- **Repository renamed to `spainclaro-debug/tanoshi-mobile`** (the old
+  `tanoshi-termux` URL redirects). The app's in-app updater already targets the
+  new repository; GitHub links in these docs use `tanoshi-mobile`. The Termux
+  package artifact/tarball name (`tanoshi-termux-aarch64.tar.gz`) is unchanged
+  and is **not** a repository URL.
+- **Version 0.9.0:** `versionCode` 900 in the Gradle default; the
+  `android-v0.9.0` tag produces `versionCode` 900. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- The 0.9.0 web-UI theme is separate from the Android app's Material 3 themes
+  (Dark/Light/Nord/Catppuccin), which continue to affect only the app UI.
+- 0.8.0 features (Delete History, catalogue filter sheet, Layout Preference
+  presets, Tap Area) are included; see the 0.8.0 section below.
 
 ## 0.8.0
 

@@ -140,7 +140,10 @@ The documented and CI-built artifact is the **debug** APK
 (`applicationId dev.spainclaro.tanoshi.debug`), signed with the committed
 shared sideload key `android/keystore/tanoshi-signing.jks` (A18). Distribution
 is GitHub releases tagged `android-v*` plus sideloading only — there is no Play
-Store channel.
+Store channel. The project repository is now
+`spainclaro-debug/tanoshi-mobile` (the old `tanoshi-termux` URL redirects; the
+in-app updater already targets `tanoshi-mobile`). The Termux package tarball
+name (`tanoshi-termux-aarch64.tar.gz`) is an artifact name and is unchanged.
 
 *If wrong:* Play distribution would need a Play-compliant signing setup (Play
 App Signing), a privacy policy, target-SDK policy compliance and an FGS
@@ -223,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.7.1 / 701, local date).
+three to Gradle; local builds use the Gradle defaults (0.9.0 / 900, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -276,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.7.1 / versionCode
-701 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.7.1`
+The app follows its own `android-vX.Y.Z` version scheme (0.9.0 / versionCode
+900 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.0`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -563,6 +566,28 @@ the app's **Sources** tab only (A27).
 the app, or someone could re-enable controls that do not work; the docs/UI
 state that extension management is app-only and point to the Sources tab.
 
+### A33 — Web-UI themes are per-device (`localStorage`), not server settings
+
+From 0.9.0 the embedded Tanoshi frontend has a **Settings → Appearance →
+Themes** section: 12 preset palettes plus a **New theme** builder with
+Primary/Secondary/Accent colour swatches (20 colours each), **Apply** and
+**Reset to default**. The chosen palette is serialized as a small JSON object
+(`kind`, `name`, `primary`, `secondary`, `accent`) into the browser's
+`localStorage` under the key **`settings:theme-palette`**, applied to CSS
+variables on the document root (top bar with luminance-based foreground,
+accent border, secondary hover) and re-applied at boot by
+`apply_stored_theme()` before the UI renders (invalid/non-hex values are
+ignored). It is **not** part of `config.yml`, the database, or any server-side
+settings; there is no sync between devices. Each device/browser keeps its own
+theme, a new device/browser defaults to the stock Auto appearance, and Reset
+or clearing site data removes the stored palette. This is independent of the
+Android app's Material 3 themes (Dark/Light/Nord/Catppuccin), which are stored
+in `AppSettings.themeId` for the app UI only.
+
+*If wrong:* users could expect the theme to follow their account across
+devices; the docs/UI state that themes apply to this browser/device only and
+new devices default to Auto.
+
 ---
 
 ## Open questions for the repository owner
@@ -726,3 +751,11 @@ for extensions: the Available list and the Install/Update/Uninstall controls
 are hidden because they never worked on Android. Installed sources and
 per-source preferences remain in the web UI, and all extension management
 happens in the app's Sources tab. See A32.
+
+### Q19 — Should web-UI themes sync server-side across devices?
+
+**Resolved (owner, 0.9.0):** no. Web-UI theme palettes are stored only in the
+browser's `localStorage` (`settings:theme-palette`), so each device/browser
+keeps its own theme and a new device defaults to Auto. Making them
+server-side would need a settings schema/API change and would surprise users
+who expect appearance to be local; this is documented as per-device (A33).
