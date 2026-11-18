@@ -223,7 +223,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.7.0 / 7, local date).
+three to Gradle; local builds use the Gradle defaults (0.7.1 / 701, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -276,9 +276,9 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.7.0 / versionCode
-7 locally; versionCode `X*10000+Y*100+Z` for tagged releases, so
-`android-v0.7.0` is 700), independent of the bundled Tanoshi server (0.40.0 /
+The app follows its own `android-vX.Y.Z` version scheme (0.7.1 / versionCode
+701 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.7.1`
+tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
 separately.

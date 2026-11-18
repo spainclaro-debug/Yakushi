@@ -22,12 +22,15 @@ APK, tap **Start server**, and open the web UI.
 
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.7.0**; download it from the
+HentaiNexus). The current release is **0.7.1**; download it from the
 [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.7.0 makes extension management **app-only**: the embedded Tanoshi web UI no
-longer offers the Available sources list or the non-working
-Install/Update/Uninstall buttons. The built-in extension repository now points
+0.7.1 is a small UI fix in the Sources → Add extension list (the
+repository/Ported-to-Rust badges are stacked and the Install/Update button has
+a minimum width, so it stays readable). 0.7.0 makes extension management
+**app-only**: the embedded Tanoshi web UI no longer offers the Available
+sources list or the non-working Install/Update/Uninstall buttons. The built-in
+extension repository now points
 at the dedicated [**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
 repository, which hosts the prebuilt plugins, catalog, ported sources and
 build tools. The previous releases' custom repositories,
@@ -36,6 +39,16 @@ app are unchanged.
 
 > The Termux package documented below and the Android app in `android/` are two
 > independent ways to run the same server. You only need one of them.
+
+### What's new in 0.7.1
+
+- **Readable Install/Update button in the Add-extension list** — catalog rows
+  stack the repository label and the Ported-to-Rust badge vertically (with
+  Disabled/Update-available below) and the Install/Update/Reinstall button has
+  a minimum width and single-line text, so it is no longer squeezed on narrow
+  dialogs.
+
+Previous release — **0.7.0** — and its features:
 
 ### What's new in 0.7.0
 
@@ -325,7 +338,7 @@ Full details, including the API-level differences and failure modes:
 ### Updating the app
 
 - **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.7.0`), compares the
+  repository's GitHub releases (only tags like `android-v0.7.1`), compares the
   version, downloads the release APK, verifies it when a digest is available and
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.

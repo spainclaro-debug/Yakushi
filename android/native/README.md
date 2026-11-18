@@ -535,7 +535,8 @@ host-library filtering fix and the `.tanoshi-disabled` marker support, and
 backend-only extension-management patch. The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
-`tanoshi-extension` repository in 0.7.0.
+`tanoshi-extension` repository in 0.7.0. App releases after that (e.g. 0.7.1)
+have not changed the native binaries — 0.7.1 is an app-only UI fix.
 
 ### Reproducibility caveats
 

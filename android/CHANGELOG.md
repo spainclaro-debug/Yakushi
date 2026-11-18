@@ -16,6 +16,22 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.7.1
+
+### Fixed
+
+- **Readable action button in the Add-extension catalog rows.** In
+  Sources → Add extension, each catalog row now stacks its badges
+  vertically — the repository label on top, then **Ported to Rust**, then
+  **Disabled**/**Update available** — instead of sharing a horizontal row
+  with the action button. The **Install/Update/Reinstall** button (and the
+  **Installed** label) now has a minimum width and single-line text, so it is
+  no longer squeezed or unreadable on narrow dialogs. No behaviour or API
+  change; installed-extension cards are unchanged.
+- **Version 0.7.1:** `versionCode` 701; the `android-v0.7.1` tag produces
+  `versionCode` 701. The APK filename scheme is unchanged
+  (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
 ## 0.7.0
 
 ### Changed

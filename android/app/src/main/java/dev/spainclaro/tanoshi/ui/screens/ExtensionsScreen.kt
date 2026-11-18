@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -794,30 +795,38 @@ private fun CatalogExtensionRow(
             )
         }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (entry.repoLabel.isNotBlank()) {
-                ExtensionBadge(label = entry.repoLabel)
+            // Badges are stacked vertically so the long repository label and the
+            // "Ported to Rust" badge do not squeeze the Install/Update button on
+            // narrow dialogs.
+            Column(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (entry.repoLabel.isNotBlank()) {
+                    ExtensionBadge(label = entry.repoLabel)
+                }
+                if (entry.ported) {
+                    ExtensionBadge(label = stringResource(R.string.extensions_badge_ported))
+                }
+                if (installed?.disabled == true) {
+                    ExtensionBadge(
+                        label = stringResource(R.string.extensions_badge_disabled),
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+                if (installed?.updateAvailable == true) {
+                    ExtensionBadge(
+                        label = stringResource(R.string.extensions_badge_update),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
             }
-            if (entry.ported) {
-                ExtensionBadge(label = stringResource(R.string.extensions_badge_ported))
-            }
-            if (installed?.disabled == true) {
-                ExtensionBadge(
-                    label = stringResource(R.string.extensions_badge_disabled),
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-            if (installed?.updateAvailable == true) {
-                ExtensionBadge(
-                    label = stringResource(R.string.extensions_badge_update),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(4.dp))
             when {
                 installing -> InstallProgress(progress = installProgress, compact = true)
 
@@ -826,15 +835,22 @@ private fun CatalogExtensionRow(
                     text = stringResource(R.string.extensions_action_installed),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
                 )
 
                 else -> Button(
                     onClick = onInstall,
                     enabled = !busy,
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.widthIn(min = 96.dp),
                 ) {
-                    Text(stringResource(catalogActionLabel(installed)))
+                    Text(
+                        text = stringResource(catalogActionLabel(installed)),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
         }
