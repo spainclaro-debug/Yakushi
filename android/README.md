@@ -6,7 +6,7 @@ repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
 Current release: **0.8.0** — see the
-[latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
+[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 and [`CHANGELOG.md`](CHANGELOG.md). 0.8.0 adds a **Delete History** button,
 a working **catalogue filter** sheet that shows every filter choice
 (genres/tags/status, expanded like Suwayomi/Mihon), device-local **Layout
@@ -307,7 +307,7 @@ trains cannot collide.
 ## Installing and updating
 
 Download `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` from the
-[latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
+[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 (or a CI artifact), or build it yourself. Then either:
 
 ```bash
@@ -533,7 +533,7 @@ Requirements and limitations:
 - **Manual only.** There is no background/automatic update check, and no
   delta or incremental update: each update is a full APK download.
 - **Channel.** Only GitHub releases of
-  [`spainclaro-debug/tanoshi-termux`](https://github.com/spainclaro-debug/tanoshi-termux/releases)
+  [`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile/releases)
   tagged `android-v*` are considered; there is no Play Store channel.
 - **From 0.1.0** the updater cannot help, because 0.1.0 predates it and is
   signed with a different key — see the one-time uninstall note in
@@ -785,7 +785,7 @@ The script clones `luigi311/tanoshi-extensions`, applies the repo's
 `patches/`, copies the crate in, builds for `aarch64-linux-android` (16 KB-page
 aligned), strips it to `android/extensions/plugins/lib<name>.so`, and prints
 the SHA-256, size and a ready-to-paste catalog entry. The
-`tanoshi-termux` copy is at `android/native/build_extension.sh` and writes to
+`tanoshi-mobile` copy is at `android/native/build_extension.sh` and writes to
 `android/extensions/plugins/` instead.
 
 Publishing a new source to `tanoshi-extension`:
@@ -1325,8 +1325,7 @@ is updated.
 configured catalog is fetched over HTTPS (built-in `tanoshi-extension` +
 custom), so it needs network access (GitHub can be unreachable or
 rate-limited). Check the per-repository failure card and use Retry; extensions
-that are already installed keep working. The legacy catalog in the
-`tanoshi-termux` repo is not used by the app by default anymore.
+that are already installed keep working. The legacy built-in catalog is not used by the app by default anymore.
 
 **Old builds logged `undefined symbol: plugin_declaration`.** That was the
 server trying to load support libraries from `nativeLibraryDir` as
@@ -1499,7 +1498,7 @@ workflows live in `.github/workflows/`.
 ## Changelog
 
 Release history lives in [`CHANGELOG.md`](CHANGELOG.md), and published APKs are
-on the [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest).
+on the [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest).
 
 ---
 

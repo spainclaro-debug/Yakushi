@@ -23,7 +23,7 @@ APK, tap **Start server**, and open the web UI.
 The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
 Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
 HentaiNexus). The current release is **0.7.1**; download it from the
-[latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
+[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
 (asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
 0.7.1 is a small UI fix in the Sources → Add extension list (the
 repository/Ported-to-Rust badges are stacked and the Install/Update button has
@@ -88,7 +88,7 @@ Previous release — **0.7.0** — and its features:
 ### Install
 
 1. Open the
-   [latest Android release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
+   [latest Android release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
    and download `tanoshi-mobile-server-release-<date>.apk`.
 2. Allow your browser or file manager to install unknown apps, open the APK and
    install it.
@@ -343,7 +343,7 @@ Full details, including the API-level differences and failure modes:
   opens the system installer. You must allow "install unknown apps" once and
   confirm the install prompt.
 - **Manual**: download `tanoshi-mobile-server-release-<date>.apk` from the
-  [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
+  [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
   and install it over the existing app.
 - Updates come from **published releases**, not from every commit: a new app
   version is released by pushing an `android-vX.Y.Z` tag, which the
@@ -412,7 +412,7 @@ The CI workflow builds the APK on every push and publishes it for
 - Changelog: [`android/CHANGELOG.md`](android/CHANGELOG.md)
 - Assumptions and open questions:
   [`android/ASSUMPTIONS_AND_OPEN_QUESTIONS.md`](android/ASSUMPTIONS_AND_OPEN_QUESTIONS.md)
-- Releases: <https://github.com/spainclaro-debug/tanoshi-termux/releases>
+- Releases: <https://github.com/spainclaro-debug/tanoshi-mobile/releases>
 
 ---
 
@@ -580,7 +580,7 @@ build Tanoshi yourself.
 ### From the prebuilt package (recommended)
 
 Pulls the newest package published in
-[spainclaro-debug/tanoshi-termux](https://github.com/spainclaro-debug/tanoshi-termux),
+[spainclaro-debug/tanoshi-mobile](https://github.com/spainclaro-debug/tanoshi-mobile),
 verifies its checksum and applies it. No Rust toolchain needed, takes seconds.
 
 ```bash

@@ -38,7 +38,7 @@ import org.json.JSONObject
  * Self-update support for sideloaded builds.
  *
  * Reads the public GitHub releases of
- * `spainclaro-debug/tanoshi-termux`, picks the newest `android-v*` release
+ * `spainclaro-debug/tanoshi-mobile`, picks the newest `android-v*` release
  * whose numeric version is newer than [currentVersionName], downloads its APK
  * into the app cache and hands it to the system package installer.
  *
@@ -695,7 +695,7 @@ class UpdateManager(context: Context) {
         private const val TAG = "UpdateManager"
 
         private const val RELEASES_URL =
-            "https://api.github.com/repos/spainclaro-debug/tanoshi-termux/releases?per_page=50"
+            "https://api.github.com/repos/spainclaro-debug/tanoshi-mobile/releases?per_page=50"
         private const val TAG_PREFIX = "android-v"
         private const val APK_SUFFIX = ".apk"
         private const val PREFERRED_ASSET_PREFIX = "tanoshi-mobile-server"

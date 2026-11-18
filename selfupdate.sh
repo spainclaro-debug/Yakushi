@@ -2,7 +2,7 @@
 #
 # Tanoshi for Termux — self update from the project's GitHub repository.
 #
-# Looks up the newest release in spainclaro-debug/tanoshi-termux, downloads the
+# Looks up the newest release in spainclaro-debug/tanoshi-mobile, downloads the
 # prebuilt package, verifies its checksum and applies it in place: program files
 # and plugins are replaced, your data/ is never touched.
 #
@@ -36,7 +36,7 @@ PKG_DIR="$(cd "$(dirname "$_SELF")" && pwd -P)"
 
 # Where the prebuilt packages live.
 PACKAGE_OWNER="spainclaro-debug"
-PACKAGE_REPO="tanoshi-termux"
+PACKAGE_REPO="tanoshi-mobile"
 PACKAGE_ASSET="tanoshi-termux-aarch64.tar.gz"
 PACKAGE_SUMS="${PACKAGE_ASSET}.sha256"
 RAW_BASE="https://raw.githubusercontent.com/${PACKAGE_OWNER}/${PACKAGE_REPO}/main"

@@ -251,7 +251,7 @@ would have to uninstall (and lose their library) on every key change.
 ### A19 — In-app updates are manual, full-APK downloads from GitHub releases
 
 `Settings → Updates` (`UpdateManager`) queries
-`https://api.github.com/repos/spainclaro-debug/tanoshi-termux/releases?per_page=50`
+`https://api.github.com/repos/spainclaro-debug/tanoshi-mobile/releases?per_page=50`
 without authentication and considers only non-draft, non-prerelease tags
 starting with `android-v` that have an `.apk` asset. It prefers asset names
 starting with `tanoshi-mobile-server` (the 0.3.0+ naming), accepts any other
