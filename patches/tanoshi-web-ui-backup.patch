@@ -1,0 +1,1490 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 16ceba5..70b52d4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1061,6 +1061,8 @@ dependencies = [
+ [[package]]
+ name = "compress-tools"
+ version = "0.16.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "51fb07cbf6204adb9e71af7b689dc5caeca6147f9d9dd5c8f9ae3447147012c0"
+ dependencies = [
+  "derive_more 2.1.1",
+  "libc",
+diff --git a/crates/tanoshi-schema/graphql/export_backup.graphql b/crates/tanoshi-schema/graphql/export_backup.graphql
+new file mode 100644
+index 0000000..5ff22e8
+--- /dev/null
++++ b/crates/tanoshi-schema/graphql/export_backup.graphql
+@@ -0,0 +1,3 @@
++query ExportBackup {
++  exportBackup
++}
+diff --git a/crates/tanoshi-schema/graphql/restore_backup.graphql b/crates/tanoshi-schema/graphql/restore_backup.graphql
+new file mode 100644
+index 0000000..204ab0e
+--- /dev/null
++++ b/crates/tanoshi-schema/graphql/restore_backup.graphql
+@@ -0,0 +1,13 @@
++mutation RestoreBackup($data: String!) {
++  restoreBackup(data: $data) {
++    imported
++    historyRestored
++    skipped
++    missingSources {
++      id
++      name
++      version
++    }
++    errors
++  }
++}
+diff --git a/crates/tanoshi-schema/graphql/schema.graphql b/crates/tanoshi-schema/graphql/schema.graphql
+index 2916e6f..e67dd36 100644
+--- a/crates/tanoshi-schema/graphql/schema.graphql
++++ b/crates/tanoshi-schema/graphql/schema.graphql
+@@ -129,6 +129,12 @@ type MutationRoot {
+     mangaId: Int!
+   ): Int!
+ 
++  # Restore a document produced by exportBackup.
++  restoreBackup(
++    # backup file contents
++    data: String!
++  ): RestoreBackupResult!
++
+   # Migrate a manga to another source: moves the library entry with its
+   # categories, read progress and trackers to the manga at `to_path` on
+   # `to_source_id`. Returns the destination manga id.
+@@ -247,6 +253,9 @@ input ProfileInput {
+ }
+ 
+ type QueryRoot {
++  # Export the signed-in user's library, reading history and the sources they
++  # need as a versioned JSON document.
++  exportBackup: String!
+   installedSources(checkUpdate: Boolean!): [Source!]!
+   availableSources: [Source!]!
+   source(sourceId: Int!): Source!
+@@ -488,3 +497,22 @@ type User {
+   myanimelistStatus: Boolean!
+   anilistStatus: Boolean!
+ }
++
++type MissingBackupSource {
++  id: Int!
++  name: String!
++  version: String!
++}
++
++type RestoreBackupResult {
++  # Library titles added by the restore.
++  imported: Int!
++  # Read-history rows restored (including the currently-read chapter).
++  historyRestored: Int!
++  # Entries that could not be restored (already present, missing source, ...).
++  skipped: Int!
++  # Sources used by the backup that are not installed on this server.
++  missingSources: [MissingBackupSource!]!
++  # Human readable per-entry problems.
++  errors: [String!]!
++}
+diff --git a/crates/tanoshi-schema/src/lib.rs b/crates/tanoshi-schema/src/lib.rs
+index 22fd16e..8ad9ad4 100644
+--- a/crates/tanoshi-schema/src/lib.rs
++++ b/crates/tanoshi-schema/src/lib.rs
+@@ -46,6 +46,21 @@ pub struct FetchSourceFilters;
+     response_derives = "Debug, Clone"
+ )]
+ pub struct DeleteAllHistory;
++#[derive(GraphQLQuery)]
++#[graphql(
++    schema_path = "graphql/schema.graphql",
++    query_path = "graphql/export_backup.graphql",
++    response_derives = "Debug, Clone"
++)]
++pub struct ExportBackup;
++
++#[derive(GraphQLQuery)]
++#[graphql(
++    schema_path = "graphql/schema.graphql",
++    query_path = "graphql/restore_backup.graphql",
++    response_derives = "Debug, Clone"
++)]
++pub struct RestoreBackup;
+ 
+ #[derive(GraphQLQuery)]
+ #[graphql(
+diff --git a/crates/tanoshi-web/Cargo.toml b/crates/tanoshi-web/Cargo.toml
+index 4c99e15..9d73d5e 100644
+--- a/crates/tanoshi-web/Cargo.toml
++++ b/crates/tanoshi-web/Cargo.toml
+@@ -44,6 +44,8 @@ urlencoding = "2"
+ [dependencies.web-sys]
+ version = "0.3"
+ features = [
++    "Blob",
++    "BlobPropertyBag",
+     "Cache",
+     "CacheStorage",
+     "CssStyleDeclaration",
+@@ -52,9 +54,14 @@ features = [
+     "Element",
+     "ErrorEvent",
+     "EventSource",
++    "File",
++    "FileList",
++    "FileReader",
+     "FocusEvent",
++    "HtmlAnchorElement",
+     "HtmlCollection",
+     "HtmlImageElement",
++    "HtmlInputElement",
+     "HtmlOptionElement",
+     "HtmlSelectElement",
+     "IntersectionObserver",
+diff --git a/crates/tanoshi-web/src/common/route.rs b/crates/tanoshi-web/src/common/route.rs
+index ede9e77..549031e 100644
+--- a/crates/tanoshi-web/src/common/route.rs
++++ b/crates/tanoshi-web/src/common/route.rs
+@@ -11,6 +11,7 @@ pub enum SettingCategory {
+     Chapters,
+     Reader,
+     LayoutPreference,
++    Backup,
+     Library,
+     Category,
+     SourceList,
+@@ -136,6 +137,7 @@ impl Route {
+                         "category" => Route::Settings(SettingCategory::Category),
+                         "reader" => Route::Settings(SettingCategory::Reader),
+                         "layout-preference" => Route::Settings(SettingCategory::LayoutPreference),
++                        "backup" => Route::Settings(SettingCategory::Backup),
+                         "sources" => Route::Settings(SettingCategory::SourceList),
+                         "users" => Route::Settings(SettingCategory::Users),
+                         "user" => Route::Settings(SettingCategory::User),
+@@ -230,6 +232,7 @@ impl Route {
+             Route::Settings(SettingCategory::LayoutPreference) => {
+                 "/settings/layout-preference".to_string()
+             }
++            Route::Settings(SettingCategory::Backup) => "/settings/backup".to_string(),
+             Route::Settings(SettingCategory::SourceList) => "/settings/sources".to_string(),
+             Route::Settings(SettingCategory::Source(source_id)) => {
+                 format!("/settings/sources/{source_id}")
+diff --git a/crates/tanoshi-web/src/lib.rs b/crates/tanoshi-web/src/lib.rs
+index b390b59..7846cb1 100644
+--- a/crates/tanoshi-web/src/lib.rs
++++ b/crates/tanoshi-web/src/lib.rs
+@@ -15,6 +15,7 @@ mod migration;
+ mod query;
+ mod reader;
+ mod settings;
++mod settings_backup;
+ mod settings_categories;
+ mod settings_download_queue;
+ mod settings_manage_downloads;
+diff --git a/crates/tanoshi-web/src/query.rs b/crates/tanoshi-web/src/query.rs
+index f5858b4..35548c4 100644
+--- a/crates/tanoshi-web/src/query.rs
++++ b/crates/tanoshi-web/src/query.rs
+@@ -501,6 +501,21 @@ pub async fn delete_all_history() -> Result<(), Box<dyn Error>> {
+     Ok(())
+ }
+ 
++pub async fn export_backup() -> Result<String, Box<dyn Error>> {
++    let data = post_graphql::<ExportBackup>(export_backup::Variables).await?;
++    Ok(data.export_backup)
++}
++
++pub async fn restore_backup(
++    data: &str,
++) -> Result<restore_backup::RestoreBackupRestoreBackup, Box<dyn Error>> {
++    let var = restore_backup::Variables {
++        data: data.to_string(),
++    };
++    let result = post_graphql::<RestoreBackup>(var).await?;
++    Ok(result.restore_backup)
++}
++
+ pub async fn download_chapters(chapter_ids: &[i64]) -> Result<(), Box<dyn Error>> {
+     let var = download_chapters::Variables {
+         ids: Some(chapter_ids.iter().map(|id| Some(*id)).collect()),
+diff --git a/crates/tanoshi-web/src/settings_backup.rs b/crates/tanoshi-web/src/settings_backup.rs
+new file mode 100644
+index 0000000..a5739f7
+--- /dev/null
++++ b/crates/tanoshi-web/src/settings_backup.rs
+@@ -0,0 +1,492 @@
++use std::rc::Rc;
++
++use dominator::{clone, events, html, with_node, Dom};
++use futures_signals::signal::{Mutable, SignalExt};
++use futures_signals::signal_vec::{MutableVec, SignalVecExt};
++use gloo_timers::future::TimeoutFuture;
++use wasm_bindgen::prelude::*;
++use wasm_bindgen::JsCast;
++use wasm_bindgen_futures::spawn_local;
++use web_sys::{Blob, BlobPropertyBag, FileReader, HtmlAnchorElement, HtmlInputElement};
++
++use crate::common::{snackbar, Spinner};
++use crate::query;
++use crate::utils::{document, window};
++
++#[derive(Clone, Debug)]
++pub struct MissingSource {
++    pub id: i64,
++    pub name: String,
++    pub version: String,
++}
++
++pub struct SettingsBackup {
++    busy: Mutable<bool>,
++    status: Mutable<String>,
++    errors: MutableVec<String>,
++    missing: MutableVec<MissingSource>,
++    pending_restore: Mutable<Option<String>>,
++}
++
++impl SettingsBackup {
++    pub fn new() -> Rc<Self> {
++        Rc::new(Self {
++            busy: Mutable::new(false),
++            status: Mutable::new(String::new()),
++            errors: MutableVec::new(),
++            missing: MutableVec::new(),
++            pending_restore: Mutable::new(None),
++        })
++    }
++
++    // -----------------------------------------------------------------------
++    // Backup
++    // -----------------------------------------------------------------------
++
++    pub fn backup(this: Rc<Self>) {
++        if this.busy.get() {
++            return;
++        }
++        this.busy.set(true);
++        this.status.set("Preparing your backup…".to_string());
++        this.errors.lock_mut().clear();
++        this.missing.lock_mut().clear();
++
++        spawn_local(async move {
++            match query::export_backup().await {
++                Ok(json) => {
++                    let date = js_sys::Date::new_0()
++                        .to_iso_string()
++                        .as_string()
++                        .unwrap_or_default();
++                    let file_name = format!(
++                        "tanoshi-backup-{}.json",
++                        date.chars().take(10).collect::<String>()
++                    );
++                    match Self::save_file(&file_name, &json) {
++                        Ok(message) => this.status.set(message),
++                        Err(message) => {
++                            this.status.set(message.clone());
++                            snackbar::show(message);
++                        }
++                    }
++                }
++                Err(error) => {
++                    let message = format!("Could not create the backup: {error}");
++                    this.status.set(message.clone());
++                    snackbar::show(message);
++                }
++            }
++            this.busy.set(false);
++        });
++    }
++
++    fn save_file(file_name: &str, json: &str) -> Result<String, String> {
++        if let Some(bridge) = android_bridge() {
++            let args = js_sys::Array::new();
++            args.push(&JsValue::from_str(file_name));
++            args.push(&JsValue::from_str(json));
++            let result = call_bridge(&bridge, "saveBackup", &args)
++                .and_then(|value| value.as_string())
++                .ok_or_else(|| "The app could not save the backup file".to_string())?;
++
++            if let Some(path) = result.strip_prefix("OK|") {
++                return Ok(format!("Backup saved to {path}"));
++            }
++            if let Some(error) = result.strip_prefix("ERROR|") {
++                return Err(format!("Could not save the backup: {error}"));
++            }
++            return Ok(result);
++        }
++
++        save_in_browser(file_name, json).map_err(|error| format!("Could not save the backup: {error}"))?;
++        Ok(format!("Backup downloaded as {file_name}"))
++    }
++
++    // -----------------------------------------------------------------------
++    // Restore
++    // -----------------------------------------------------------------------
++
++    fn pick_file() {
++        if let Some(element) = document().get_element_by_id("backup-file-input") {
++            if let Ok(input) = element.dyn_into::<HtmlInputElement>() {
++                let _ = input.click();
++            }
++        }
++    }
++
++    fn read_file(this: Rc<Self>, file: web_sys::File) {
++        let reader = FileReader::new().unwrap_throw();
++        let reader_ref = reader.clone();
++        let onload = clone!(this => move |_: web_sys::Event| {
++            if let Ok(result) = reader_ref.result() {
++                if let Some(text) = result.as_string() {
++                    Self::restore(this.clone(), text);
++                }
++            }
++        });
++        let callback = Closure::wrap(Box::new(onload) as Box<dyn FnMut(_)>);
++        reader.set_onload(Some(callback.as_ref().unchecked_ref()));
++        callback.forget();
++        let _ = reader.read_as_text(&file);
++    }
++
++    fn restore(this: Rc<Self>, text: String) {
++        if this.busy.get() {
++            return;
++        }
++
++        // Reject obviously wrong files before calling the server.
++        match serde_json::from_str::<serde_json::Value>(&text) {
++            Ok(value) => {
++                let format = value.get("format").and_then(|value| value.as_str()).unwrap_or("");
++                if format != "tanoshi-backup" {
++                    let message = "That file is not a Tanoshi backup. Pick a file created by \"Save Backup\".".to_string();
++                    this.status.set(message.clone());
++                    snackbar::show(message);
++                    return;
++                }
++            }
++            Err(error) => {
++                let message = format!("That file is not valid JSON: {error}");
++                this.status.set(message.clone());
++                snackbar::show(message);
++                return;
++            }
++        }
++
++        this.pending_restore.set(Some(text));
++        Self::run_restore(this);
++    }
++
++    fn run_restore(this: Rc<Self>) {
++        let Some(text) = this.pending_restore.get_cloned() else {
++            return;
++        };
++
++        this.busy.set(true);
++        this.status.set("Restoring your library…".to_string());
++        this.errors.lock_mut().clear();
++        this.missing.lock_mut().clear();
++
++        spawn_local(async move {
++            match query::restore_backup(&text).await {
++                Ok(result) => {
++                    let missing: Vec<MissingSource> = result
++                        .missing_sources
++                        .iter()
++                        .map(|source| MissingSource {
++                            id: source.id,
++                            name: source.name.clone(),
++                            version: source.version.clone(),
++                        })
++                        .collect();
++                    let missing_count = missing.len();
++                    this.missing.lock_mut().replace_cloned(missing);
++
++                    let mut summary = format!(
++                        "Restored {} title(s) and {} history entry(ies); {} skipped.",
++                        result.imported, result.history_restored, result.skipped
++                    );
++                    if missing_count > 0 {
++                        summary.push_str(" Some sources are missing: install them below and restore again.");
++                    }
++                    this.status.set(summary.clone());
++                    snackbar::show(summary);
++                    this.errors
++                        .lock_mut()
++                        .replace_cloned(result.errors.into_iter().collect());
++                }
++                Err(error) => {
++                    let message = format!("Restore failed: {error}");
++                    this.status.set(message.clone());
++                    snackbar::show(message);
++                }
++            }
++            this.busy.set(false);
++        });
++    }
++
++    // -----------------------------------------------------------------------
++    // Missing sources
++    // -----------------------------------------------------------------------
++
++    fn install_missing(this: Rc<Self>) {
++        if this.busy.get() || this.missing.lock_ref().is_empty() {
++            return;
++        }
++        let missing: Vec<MissingSource> = this.missing.lock_ref().to_vec();
++        this.busy.set(true);
++        this.status.set("Installing the missing sources…".to_string());
++
++        if let Some(bridge) = android_bridge() {
++            let payload = serde_json::to_string(
++                &missing
++                    .iter()
++                    .map(|source| {
++                        serde_json::json!({ "id": source.id, "name": source.name })
++                    })
++                    .collect::<Vec<_>>(),
++            )
++            .unwrap_or_default();
++            let args = js_sys::Array::new();
++            args.push(&JsValue::from_str(&payload));
++            if call_bridge(&bridge, "installExtensions", &args).is_none() {
++                this.busy.set(false);
++                this.status
++                    .set("The app could not start the extension installer.".to_string());
++                return;
++            }
++            Self::wait_for_sources(this);
++            return;
++        }
++
++        // Server-side installation (Termux / desktop server).
++        spawn_local(async move {
++            for source in &missing {
++                if let Err(error) = query::install_source(source.id).await {
++                    snackbar::show(format!("Could not install {}: {error}", source.name));
++                }
++            }
++            Self::wait_for_sources(this);
++        });
++    }
++
++    /// Polls the installed sources until the missing ones show up (the app
++    /// restarts the server after installing extensions), then restores again.
++    fn wait_for_sources(this: Rc<Self>) {
++        spawn_local(async move {
++            for _ in 0..25 {
++                TimeoutFuture::new(1500).await;
++                if let Ok(sources) = query::fetch_sources().await {
++                    let installed: std::collections::HashSet<i64> =
++                        sources.iter().map(|source| source.id).collect();
++                    if this
++                        .missing
++                        .lock_ref()
++                        .iter()
++                        .all(|missing| installed.contains(&missing.id))
++                    {
++                        this.missing.lock_mut().clear();
++                        this.busy.set(false);
++                        this.status.set("Sources installed. Restoring again…".to_string());
++                        Self::run_restore(this);
++                        return;
++                    }
++                }
++            }
++
++            this.busy.set(false);
++            this.status.set(
++                "The sources have not appeared yet. If the app restarted the server, wait a moment and tap \"Choose Backup File\" again."
++                    .to_string(),
++            );
++        });
++    }
++
++    // -----------------------------------------------------------------------
++    // Rendering
++    // -----------------------------------------------------------------------
++
++    fn render_card<F>(title: &str, description: &str, action: Dom, extra: F) -> Dom
++    where
++        F: FnOnce() -> Dom,
++    {
++        html!("div", {
++            .style("border-radius", "0.75rem")
++            .style("padding", "0.75rem")
++            .style("margin-bottom", "0.75rem")
++            .style("background", "var(--list-group-background-color, rgba(255,255,255,0.06))")
++            .style("border", "1px solid rgba(127,127,127,0.25)")
++            .children(&mut [
++                html!("h3", {
++                    .style("margin", "0 0 0.25rem 0")
++                    .text(title)
++                }),
++                html!("p", {
++                    .style("margin", "0 0 0.75rem 0")
++                    .style("opacity", "0.8")
++                    .style("font-size", "0.875rem")
++                    .text(description)
++                }),
++                action,
++                extra(),
++            ])
++        })
++    }
++
++    pub fn render(self: Rc<Self>) -> Dom {
++        let this = self;
++
++        html!("div", {
++            .class("content")
++            .style("padding", "0.5rem")
++            .children(&mut [
++                Self::render_card(
++                    "Backup Library",
++                    "Saves your library titles, reading history, the sources they use and the chapter you are currently reading as a .json file in your phone's Downloads folder.",
++                    html!("button", {
++                        .style("display", "block")
++                        .style("width", "100%")
++                        .style("border-radius", "0.5rem")
++                        .style("padding", "0.5rem")
++                        .style("background", "var(--primary-color, #5b749b)")
++                        .style("color", "#fff")
++                        .text("Save Backup")
++                        .event(clone!(this => move |_: events::Click| Self::backup(this.clone())))
++                    }),
++                    || html!("div", {}),
++                ),
++                Self::render_card(
++                    "Restore Library",
++                    "Pick a backup file to restore your library and reading progress. Missing sources are reported so you can install them.",
++                    html!("label", {
++                        .style("display", "block")
++                        .style("width", "100%")
++                        .style("text-align", "center")
++                        .style("border-radius", "0.5rem")
++                        .style("padding", "0.5rem")
++                        .style("background", "var(--primary-color, #5b749b)")
++                        .style("color", "#fff")
++                        .style("cursor", "pointer")
++                        .text("Choose Backup File")
++                        .children(&mut [
++                            html!("input" => HtmlInputElement, {
++                                .attr("id", "backup-file-input")
++                                .attr("type", "file")
++                                .attr("accept", "application/json,.json")
++                                .style("display", "none")
++                                .with_node!(input => {
++                                    .event(clone!(this, input => move |_: events::Change| {
++                                        if let Some(files) = input.files() {
++                                            if let Some(file) = files.get(0) {
++                                                Self::read_file(this.clone(), file);
++                                            }
++                                        }
++                                        input.set_value("");
++                                    }))
++                                })
++                            }),
++                        ])
++                    }),
++                    || html!("div", {}),
++                ),
++                html!("div", {
++                    .style("min-height", "1.25rem")
++                    .style("margin-top", "0.25rem")
++                    .style("opacity", "0.95")
++                    .text_signal(this.status.signal_cloned())
++                }),
++                html!("div", {
++                    .style("display", "flex")
++                    .style("justify-content", "center")
++                    .visible_signal(this.busy.signal())
++                    .child(Spinner::render(Spinner::new()))
++                }),
++                html!("div", {
++                    .child_signal(this.missing.signal_vec_cloned().len().map(clone!(this => move |len| {
++                        if len == 0 {
++                            return None;
++                        }
++                        Some(html!("div", {
++                            .style("margin-top", "0.5rem")
++                            .style("padding", "0.75rem")
++                            .style("border-radius", "0.75rem")
++                            .style("border", "1px solid rgba(255,170,0,0.6)")
++                            .style("background", "rgba(255,170,0,0.12)")
++                            .children(&mut [
++                                html!("h3", {
++                                    .style("margin", "0 0 0.25rem 0")
++                                    .text("Missing sources")
++                                }),
++                                html!("p", {
++                                    .style("margin", "0 0 0.5rem 0")
++                                    .style("font-size", "0.875rem")
++                                    .text("These sources are used by the backup but are not installed. Install them, then restore again.")
++                                }),
++                                html!("ul", {
++                                    .style("margin", "0 0 0.5rem 0")
++                                    .children_signal_vec(this.missing.signal_vec_cloned().map(|source| html!("li", {
++                                        .text(format!("{} (v{})", source.name, source.version).as_str())
++                                    })))
++                                }),
++                                html!("button", {
++                                    .style("width", "100%")
++                                    .text("Install Missing Sources")
++                                    .event(clone!(this => move |_: events::Click| Self::install_missing(this.clone())))
++                                }),
++                            ])
++                        }))
++                    })))
++                }),
++                html!("div", {
++                    .child_signal(this.errors.signal_vec_cloned().len().map(clone!(this => move |len| {
++                        (len > 0).then(|| html!("div", {
++                            .style("margin-top", "0.5rem")
++                            .style("padding", "0.75rem")
++                            .style("border-radius", "0.75rem")
++                            .style("background", "rgba(200,40,40,0.12)")
++                            .style("border", "1px solid rgba(200,40,40,0.45)")
++                            .children(&mut [
++                                html!("h3", {
++                                    .style("margin", "0 0 0.25rem 0")
++                                    .text("Warnings")
++                                }),
++                                html!("ul", {
++                                    .style("font-size", "0.8rem")
++                                    .style("margin", "0")
++                                    .children_signal_vec(this.errors.signal_vec_cloned().map(|error| html!("li", {
++                                        .text(&error)
++                                    })))
++                                }),
++                            ])
++                        }))
++                    })))
++                }),
++            ])
++        })
++    }
++}
++
++fn android_bridge() -> Option<JsValue> {
++    js_sys::Reflect::get(window().as_ref(), &JsValue::from_str("TanoshiApp"))
++        .ok()
++        .filter(|value| !value.is_undefined() && !value.is_null())
++}
++
++fn call_bridge(bridge: &JsValue, method: &str, args: &js_sys::Array) -> Option<JsValue> {
++    let function = js_sys::Reflect::get(bridge, &JsValue::from_str(method))
++        .ok()?
++        .dyn_into::<js_sys::Function>()
++        .ok()?;
++    function.apply(bridge, args).ok()
++}
++
++fn save_in_browser(file_name: &str, json: &str) -> Result<(), String> {
++    let parts = js_sys::Array::new();
++    parts.push(&JsValue::from_str(json));
++    let options = BlobPropertyBag::new();
++    options.set_type("application/json");
++    let blob = Blob::new_with_str_sequence_and_options(parts.as_ref(), &options)
++        .map_err(|error| format!("{error:?}"))?;
++    let url = web_sys::Url::create_object_url_with_blob(&blob)
++        .map_err(|error| format!("{error:?}"))?;
++
++    let anchor = document()
++        .create_element("a")
++        .map_err(|error| format!("{error:?}"))?
++        .dyn_into::<HtmlAnchorElement>()
++        .map_err(|_| "could not create the download link".to_string())?;
++    anchor
++        .set_attribute("href", &url)
++        .map_err(|error| format!("{error:?}"))?;
++    anchor.set_download(file_name);
++    let body = document().body().ok_or_else(|| "no document body".to_string())?;
++    body.append_child(&anchor)
++        .map_err(|error| format!("{error:?}"))?;
++    anchor.click();
++    let _ = body.remove_child(&anchor);
++    let _ = web_sys::Url::revoke_object_url(&url);
++
++    Ok(())
++}
+diff --git a/crates/tanoshi/src/domain/repositories/history.rs b/crates/tanoshi/src/domain/repositories/history.rs
+index bd4c86f..5188adf 100644
+--- a/crates/tanoshi/src/domain/repositories/history.rs
++++ b/crates/tanoshi/src/domain/repositories/history.rs
+@@ -79,6 +79,17 @@ pub trait HistoryRepository: Send + Sync {
+     /// Remove every read-history row belonging to the user.
+     async fn delete_all_history(&self, user_id: i64) -> Result<u64, HistoryRepositoryError>;
+ 
++    /// Insert (or update) a read-history row with an explicit timestamp,
++    /// used when restoring a library backup.
++    async fn import_history_chapter(
++        &self,
++        user_id: i64,
++        chapter_id: i64,
++        page: i64,
++        is_complete: bool,
++        read_at: NaiveDateTime,
++    ) -> Result<(), HistoryRepositoryError>;
++
+     async fn get_unread_chapters_by_manga_ids(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/domain/services/history.rs b/crates/tanoshi/src/domain/services/history.rs
+index 24288b4..03ce63b 100644
+--- a/crates/tanoshi/src/domain/services/history.rs
++++ b/crates/tanoshi/src/domain/services/history.rs
+@@ -113,6 +113,21 @@ where
+         Ok(self.repo.delete_all_history(user_id).await?)
+     }
+ 
++    pub async fn import_history_chapter(
++        &self,
++        user_id: i64,
++        chapter_id: i64,
++        page: i64,
++        is_complete: bool,
++        read_at: chrono::NaiveDateTime,
++    ) -> Result<(), HistoryError> {
++        self.repo
++            .import_history_chapter(user_id, chapter_id, page, is_complete, read_at)
++            .await?;
++
++        Ok(())
++    }
++
+     pub async fn get_next_chapter(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/infrastructure/domain/repositories/history.rs b/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
+index f0aab09..09aaf52 100644
+--- a/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
++++ b/crates/tanoshi/src/infrastructure/domain/repositories/history.rs
+@@ -309,6 +309,62 @@ impl HistoryRepository for HistoryRepositoryImpl {
+         Ok(result.rows_affected())
+     }
+ 
++    async fn import_history_chapter(
++        &self,
++        user_id: i64,
++        chapter_id: i64,
++        page: i64,
++        is_complete: bool,
++        read_at: chrono::NaiveDateTime,
++    ) -> Result<(), HistoryRepositoryError> {
++        let mut tx = self.pool.write().begin().await?;
++
++        // `manga_id` is denormalized by the insert trigger when omitted, but the
++        // explicit value keeps this working with the trigger's normalization.
++        sqlx::query(
++            r#"
++            INSERT INTO user_history(user_id, chapter_id, manga_id, last_page, read_at, is_complete)
++            VALUES (?, ?, (SELECT manga_id FROM chapter WHERE id = ?), ?, ?, ?)
++            ON CONFLICT(user_id, chapter_id)
++            DO UPDATE SET
++                last_page = excluded.last_page,
++                read_at = excluded.read_at,
++                is_complete = excluded.is_complete"#,
++        )
++        .bind(user_id)
++        .bind(chapter_id)
++        .bind(chapter_id)
++        .bind(page)
++        .bind(read_at)
++        .bind(is_complete)
++        .execute(&mut *tx)
++        .await?;
++
++        // Keep the per-manga summary used by the History page in sync. Only a
++        // newer read replaces the summary row.
++        sqlx::query(
++            r#"
++            INSERT INTO user_manga_history(user_id, manga_id, chapter_id, read_at)
++            SELECT ?, c.manga_id, c.id, ?
++            FROM chapter c
++            WHERE c.id = ?
++            ON CONFLICT(user_id, manga_id)
++            DO UPDATE SET
++                chapter_id = excluded.chapter_id,
++                read_at = excluded.read_at
++            WHERE user_manga_history.read_at < excluded.read_at"#,
++        )
++        .bind(user_id)
++        .bind(read_at)
++        .bind(chapter_id)
++        .execute(&mut *tx)
++        .await?;
++
++        tx.commit().await?;
++
++        Ok(())
++    }
++
+     async fn get_unread_chapters_by_manga_ids(
+         &self,
+         user_id: i64,
+diff --git a/crates/tanoshi/src/presentation/graphql/backup.rs b/crates/tanoshi/src/presentation/graphql/backup.rs
+new file mode 100644
+index 0000000..308b5b1
+--- /dev/null
++++ b/crates/tanoshi/src/presentation/graphql/backup.rs
+@@ -0,0 +1,623 @@
++use async_graphql::{Context, Object, Result, SimpleObject};
++use chrono::{NaiveDateTime, Utc};
++use log::warn;
++use serde::{Deserialize, Serialize};
++use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
++
++use crate::domain::{
++    entities::history::HistoryBounds,
++    services::{
++        chapter::ChapterService, history::HistoryService, library::LibraryService,
++        manga::MangaService, source::SourceService,
++    },
++};
++use crate::infrastructure::{
++    auth::Claims,
++    config::Config,
++    domain::repositories::{
++        chapter::ChapterRepositoryImpl, history::HistoryRepositoryImpl,
++        library::LibraryRepositoryImpl, manga::MangaRepositoryImpl, source::SourceRepositoryImpl,
++    },
++};
++
++/// File format written by [`BackupRoot::export_backup`]. Bump
++/// [`BACKUP_VERSION`] when the on-disk schema changes incompatibly.
++pub const BACKUP_FORMAT: &str = "tanoshi-backup";
++pub const BACKUP_VERSION: i64 = 1;
++
++#[derive(Debug, Serialize, Deserialize)]
++struct BackupDocument {
++    format: String,
++    version: i64,
++    #[serde(rename = "exportedAt", default)]
++    exported_at: String,
++    #[serde(rename = "serverVersion", default)]
++    server_version: String,
++    #[serde(default)]
++    sources: Vec<BackupSource>,
++    #[serde(default)]
++    library: Vec<BackupLibraryManga>,
++    #[serde(default)]
++    history: Vec<BackupHistoryEntry>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
++struct BackupSource {
++    id: i64,
++    #[serde(default)]
++    name: String,
++    #[serde(default)]
++    version: String,
++    #[serde(default)]
++    url: String,
++    #[serde(default)]
++    icon: String,
++}
++
++#[derive(Debug, Serialize, Deserialize)]
++struct BackupLibraryManga {
++    #[serde(rename = "mangaId", default)]
++    manga_id: i64,
++    #[serde(rename = "sourceId", default)]
++    source_id: i64,
++    #[serde(default)]
++    title: String,
++    #[serde(default)]
++    path: String,
++    #[serde(rename = "coverUrl", default)]
++    cover_url: String,
++    #[serde(default)]
++    categories: Vec<String>,
++    #[serde(rename = "currentReading", default)]
++    current_reading: Option<BackupHistoryEntry>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
++struct BackupHistoryEntry {
++    /// Server-local manga id. Present for diagnostics only: ids are not stable
++    /// between servers, restore resolves the manga by source + path instead.
++    #[serde(rename = "mangaId", default)]
++    manga_id: i64,
++    #[serde(rename = "sourceId", default)]
++    source_id: i64,
++    #[serde(rename = "mangaTitle", default)]
++    manga_title: String,
++    #[serde(rename = "mangaPath", default)]
++    manga_path: String,
++    #[serde(rename = "chapterId", default)]
++    chapter_id: i64,
++    #[serde(rename = "chapterTitle", default)]
++    chapter_title: String,
++    #[serde(rename = "chapterPath", default)]
++    chapter_path: String,
++    #[serde(rename = "chapterNumber", default)]
++    chapter_number: f64,
++    #[serde(rename = "readAt", default)]
++    read_at: String,
++    #[serde(rename = "lastPageRead", default)]
++    last_page_read: i64,
++    #[serde(rename = "isComplete", default)]
++    is_complete: bool,
++}
++
++#[derive(SimpleObject)]
++pub struct MissingBackupSource {
++    pub id: i64,
++    pub name: String,
++    pub version: String,
++}
++
++#[derive(SimpleObject)]
++pub struct RestoreBackupResult {
++    /// Library titles added by the restore.
++    pub imported: i32,
++    /// Read-history rows restored (including the currently-read chapter).
++    pub history_restored: i32,
++    /// Entries that could not be restored (already present, missing source or
++    /// an error); see `errors` for per-entry details.
++    pub skipped: i32,
++    /// Sources used by the backup that are not installed on this server.
++    pub missing_sources: Vec<MissingBackupSource>,
++    /// Human readable per-entry problems, capped at [`MAX_REPORTED_ERRORS`].
++    pub errors: Vec<String>,
++}
++
++const MAX_REPORTED_ERRORS: usize = 15;
++
++#[derive(Default)]
++pub struct BackupRoot;
++
++#[Object]
++impl BackupRoot {
++    /// Export the signed-in user's library, read history and the sources those
++    /// entries need as a JSON document.
++    async fn export_backup(&self, ctx: &Context<'_>) -> Result<String> {
++        let claims = ctx
++            .data::<Claims>()
++            .map_err(|_| "token not exists, please login")?;
++        let config = ctx.data::<Config>()?;
++        let source_svc = ctx.data::<SourceService<SourceRepositoryImpl>>()?;
++        let manga_svc = ctx.data::<MangaService<MangaRepositoryImpl>>()?;
++        let chapter_svc = ctx.data::<ChapterService<ChapterRepositoryImpl>>()?;
++        let library_svc = ctx.data::<LibraryService<LibraryRepositoryImpl>>()?;
++        let history_svc = ctx
++            .data::<HistoryService<ChapterRepositoryImpl, HistoryRepositoryImpl>>()?;
++
++        let installed_sources = source_svc
++            .get_installed_sources(&config.extension_repository, false)
++            .await?;
++        let source_map: HashMap<i64, BackupSource> = installed_sources
++            .iter()
++            .map(|source| {
++                (
++                    source.id,
++                    BackupSource {
++                        id: source.id,
++                        name: source.name.clone(),
++                        version: source.version.clone(),
++                        url: source.url.clone(),
++                        icon: source.icon.clone(),
++                    },
++                )
++            })
++            .collect();
++
++        // Category names per library manga, and the union of every category's
++        // manga plus the uncategorized ones (`None` only matches rows without a
++        // category, so each category is fetched explicitly).
++        let categories = library_svc.get_categories_by_user_id(claims.sub).await?;
++        let mut manga_categories: HashMap<i64, Vec<String>> = HashMap::new();
++        let mut library_manga: Vec<crate::domain::entities::manga::Manga> = Vec::new();
++        let mut library_ids: HashSet<i64> = HashSet::new();
++
++        for manga in library_svc
++            .get_manga_from_library_by_category_id(claims.sub, None)
++            .await?
++        {
++            if library_ids.insert(manga.id) {
++                library_manga.push(manga);
++            }
++        }
++        for category in &categories {
++            let Some(category_id) = category.id else { continue };
++            let manga = library_svc
++                .get_manga_from_library_by_category_id(claims.sub, Some(category_id))
++                .await?;
++            for manga in manga {
++                manga_categories
++                    .entry(manga.id)
++                    .or_default()
++                    .push(category.name.clone());
++                if library_ids.insert(manga.id) {
++                    library_manga.push(manga);
++                }
++            }
++        }
++        let history_chapters = history_svc
++            .get_history_chapters(claims.sub, HistoryBounds::default(), None, None)
++            .await?;
++
++        // manga_id -> (source_id, path, title), for library and history entries.
++        let mut manga_details: HashMap<i64, (i64, String, String)> = library_manga
++            .iter()
++            .map(|manga| {
++                (
++                    manga.id,
++                    (manga.source_id, manga.path.clone(), manga.title.clone()),
++                )
++            })
++            .collect();
++
++        let mut history_by_manga: HashMap<i64, Vec<&crate::domain::entities::history::HistoryChapter>> =
++            HashMap::new();
++        for chapter in &history_chapters {
++            history_by_manga
++                .entry(chapter.manga_id)
++                .or_default()
++                .push(chapter);
++        }
++
++        for manga_id in history_by_manga.keys() {
++            if manga_details.contains_key(manga_id) {
++                continue;
++            }
++            if let Ok(manga) = manga_svc.fetch_manga_by_id(*manga_id, false).await {
++                manga_details.insert(
++                    manga.id,
++                    (manga.source_id, manga.path.clone(), manga.title.clone()),
++                );
++            }
++        }
++
++        // Chapter metadata needed to match a chapter on another server.
++        let mut chapter_meta: HashMap<i64, (String, f64, String)> = HashMap::new();
++        for (manga_id, _) in &history_by_manga {
++            let Some((source_id, manga_path, _)) = manga_details.get(manga_id) else {
++                continue;
++            };
++            match chapter_svc
++                .fetch_chapters_by_manga_id(*source_id, manga_path, *manga_id, false)
++                .await
++            {
++                Ok(chapters) => {
++                    for chapter in chapters {
++                        chapter_meta
++                            .insert(chapter.id, (chapter.path, chapter.number, chapter.title));
++                    }
++                }
++                Err(error) => {
++                    warn!("backup: could not load chapters for manga {manga_id}: {error}");
++                }
++            }
++        }
++
++        let history: Vec<BackupHistoryEntry> = history_chapters
++            .iter()
++            .map(|chapter| {
++                let meta = chapter_meta.get(&chapter.chapter_id);
++                BackupHistoryEntry {
++                    manga_id: chapter.manga_id,
++                    source_id: chapter.source_id,
++                    manga_title: chapter.manga_title.clone(),
++                    manga_path: manga_details
++                        .get(&chapter.manga_id)
++                        .map(|details| details.1.clone())
++                        .unwrap_or_default(),
++                    chapter_id: chapter.chapter_id,
++                    chapter_title: chapter.chapter_title.clone(),
++                    chapter_path: meta.map(|meta| meta.0.clone()).unwrap_or_default(),
++                    chapter_number: meta.map(|meta| meta.1).unwrap_or_default(),
++                    read_at: chapter.read_at.format("%Y-%m-%dT%H:%M:%S%.f").to_string(),
++                    last_page_read: chapter.last_page_read,
++                    is_complete: chapter.is_complete,
++                }
++            })
++            .collect();
++
++        // History is sorted newest first, so the first entry per manga is the
++        // chapter the user is currently reading.
++        let mut current_reading: HashMap<i64, BackupHistoryEntry> = HashMap::new();
++        for entry in &history {
++            current_reading
++                .entry(entry.manga_id)
++                .or_insert_with(|| entry.clone());
++        }
++
++        let mut used_sources: BTreeSet<i64> = BTreeSet::new();
++        for manga in &library_manga {
++            used_sources.insert(manga.source_id);
++        }
++        for entry in &history {
++            used_sources.insert(entry.source_id);
++        }
++        let sources: Vec<BackupSource> = used_sources
++            .iter()
++            .filter_map(|source_id| source_map.get(source_id).cloned())
++            .collect();
++
++        let library: Vec<BackupLibraryManga> = library_manga
++            .iter()
++            .map(|manga| BackupLibraryManga {
++                manga_id: manga.id,
++                source_id: manga.source_id,
++                title: manga.title.clone(),
++                path: manga.path.clone(),
++                cover_url: manga.cover_url.clone(),
++                categories: manga_categories
++                    .get(&manga.id)
++                    .cloned()
++                    .unwrap_or_default(),
++                current_reading: current_reading.get(&manga.id).cloned(),
++            })
++            .collect();
++
++        let document = BackupDocument {
++            format: BACKUP_FORMAT.to_string(),
++            version: BACKUP_VERSION,
++            exported_at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
++            server_version: env!("CARGO_PKG_VERSION").to_string(),
++            sources,
++            library,
++            history,
++        };
++
++        serde_json::to_string_pretty(&document)
++            .map_err(|error| format!("could not serialize the backup: {error}").into())
++    }
++}
++
++#[derive(Default)]
++pub struct BackupMutationRoot;
++
++#[Object]
++impl BackupMutationRoot {
++    /// Restore a document produced by `exportBackup`.
++    ///
++    /// Manga are matched by source + source path, chapters by path (falling
++    /// back to number and title), so a backup can be restored on a different
++    /// server. Sources that are not installed are reported back instead of
++    /// failing the whole import.
++    async fn restore_backup(&self, ctx: &Context<'_>, data: String) -> Result<RestoreBackupResult> {
++        let claims = ctx
++            .data::<Claims>()
++            .map_err(|_| "token not exists, please login")?;
++        let config = ctx.data::<Config>()?;
++        let source_svc = ctx.data::<SourceService<SourceRepositoryImpl>>()?;
++        let manga_svc = ctx.data::<MangaService<MangaRepositoryImpl>>()?;
++        let chapter_svc = ctx.data::<ChapterService<ChapterRepositoryImpl>>()?;
++        let library_svc = ctx.data::<LibraryService<LibraryRepositoryImpl>>()?;
++        let history_svc = ctx
++            .data::<HistoryService<ChapterRepositoryImpl, HistoryRepositoryImpl>>()?;
++
++        let document: BackupDocument = serde_json::from_str(&data)
++            .map_err(|error| format!("This is not a valid Tanoshi backup file: {error}"))?;
++        if document.format != BACKUP_FORMAT {
++            return Err(format!(
++                "Unsupported backup format \"{}\": expected \"{BACKUP_FORMAT}\"",
++                document.format
++            )
++            .into());
++        }
++        if document.version != BACKUP_VERSION {
++            return Err(format!(
++                "Unsupported backup version {}: this app reads version {BACKUP_VERSION}",
++                document.version
++            )
++            .into());
++        }
++
++        let installed = source_svc
++            .get_installed_sources(&config.extension_repository, false)
++            .await?;
++        let installed_ids: HashSet<i64> = installed.iter().map(|source| source.id).collect();
++        let backup_sources: HashMap<i64, &BackupSource> = document
++            .sources
++            .iter()
++            .map(|source| (source.id, source))
++            .collect();
++
++        // Sources needed by the backup but missing on this server.
++        let mut missing: BTreeMap<i64, MissingBackupSource> = BTreeMap::new();
++        let note_missing = |source_id: i64,
++                                missing: &mut BTreeMap<i64, MissingBackupSource>| {
++            if installed_ids.contains(&source_id) || missing.contains_key(&source_id) {
++                return;
++            }
++            let source = backup_sources.get(&source_id);
++            missing.insert(
++                source_id,
++                MissingBackupSource {
++                    id: source_id,
++                    name: source
++                        .map(|source| source.name.clone())
++                        .filter(|name| !name.is_empty())
++                        .unwrap_or_else(|| format!("Source {source_id}")),
++                    version: source.map(|source| source.version.clone()).unwrap_or_default(),
++                },
++            );
++        };
++        for manga in &document.library {
++            note_missing(manga.source_id, &mut missing);
++        }
++        for entry in &document.history {
++            note_missing(entry.source_id, &mut missing);
++        }
++
++        let mut existing_library: HashSet<i64> = library_svc
++            .get_manga_from_library_by_category_id(claims.sub, None)
++            .await?
++            .into_iter()
++            .map(|manga| manga.id)
++            .collect();
++        let category_list = library_svc.get_categories_by_user_id(claims.sub).await?;
++        for category in &category_list {
++            let Some(category_id) = category.id else { continue };
++            for manga in library_svc
++                .get_manga_from_library_by_category_id(claims.sub, Some(category_id))
++                .await?
++            {
++                existing_library.insert(manga.id);
++            }
++        }
++        let mut category_ids: HashMap<String, i64> = category_list
++            .iter()
++            .filter_map(|category| category.id.map(|id| (category.name.clone(), id)))
++            .collect();
++
++        // (source_id, source path) -> resolved manga id, so repeated entries for
++        // the same title are only fetched once.
++        let mut resolved_manga: HashMap<(i64, String), Option<i64>> = HashMap::new();
++        let mut chapter_cache: HashMap<i64, Vec<crate::domain::entities::chapter::Chapter>> =
++            HashMap::new();
++
++        let mut imported = 0i32;
++        let mut history_restored = 0i32;
++        let mut skipped = 0i32;
++        let mut errors: Vec<String> = Vec::new();
++        let report_error = |errors: &mut Vec<String>, message: String| {
++            if errors.len() < MAX_REPORTED_ERRORS {
++                errors.push(message);
++            }
++        };
++        for manga in &document.library {
++            if !installed_ids.contains(&manga.source_id) {
++                skipped += 1;
++                continue;
++            }
++            let Some(manga_id) =
++                resolve_manga(&manga_svc, &mut resolved_manga, manga.source_id, &manga.path).await
++            else {
++                skipped += 1;
++                report_error(
++                    &mut errors,
++                    format!("{}: could not resolve the title on its source", manga.title),
++                );
++                continue;
++            };
++
++            if existing_library.contains(&manga_id) {
++                skipped += 1;
++                continue;
++            }
++
++            let mut category_targets: Vec<i64> = Vec::new();
++            for name in &manga.categories {
++                let name = name.trim();
++                if name.is_empty() || name.eq_ignore_ascii_case("default") {
++                    continue;
++                }
++                if let Some(category_id) = category_ids.get(name) {
++                    category_targets.push(*category_id);
++                    continue;
++                }
++                match library_svc.create_category(claims.sub, name).await {
++                    Ok(category) => {
++                        if let Some(category_id) = category.id {
++                            category_ids.insert(name.to_string(), category_id);
++                            category_targets.push(category_id);
++                        }
++                    }
++                    Err(error) => report_error(
++                        &mut errors,
++                        format!("{}: could not create category \"{name}\": {error}", manga.title),
++                    ),
++                }
++            }
++
++            match library_svc
++                .insert_manga_to_library(claims.sub, manga_id, category_targets)
++                .await
++            {
++                Ok(()) => imported += 1,
++                Err(error) => {
++                    skipped += 1;
++                    report_error(
++                        &mut errors,
++                        format!("{}: could not add it to the library: {error}", manga.title),
++                    );
++                }
++            }
++        }
++
++        for entry in &document.history {
++            if !installed_ids.contains(&entry.source_id) {
++                skipped += 1;
++                continue;
++            }
++            let Some(manga_id) =
++                resolve_manga(&manga_svc, &mut resolved_manga, entry.source_id, &entry.manga_path)
++                    .await
++            else {
++                skipped += 1;
++                report_error(
++                    &mut errors,
++                    format!("{}: could not resolve the title on its source", entry.manga_title),
++                );
++                continue;
++            };
++
++            if !chapter_cache.contains_key(&manga_id) {
++                let chapters = chapter_svc
++                    .fetch_chapters_by_manga_id(
++                        entry.source_id,
++                        &entry.manga_path,
++                        manga_id,
++                        false,
++                    )
++                    .await
++                    .unwrap_or_default();
++                chapter_cache.insert(manga_id, chapters);
++            }
++            let chapters = chapter_cache.get(&manga_id).cloned().unwrap_or_default();
++            let chapter = chapters
++                .iter()
++                .find(|chapter| {
++                    !entry.chapter_path.is_empty() && chapter.path == entry.chapter_path
++                })
++                .or_else(|| {
++                    chapters
++                        .iter()
++                        .find(|chapter| (chapter.number - entry.chapter_number).abs() < 1e-6)
++                })
++                .or_else(|| {
++                    chapters.iter().find(|chapter| {
++                        !entry.chapter_title.is_empty() && chapter.title == entry.chapter_title
++                    })
++                });
++
++            let Some(chapter) = chapter else {
++                skipped += 1;
++                report_error(
++                    &mut errors,
++                    format!(
++                        "{}: chapter \"{}\" no longer exists on the source",
++                        entry.manga_title, entry.chapter_title
++                    ),
++                );
++                continue;
++            };
++
++            match history_svc
++                .import_history_chapter(
++                    claims.sub,
++                    chapter.id,
++                    entry.last_page_read,
++                    entry.is_complete,
++                    parse_read_at(&entry.read_at),
++                )
++                .await
++            {
++                Ok(()) => history_restored += 1,
++                Err(error) => {
++                    skipped += 1;
++                    report_error(
++                        &mut errors,
++                        format!(
++                            "{}: could not restore chapter \"{}\": {error}",
++                            entry.manga_title, entry.chapter_title
++                        ),
++                    );
++                }
++            }
++        }
++
++        Ok(RestoreBackupResult {
++            imported,
++            history_restored,
++            skipped,
++            missing_sources: missing.into_values().collect(),
++            errors,
++        })
++    }
++}
++
++async fn resolve_manga(
++    manga_svc: &MangaService<MangaRepositoryImpl>,
++    cache: &mut HashMap<(i64, String), Option<i64>>,
++    source_id: i64,
++    path: &str,
++) -> Option<i64> {
++    if path.trim().is_empty() {
++        return None;
++    }
++    let key = (source_id, path.to_string());
++    if let Some(cached) = cache.get(&key) {
++        return *cached;
++    }
++    let manga = manga_svc
++        .fetch_manga_by_source_path(source_id, path)
++        .await
++        .ok()
++        .map(|manga| manga.id);
++    cache.insert(key, manga);
++    manga
++}
++
++fn parse_read_at(value: &str) -> NaiveDateTime {
++    NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f")
++        .or_else(|_| {
++            chrono::DateTime::parse_from_rfc3339(value).map(|date| date.naive_utc())
++        })
++        .unwrap_or_else(|_| Utc::now().naive_utc())
++}
++
+diff --git a/crates/tanoshi/src/presentation/graphql/mod.rs b/crates/tanoshi/src/presentation/graphql/mod.rs
+index b422bab..9c1acb4 100644
+--- a/crates/tanoshi/src/presentation/graphql/mod.rs
++++ b/crates/tanoshi/src/presentation/graphql/mod.rs
+@@ -1,3 +1,4 @@
++pub mod backup;
+ pub mod catalogue;
+ pub mod categories;
+ pub mod chapter;
+diff --git a/crates/tanoshi/src/presentation/graphql/schema.rs b/crates/tanoshi/src/presentation/graphql/schema.rs
+index 33260e2..19402e4 100644
+--- a/crates/tanoshi/src/presentation/graphql/schema.rs
++++ b/crates/tanoshi/src/presentation/graphql/schema.rs
+@@ -7,6 +7,7 @@ use crate::infrastructure::domain::repositories::{
+ 
+ use super::{
+     catalogue::CatalogueRoot,
++    backup::{BackupMutationRoot, BackupRoot},
+     categories::{CategoryMutationRoot, CategoryRoot},
+     downloads::{DownloadMutationRoot, DownloadRoot, DownloadSubscriptionRoot},
+     library::{LibraryMutationRoot, LibraryRoot, LibrarySubscriptionRoot},
+@@ -25,6 +26,7 @@ pub type TanoshiSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
+ 
+ #[derive(MergedObject, Default)]
+ pub struct QueryRoot(
++    BackupRoot,
+     SourceRoot,
+     CatalogueRoot,
+     LibraryRoot,
+@@ -38,6 +40,7 @@ pub struct QueryRoot(
+ 
+ #[derive(MergedObject, Default)]
+ pub struct MutationRoot(
++    BackupMutationRoot,
+     LibraryMutationRoot,
+     CategoryMutationRoot,
+     UserMutationRoot,

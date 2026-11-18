@@ -16,6 +16,53 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.10.0
+
+### Added
+
+- **Backup and Restore page.** Settings → **Backup and Restore** has two
+  actions:
+  - **Backup Library** writes a versioned `tanoshi-backup` JSON file with the
+    signed-in user's library titles (including categories), the complete
+    reading history (chapter, read time and last page), the sources those
+    entries use and the chapter currently being read. In the app the file is
+    saved to the phone's **Downloads** folder (MediaStore on Android 10+); in
+    a normal browser it is downloaded normally.
+  - **Restore Library** opens the system **file picker**, uploads the chosen
+    backup and restores the library, categories and read progress. Titles are
+    matched by source + source path and chapters by path (falling back to
+    number/title), so a backup restores correctly on a different server.
+  - **Missing sources** used by the backup are listed with their version and an
+    **Install Missing Sources** button. The app installs them through its
+    extension catalog, restarts the server and the restore is retried
+    automatically; on a Termux/desktop server the install is done by the
+    server's own extension installer.
+- **App ↔ web bridge.** The WebView now exposes a small `TanoshiApp` bridge
+  for saving the backup file and installing extensions, and it handles
+  `<input type="file">` through the system file picker
+  (`WebChromeClient.onShowFileChooser`).
+
+### Changed
+
+- **Embedded web UI rebuilt** with the new
+  `patches/tanoshi-web-ui-backup.patch` +
+  `patches/tanoshi-web-ui-backup-settings.patch` (applied by both the Android
+  and Termux build scripts). The vendored dist in `android/native/web-dist/`
+  and `libtanoshi.so` were rebuilt; the Termux package binary was rebuilt with
+  the same patches.
+- **Version 0.10.0:** local builds default to `versionCode` 1000; the
+  `android-v0.10.0` tag produces `versionCode` 1000.
+
+### Notes
+
+- The backup format is documented by the code constant
+  `tanoshi-backup`/version `1`; unknown formats or versions are rejected with a
+  clear message. Restoring is additive and idempotent: existing library titles
+  are skipped and history rows are upserted.
+- A backup can contain manga whose source is not installed: the restore
+  imports everything else, reports the missing sources and offers to install
+  them, then retries.
+
 ## 0.9.2
 
 ### Fixed

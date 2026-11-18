@@ -93,6 +93,27 @@ tanoshi-web-ui.patch
     - Reader settings: a "Tap Area" option choosing "bottom right: NEXT, bottom
       left: PREV" or "bottom left: NEXT, bottom right: PREV".
 
+tanoshi-web-ui-backup.patch
+    Applies to the Tanoshi source tree after the web UI patches above. Adds the
+    Settings → "Backup and Restore" page and its server API:
+
+    - exportBackup GraphQL query returning a versioned `tanoshi-backup` JSON
+      document (library titles + categories, full read history with chapter
+      path/number, sources used, current chapter);
+    - restoreBackup GraphQL mutation that matches manga by source + path and
+      chapters by path/number, restores library rows, categories and history
+      rows (with their original timestamps), and reports sources that are not
+      installed instead of failing the whole import;
+    - a new HistoryRepository::import_history_chapter used by the restore;
+    - the web page itself (backup download, file-picker restore, missing-source
+      list with in-frontend "Install Missing Sources", automatic restore retry);
+    - web-sys features needed for the file download/picker.
+
+tanoshi-web-ui-backup-settings.patch
+    The settings.rs hunks of tanoshi-web-ui-backup.patch, generated with
+    minimal context so it applies to both the Termux build and the Android app
+    build.
+
 tanoshi-web-ui-settings.patch
     The settings.rs hunks of tanoshi-web-ui.patch, generated with minimal
     context so the same file applies to both the Termux build (which does not

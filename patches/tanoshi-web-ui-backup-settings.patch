@@ -1,0 +1,23 @@
+diff --git a/crates/tanoshi-web/src/settings.rs b/crates/tanoshi-web/src/settings.rs
+index f51dcd3..1ee0b2d 100644
+--- a/crates/tanoshi-web/src/settings.rs
++++ b/crates/tanoshi-web/src/settings.rs
+@@ -22,2 +22,3 @@ use crate::{
+ };
++use crate::settings_backup::SettingsBackup;
+ use dominator::svg;
+@@ -308,2 +309,3 @@ impl Settings {
+                             SettingCategory::LayoutPreference => "Layout Preference",
++                            SettingCategory::Backup => "Backup and Restore",
+                             SettingCategory::SourceList => "Sources",
+@@ -408,2 +410,6 @@ impl Settings {
+                     .text("Layout Preference")
++                }),
++                link!(Route::Settings(SettingCategory::Backup).url(), {
++                    .class("list-item")
++                    .text("Backup and Restore")
+                 })
+@@ -785,2 +791,3 @@ impl Settings {
+                     SettingCategory::LayoutPreference => Some(LayoutPreference::render(LayoutPreference::new())),
++                    SettingCategory::Backup => Some(SettingsBackup::render(SettingsBackup::new())),
+                     SettingCategory::SourceList => Some(html!("div", {

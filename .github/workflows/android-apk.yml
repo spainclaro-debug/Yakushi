@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.9.2 (default)}' code '${CODE:-902 (default)}'"
+          echo "Building version '${NAME:-0.10.0 (default)}' code '${CODE:-1000 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.9.2}"
-          CODE="${APP_VERSION_CODE:-902}"
+          NAME="${APP_VERSION_NAME:-0.10.0}"
+          CODE="${APP_VERSION_CODE:-1000}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.9.2: the settings list cells (Appearance, Chapters, Library, Categories, Sources, Users, Downloads, Migrate, etc.) are now themed too - they follow the selected palette in both light and dark mode and get their own contrast-adaptive text, fixing unreadable white cells when a dark theme was applied. Everything else (banners, icons, badges, background, titles, settings panels, adaptive body text, per-device theme storage) is unchanged from 0.9.1."
+          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.10.0: a new Backup and Restore page in Settings. Backup Library saves your library titles, reading history, the sources they use and your current chapter as a portable .json file in the phone Downloads folder; Restore Library picks that file, restores the library, categories and reading progress, and reports any sources you are missing with a one-tap install that installs them through the app and restarts the server. Also includes all 0.9.x theme features (per-device palettes, themed settings cells) and the 0.8.0 reader features. Install: download tanoshi-mobile-server-release-<date>.apk and sideload it, then open the app, start the server and register the first admin account. Upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and android/README.md."
           gh release create "$TAG" \
             android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \

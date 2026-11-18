@@ -140,7 +140,9 @@ apply_android_patches() {
   # layout presets and the reader tap-area option.
   local web_ui_patch="$PKG_DIR/patches/tanoshi-web-ui.patch"
   local web_ui_settings_patch="$PKG_DIR/patches/tanoshi-web-ui-settings.patch"
-  for patch in "$web_ui_patch" "$web_ui_settings_patch"; do
+  local web_ui_backup_patch="$PKG_DIR/patches/tanoshi-web-ui-backup.patch"
+  local web_ui_backup_settings_patch="$PKG_DIR/patches/tanoshi-web-ui-backup-settings.patch"
+  for patch in "$web_ui_patch" "$web_ui_settings_patch" "$web_ui_backup_patch" "$web_ui_backup_settings_patch"; do
     [ -f "$patch" ] || die "missing $patch"
     if git -C "$SRC_DIR" apply --check --whitespace=nowarn "$patch" 2>/dev/null; then
       git -C "$SRC_DIR" apply --whitespace=nowarn "$patch"

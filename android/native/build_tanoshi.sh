@@ -93,6 +93,10 @@ fi
 # layout presets and the reader tap-area option.
 apply_patch "$REPO_ROOT/patches/tanoshi-web-ui.patch"
 apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-settings.patch"
+# Web UI: Backup and Restore page (library/history export, restore with
+# missing-source detection and in-frontend installs).
+apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-backup.patch"
+apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-backup-settings.patch"
 # Android app: extension install/update/remove and the "Available" source list
 # are managed by the app's Sources tab, so the embedded web UI hides them.
 apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"

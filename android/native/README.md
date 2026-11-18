@@ -37,6 +37,8 @@ than with the Android app. The dist is rebuilt from source with
 `patches/tanoshi-infinite-scroll.patch`,
 `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
 (Delete History, catalogue filter sheet, layout presets, reader tap area),
+`patches/tanoshi-web-ui-backup.patch` + `patches/tanoshi-web-ui-backup-settings.patch`
+(Backup and Restore page),
 `native/patches/0003-web-ui-hide-source-management.patch` (extension
 management is app-only) and
 `native/patches/0004-web-ui-themes.patch` + `native/patches/theme_settings.rs`

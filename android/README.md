@@ -5,9 +5,17 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.9.2** — see the
+Current release: **0.10.0** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.9.2 fixes the web-UI **Settings list
+and [`CHANGELOG.md`](CHANGELOG.md). 0.10.0 adds **Backup and Restore** in
+Settings: **Backup Library** saves your library titles, reading history, the
+sources they use and your current chapter as a portable `.json` file in the
+phone's Downloads folder, and **Restore Library** picks that file, restores
+your library, categories and reading progress, and reports any sources that
+are not installed — with a one-tap **Install Missing Sources** action that
+installs them through the app and restarts the server. The 0.9.x line adds the
+per-device web-UI themes (0.9.0), the reworked theme application (0.9.1) and
+themed settings cells (0.9.2); 0.9.2 fixes the web-UI **Settings list
 cells** (Appearance, Chapters, Library, Categories, Reader, Sources, Users,
 Download Queue, Migrate, …): they now use their own tinted cell surface and
 contrast-adaptive text in both light and dark mode, instead of keeping the
@@ -50,7 +58,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.9.2](#whats-new-in-092)
+- [What's new in 0.10.0](#whats-new-in-0100)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -99,6 +107,29 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.10.0
+
+- **Backup and Restore page** — Settings → **Backup and Restore**:
+  - **Backup Library** exports the signed-in user's library titles (with
+    categories), the full reading history (chapter, read time and last page),
+    the sources those entries need and the chapter currently being read. The
+    server writes a versioned `tanoshi-backup` JSON document; the app saves it
+    to the phone's Downloads folder (MediaStore on Android 10+) while a normal
+    browser downloads it as a file.
+  - **Restore Library** opens the system file picker, uploads the chosen
+    backup and restores the library, categories and read progress. Manga are
+    matched by source + source path and chapters by path/number, so a backup
+    restores correctly on a different server.
+  - **Missing sources** — sources used by the backup that are not installed are
+    listed on the page with their version. **Install Missing Sources** installs
+    them through the extension catalog (the app restarts the server), and the
+    restore is retried automatically once they appear.
+- **Version 0.10.0** — `versionCode` 1000; the `android-v0.10.0` tag produces
+  `versionCode` 1000. The embedded web UI, `libtanoshi.so` and the Termux
+  package binary were rebuilt with the new page.
+
+Previous release — **0.9.2** — and its features:
 
 ## What's new in 0.9.2
 
@@ -321,12 +352,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.9.2**,
-`versionCode` 902) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.10.0**,
+`versionCode` 1000) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.9.2 -PappVersionCode=902 \
+./gradlew :app:assembleDebug -PappVersionName=0.10.0 -PappVersionCode=1000 \
   -PapkDate=2026-11-14
 ```
 
@@ -387,11 +418,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.9.2`. For a tag, CI derives everything from the tag and
+example `android-v0.10.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.9.2` → `902`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.10.0` → `1000`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -654,7 +685,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.9.2-debug`; the updater strips it before
+`-debug` version suffix such as `0.10.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1636,7 +1667,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.9.2 (`versionName`); `versionCode` 902 in local builds and for the `android-v0.9.2` tag |
+| App version | 0.10.0 (`versionName`); `versionCode` 1000 in local builds and for the `android-v0.10.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

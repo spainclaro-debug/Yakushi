@@ -3,12 +3,15 @@ package dev.spainclaro.tanoshi.ui.screens
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.spainclaro.tanoshi.R
+import dev.spainclaro.tanoshi.ui.WebAppBridge
 
 /**
  * Embedded Tanoshi web UI.
@@ -76,6 +80,18 @@ fun BrowserScreen(
     var loading by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var previousAdminCreated by remember { mutableStateOf(adminCreated) }
+    var fileChooserCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+
+    // The web UI uses a normal <input type="file"> for the restore picker.
+    val fileChooserLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val callback = fileChooserCallback
+        fileChooserCallback = null
+        callback?.onReceiveValue(
+            WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data),
+        )
+    }
 
     BackHandler(enabled = true) {
         val view = webView
@@ -168,7 +184,31 @@ fun BrowserScreen(
                             settings.useWideViewPort = true
                             settings.builtInZoomControls = true
                             settings.displayZoomControls = false
-                            webChromeClient = WebChromeClient()
+                            addJavascriptInterface(
+                                WebAppBridge(viewContext) { webView },
+                                "TanoshiApp",
+                            )
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onShowFileChooser(
+                                    webView: WebView?,
+                                    filePathCallback: ValueCallback<Array<Uri>>?,
+                                    fileChooserParams: WebChromeClient.FileChooserParams?,
+                                ): Boolean {
+                                    fileChooserCallback?.onReceiveValue(null)
+                                    fileChooserCallback = filePathCallback
+                                    val intent = fileChooserParams?.createIntent()
+                                        ?: Intent(Intent.ACTION_GET_CONTENT)
+                                            .addCategory(Intent.CATEGORY_OPENABLE)
+                                            .setType("*/*")
+                                    return try {
+                                        fileChooserLauncher.launch(intent)
+                                        true
+                                    } catch (error: Exception) {
+                                        fileChooserCallback = null
+                                        false
+                                    }
+                                }
+                            }
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(
                                     view: WebView?,
