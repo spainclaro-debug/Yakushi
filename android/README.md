@@ -5,20 +5,22 @@ manga server and the same nine extensions as the Termux package in the
 repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.7.1** — see the
+Current release: **0.8.0** — see the
 [latest release](https://github.com/spainclaro-debug/tanoshi-termux/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.7.1 is a small UI fix: in the
-Add-extension catalog rows the repository/Ported-to-Rust badges are stacked and
-the Install/Update button has a minimum width, so it stays readable on narrow
-dialogs. The 0.7.x line makes extension management **app-only**:
-the embedded Tanoshi web UI no longer shows the "Available" sources list or the
-non-working Install/Update/Uninstall buttons (it still lists installed sources
-and their preferences), so the app's **Sources** tab is the one place to
-manage extensions. The built-in extension repository now points at the
-dedicated [**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
+and [`CHANGELOG.md`](CHANGELOG.md). 0.8.0 adds a **Delete History** button,
+a working **catalogue filter** sheet that shows every filter choice
+(genres/tags/status, expanded like Suwayomi/Mihon), device-local **Layout
+Preference** reader presets (Default + Add New Preset), and a **Tap Area**
+reader option for which screen edge turns the page. The 0.7.x line makes
+extension management **app-only**: the embedded Tanoshi web UI no longer shows
+the "Available" sources list or the non-working Install/Update/Uninstall
+buttons (it still lists installed sources and their preferences), so the app's
+**Sources** tab is the one place to manage extensions. The built-in extension
+repository points at the dedicated
+[**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension)
 repository, which hosts the prebuilt plugins, catalog, ported sources and
 `tools/build_extension.sh`. The APK name is unchanged
-(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It includes the 0.6.0
+(`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`). It also includes the 0.6.0
 custom repositories / Enable/Disable / exported-sources tooling and the
 earlier features.
 
@@ -38,7 +40,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.7.1](#whats-new-in-071)
+- [What's new in 0.8.0](#whats-new-in-080)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -87,6 +89,31 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.8.0
+
+- **Delete History** — the History page has a **Delete History** button in the
+  top right. Confirm with **Delete** and every read-history entry for the
+  signed-in account is cleared (inline **Cancel** aborts).
+- **Catalogue filter sheet fixed** — the filter sheet no longer inherits
+  another source's cached filters, and genre/tag groups now start **expanded**
+  so the available choices are visible right away. Sources that expose no
+  filters show a clear message instead of a blank sheet.
+- **Layout Preference presets** — Settings → **Layout Preference** stores
+  reader-option presets (Reading mode, Padding, Display mode, Direction,
+  Background, Fit) **on the device**. It ships the **default** preset (Paged,
+  Padding disabled, Single, Left to Right, White, Fit All); use
+  **Add New Preset** to snapshot your current reader options. The selected
+  preset is remembered per device and a new device starts at Default even
+  against the same server.
+- **Reader Tap Area** — Settings → Reader → **Tap Area** picks
+  "bottom right: NEXT, bottom left: PREV" or "bottom left: NEXT, bottom right:
+  PREV"; the reader's tap zones follow the setting.
+- **Version 0.8.0** — `versionCode` 800; the `android-v0.8.0` tag produces
+  `versionCode` 800. The embedded web UI was rebuilt from source with the new
+  patches and is also included in the rebuilt Termux package.
+
+Previous release — **0.7.1** — and its features:
 
 ## What's new in 0.7.1
 
@@ -191,12 +218,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.7.1**,
-`versionCode` 701) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.8.0**,
+`versionCode` 800) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.7.1 -PappVersionCode=701 \
+./gradlew :app:assembleDebug -PappVersionName=0.8.0 -PappVersionCode=800 \
   -PapkDate=2026-11-14
 ```
 
@@ -257,18 +284,18 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.7.1`. For a tag, CI derives everything from the tag and
+example `android-v0.8.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.7.1` → `701`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.8.0` → `800`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
 `-PapkDate`, and the dated debug APK is attached to the generated GitHub
 release — exactly what the [in-app updater](#in-app-updates) consumes.
-Without a release tag, CI keeps the Gradle version defaults (0.7.1 /
-versionCode 701) and still uses the UTC build date; a local build that omits
+Without a release tag, CI keeps the Gradle version defaults (0.8.0 /
+versionCode 800) and still uses the UTC build date; a local build that omits
 `-PapkDate` uses the local date.
 
 The plain `v*` tags that belong to the Termux package releases
@@ -1429,7 +1456,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.7.1 (`versionName`); `versionCode` 701 in local builds and for the `android-v0.7.1` tag |
+| App version | 0.8.0 (`versionName`); `versionCode` 800 in local builds and for the `android-v0.8.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

@@ -16,6 +16,45 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.8.0
+
+### Added
+
+- **Delete History button.** The History page has a **Delete History** button in
+  the top right. It asks for an inline **Delete**/**Cancel** confirmation and
+  then clears every read-history entry for the signed-in account. Backed by a
+  new `deleteAllHistory` GraphQL mutation in the bundled server.
+- **Layout Preference presets.** Settings → **Layout Preference** stores
+  reader-option presets (Reading mode, Padding, Display mode, Direction,
+  Background, Fit) **on the device**. It ships the **default** preset (Paged,
+  Padding disabled, Single, Left to Right, White, Fit All) and an **Add New
+  Preset** action that snapshots the current reader options. The selected
+  preset is remembered per device, so a new device starts at Default even
+  against the same server.
+- **Tap Area reader option.** Settings → Reader → **Tap Area** chooses
+  "bottom right: NEXT, bottom left: PREV" or "bottom left: NEXT, bottom right:
+  PREV"; the reader's tap zones follow it.
+
+### Fixed
+
+- **Catalogue filter sheet.** The filter sheet no longer reuses another
+  source's cached filters, starts with genre/tag groups **expanded** so all
+  choices are visible immediately (Suwayomi/Mihon style), and shows an explicit
+  message for sources that expose no filters.
+
+### Changed
+
+- **Web UI rebuilt from source** with the new
+  `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
+  (applied by both the Termux and Android build scripts) on top of the
+  infinite-scroll and app-only extension-management patches. The rebuilt dist
+  is vendored in `android/native/web-dist/` and embedded in `libtanoshi.so`;
+  the Termux package binary in `tanoshi-termux-aarch64.tar.gz` was rebuilt with
+  the same changes.
+- **Version 0.8.0:** local builds default to `versionCode` 800; the
+  `android-v0.8.0` tag produces `versionCode` 800. The APK filename scheme is
+  unchanged (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
+
 ## 0.7.1
 
 ### Fixed
