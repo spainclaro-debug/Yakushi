@@ -54,7 +54,7 @@ object ConfigManager {
         val cache = q(AppPaths.cache(context).absolutePath)
         val secret = generateSecret()
         return """
-            # Tanoshi configuration — managed by the Tanoshi Android app.
+            # Yakushi configuration — managed by the Yakushi Android app.
             # Edit carefully: paths must stay absolute and inside the app's
             # private files directory, and `secret` must stay 16 characters.
             base_url: null

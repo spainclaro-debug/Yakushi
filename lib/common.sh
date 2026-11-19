@@ -441,7 +441,7 @@ latest_release_tag() {
   python3 - "$UPSTREAM_REPO" <<'PY'
 import json, sys, urllib.request
 url = f"https://api.github.com/repos/{sys.argv[1]}/releases/latest"
-req = urllib.request.Request(url, headers={"User-Agent": "tanoshi-mobile-installer"})
+req = urllib.request.Request(url, headers={"User-Agent": "yakushi-installer"})
 try:
     data = json.load(urllib.request.urlopen(req, timeout=60))
     print(data.get("tag_name", ""))

@@ -109,10 +109,15 @@ tanoshi-web-ui-backup.patch
       list with in-frontend "Install Missing Sources", automatic restore retry);
     - web-sys features needed for the file download/picker.
 
-tanoshi-web-ui-backup-settings.patch
-    The settings.rs hunks of tanoshi-web-ui-backup.patch, generated with
-    minimal context so it applies to both the Termux build and the Android app
-    build.
+yakushi-branding.patch
+    Fork branding for the embedded web UI: the page title and description and
+    the installable-app manifest (`short_name`/`name`/description) say Yakushi.
+
+yakushi-login-register.patch
+    Adds a Register button to the login page so additional users can create
+    accounts. Server side: the new `enable_registration` config option (default
+    true) is honoured by the `register` mutation; the first account still
+    always works and becomes admin, and admins can always create users.
 
 tanoshi-web-ui-settings.patch
     The settings.rs hunks of tanoshi-web-ui.patch, generated with minimal

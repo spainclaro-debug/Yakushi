@@ -288,7 +288,7 @@ class TanhoshiService : Service() {
 
     private suspend fun stopServer() {
         showState(RunState.STOPPING)
-        logSystem("Stopping the Tanoshi server…")
+        logSystem("Stopping the Yakushi server…")
 
         val process = synchronized(stateLock) { activeProcess }
         val run = synchronized(stateLock) { runJob }
@@ -324,7 +324,7 @@ class TanhoshiService : Service() {
             stopJob = null
             pending
         }
-        logSystem("Tanoshi server stopped")
+        logSystem("Yakushi server stopped")
 
         if (shouldStart) {
             synchronized(stateLock) {
@@ -358,7 +358,7 @@ class TanhoshiService : Service() {
                 runCatching { if (process.isAlive) process.destroyForcibly() }
             }
             if (!isStale(generation)) {
-                failStartup("Unexpected error while running the Tanoshi server: ${t.describe()}")
+                failStartup("Unexpected error while running the Yakushi server: ${t.describe()}")
             }
         }
     }
@@ -370,10 +370,10 @@ class TanhoshiService : Service() {
             if (isStale(generation)) return@coroutineScope
             buildLaunchSpec(app)
         } catch (e: StartupFailure) {
-            failStart(generation, e.message ?: "Could not prepare the Tanoshi server")
+            failStart(generation, e.message ?: "Could not prepare the Yakushi server")
             return@coroutineScope
         } catch (t: Throwable) {
-            failStart(generation, "Could not prepare the Tanoshi server: ${t.describe()}")
+            failStart(generation, "Could not prepare the Yakushi server: ${t.describe()}")
             return@coroutineScope
         }
 
@@ -400,7 +400,7 @@ class TanhoshiService : Service() {
         } catch (t: Throwable) {
             failStart(
                 generation,
-                "Could not launch the bundled Tanoshi binary (${spec.binary.absolutePath}): " +
+                "Could not launch the bundled Yakushi binary (${spec.binary.absolutePath}): " +
                     "${t.describe()}",
             )
             return@coroutineScope
@@ -422,7 +422,7 @@ class TanhoshiService : Service() {
 
         val pid = processPid(process)
         ServerStateRepository.update { it.copy(state = RunState.STARTING, pid = pid) }
-        logSystem("Tanoshi server process started (pid ${pid ?: "unknown"})")
+        logSystem("Yakushi server process started (pid ${pid ?: "unknown"})")
         showState(RunState.STARTING)
 
         val stdoutJob = launch {

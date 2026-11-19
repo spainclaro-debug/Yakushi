@@ -97,6 +97,10 @@ apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-settings.patch"
 # missing-source detection and in-frontend installs).
 apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-backup.patch"
 apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-backup-settings.patch"
+# Fork branding: web UI title and installable-app manifest.
+apply_patch "$REPO_ROOT/patches/yakushi-branding.patch"
+# Login page: self-service account registration for additional users.
+apply_patch "$REPO_ROOT/patches/yakushi-login-register.patch"
 # Android app: extension install/update/remove and the "Available" source list
 # are managed by the app's Sources tab, so the embedded web UI hides them.
 apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"

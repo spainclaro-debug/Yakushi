@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.10.0 (default)}' code '${CODE:-1000 (default)}'"
+          echo "Building version '${NAME:-0.11.0 (default)}' code '${CODE:-1100 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,16 +87,16 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.10.0}"
-          CODE="${APP_VERSION_CODE:-1000}"
+          NAME="${APP_VERSION_NAME:-0.11.0}"
+          CODE="${APP_VERSION_CODE:-1100}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: tanoshi-android-debug-apk
-          path: android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk
+          name: yakushi-android-debug-apk
+          path: android/app/build/outputs/apk/debug/yakushi-server-release-*.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -109,9 +109,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Standalone arm64-v8a Android app that bundles and runs the Tanoshi server (no Termux). Highlights of 0.10.0: a new Backup and Restore page in Settings. Backup Library saves your library titles, reading history, the sources they use and your current chapter as a portable .json file in the phone Downloads folder; Restore Library picks that file, restores the library, categories and reading progress, and reports any sources you are missing with a one-tap install that installs them through the app and restarts the server. Also includes all 0.9.x theme features (per-device palettes, themed settings cells) and the 0.8.0 reader features. Install: download tanoshi-mobile-server-release-<date>.apk and sideload it, then open the app, start the server and register the first admin account. Upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and android/README.md."
+          NOTES="Yakushi is a fork of the Tanoshi self-hosted manga server, wrapped in a standalone arm64-v8a Android app (no Termux). Highlights of 0.11.0: the app is now Yakushi; the login page has a Register button so additional users can create their own accounts (Settings keeps user management for admins); and the Backup and Restore page from 0.10.0 is included, with library/history export to the Downloads folder, file-picker restore and one-tap install of missing sources. Also includes the per-device web-UI themes (0.9.x) and the reader features (layout presets, tap areas, history delete, catalogue filters). Install: download yakushi-server-release-<date>.apk and sideload it, then open the app, start the server and create the first (admin) account. Existing 0.10.0 installs can update from Settings -> Updates; upgrading from 0.1.0 requires a one-time uninstall (0.1.0 was signed with a different key). See android/CHANGELOG.md and README.md."
+          APK_DIR=android/app/build/outputs/apk/debug
+          # Older installed builds look for the pre-rename asset name; publish a
+          # copy under it so Settings -> Updates keeps working for them.
+          for apk in "$APK_DIR"/yakushi-server-release-*.apk; do
+            cp "$apk" "$APK_DIR/tanoshi-mobile-server-${apk##*/yakushi-server-}"
+          done
           gh release create "$TAG" \
-            android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk \
+            "$APK_DIR"/yakushi-server-release-*.apk \
+            "$APK_DIR"/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Tanoshi Android $TAG" \
+            --title "Yakushi Android $TAG" \
             --notes "$NOTES"

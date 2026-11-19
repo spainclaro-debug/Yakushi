@@ -87,7 +87,7 @@ class ServerLogWriter(
             val header = formatLine(
                 System.currentTimeMillis(),
                 LogStream.SYSTEM.name,
-                "Tanoshi Android app log — new session",
+                "Yakushi Android app log — new session",
             )
             writer?.apply {
                 write(header)

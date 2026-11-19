@@ -141,8 +141,8 @@ The documented and CI-built artifact is the **debug** APK
 shared sideload key `android/keystore/tanoshi-signing.jks` (A18). Distribution
 is GitHub releases tagged `android-v*` plus sideloading only — there is no Play
 Store channel. The project repository is now
-`spainclaro-debug/tanoshi-mobile` (the old `tanoshi-termux` URL redirects; the
-in-app updater already targets `tanoshi-mobile`). The Termux package tarball
+`spainclaro-debug/Yakushi` (the old `tanoshi-termux` URL redirects; the
+in-app updater already targets `Yakushi`). The Termux package tarball
 name (`tanoshi-termux-aarch64.tar.gz`) is an artifact name and is unchanged.
 
 *If wrong:* Play distribution would need a Play-compliant signing setup (Play
@@ -254,7 +254,7 @@ would have to uninstall (and lose their library) on every key change.
 ### A19 — In-app updates are manual, full-APK downloads from GitHub releases
 
 `Settings → Updates` (`UpdateManager`) queries
-`https://api.github.com/repos/spainclaro-debug/tanoshi-mobile/releases?per_page=50`
+`https://api.github.com/repos/spainclaro-debug/Yakushi/releases?per_page=50`
 without authentication and considers only non-draft, non-prerelease tags
 starting with `android-v` that have an `.apk` asset. It prefers asset names
 starting with `tanoshi-mobile-server` (the 0.3.0+ naming), accepts any other

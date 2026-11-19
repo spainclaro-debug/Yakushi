@@ -604,7 +604,7 @@ themed Settings list cells. The exported extension sources
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI
 (e.g. 0.7.1) do not change the native binaries. The project repository was
-renamed to `spainclaro-debug/tanoshi-mobile` (old `tanoshi-termux` URLs
+renamed to `spainclaro-debug/Yakushi` (old `tanoshi-termux` URLs
 redirect); the Termux tarball/asset name `tanoshi-termux-aarch64.tar.gz` is
 unchanged.
 

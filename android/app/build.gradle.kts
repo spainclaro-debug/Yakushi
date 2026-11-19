@@ -7,12 +7,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Version can be overridden from CI (`-PappVersionName=0.10.0 -PappVersionCode=1000`)
+// Version can be overridden from CI (`-PappVersionName=0.11.0 -PappVersionCode=1100`)
 // so tagged Android releases always carry an increasing version automatically.
-val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.10.0").get()
-val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("1000").get().toInt()
+val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.11.0").get()
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("1100").get().toInt()
 
-// Sideload APK file name, e.g. tanoshi-mobile-server-release-2026-11-14.apk.
+// Sideload APK file name, e.g. yakushi-server-release-2026-11-14.apk.
 // CI passes -PapkDate=$(date -u +%F); local builds use the local date so the
 // same naming scheme applies without extra flags.
 val apkDate: String = providers.gradleProperty("apkDate")
@@ -119,7 +119,7 @@ android {
 }
 
 // Name the sideloadable APK after the build date instead of app-debug.apk,
-// e.g. tanoshi-mobile-server-release-2026-11-14.apk. This is what CI uploads
+// e.g. yakushi-server-release-2026-11-14.apk. This is what CI uploads
 // and publishes as the release asset.
 androidComponents {
     onVariants { variant ->
@@ -127,7 +127,7 @@ androidComponents {
             // AGP's internal output object is the only pre-packaging hook for
             // renaming the APK; pinned AGP 8.7.3 keeps this API stable.
             (output as VariantOutputImpl).outputFileName.set(
-                "tanoshi-mobile-server-release-$apkDate.apk",
+                "yakushi-server-release-$apkDate.apk",
             )
         }
     }

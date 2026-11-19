@@ -38,7 +38,7 @@ import org.json.JSONObject
  * Self-update support for sideloaded builds.
  *
  * Reads the public GitHub releases of
- * `spainclaro-debug/tanoshi-mobile`, picks the newest `android-v*` release
+ * `spainclaro-debug/Yakushi`, picks the newest `android-v*` release
  * whose numeric version is newer than [currentVersionName], downloads its APK
  * into the app cache and hands it to the system package installer.
  *
@@ -442,6 +442,7 @@ class UpdateManager(context: Context) {
     /** `app-debug.apk` when published, otherwise the first `.apk` asset. */
     private fun pickApkAsset(assets: JSONArray?): JSONObject? {
         if (assets == null) return null
+        var previous: JSONObject? = null
         var fallback: JSONObject? = null
         for (index in 0 until assets.length()) {
             val asset = assets.optJSONObject(index) ?: continue
@@ -449,10 +450,11 @@ class UpdateManager(context: Context) {
             if (!name.endsWith(APK_SUFFIX, ignoreCase = true)) continue
             if (asset.stringOrNull("browser_download_url").isNullOrBlank()) continue
             if (name.startsWith(PREFERRED_ASSET_PREFIX, ignoreCase = true)) return asset
+            if (name.startsWith(PREVIOUS_ASSET_PREFIX, ignoreCase = true) && previous == null) previous = asset
             if (name.equals(LEGACY_ASSET_NAME, ignoreCase = true) && fallback == null) fallback = asset
             if (fallback == null) fallback = asset
         }
-        return fallback
+        return previous ?: fallback
     }
 
     // ------------------------------------------------------------------
@@ -695,13 +697,14 @@ class UpdateManager(context: Context) {
         private const val TAG = "UpdateManager"
 
         private const val RELEASES_URL =
-            "https://api.github.com/repos/spainclaro-debug/tanoshi-mobile/releases?per_page=50"
+            "https://api.github.com/repos/spainclaro-debug/Yakushi/releases?per_page=50"
         private const val TAG_PREFIX = "android-v"
         private const val APK_SUFFIX = ".apk"
-        private const val PREFERRED_ASSET_PREFIX = "tanoshi-mobile-server"
+        private const val PREFERRED_ASSET_PREFIX = "yakushi-server"
+        private const val PREVIOUS_ASSET_PREFIX = "tanoshi-mobile-server"
     private const val LEGACY_ASSET_NAME = "app-debug.apk"
         private const val SHA256_PREFIX = "sha256:"
-        private const val USER_AGENT = "Tanoshi-Android"
+        private const val USER_AGENT = "Yakushi-Android"
         private const val GITHUB_API_VERSION = "2022-11-28"
 
         private const val NETWORK_TIMEOUT_MS = 15_000

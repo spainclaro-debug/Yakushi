@@ -1,7 +1,7 @@
 {
-  "short_name": "Tanoshi",
-  "name": "Tanoshi - selfhosted web manga reader",
-  "description": "Read manga online for free from various site",
+  "short_name": "Yakushi",
+  "name": "Yakushi - self-hosted manga reader",
+  "description": "Self-hosted manga reader (fork of Tanoshi)",
   "icons": [
     {
       "src": "/icons/192.png",

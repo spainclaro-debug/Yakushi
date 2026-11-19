@@ -1,0 +1,30 @@
+diff --git a/crates/tanoshi-web/index.html b/crates/tanoshi-web/index.html
+index bab3bdf..e2001a8 100644
+--- a/crates/tanoshi-web/index.html
++++ b/crates/tanoshi-web/index.html
+@@ -3,8 +3,8 @@
+ 
+ <head>
+     <meta charset="utf-8" />
+-    <meta name="Description" content="Tanoshi: Selfhosted web manga reader">
+-    <title>Tanoshi</title>
++    <meta name="Description" content="Yakushi: self-hosted manga reader (fork of Tanoshi)">
++    <title>Yakushi</title>
+     <meta charset="utf-8">
+     <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="4">
+     <link data-trunk rel="copy-file" href="static/manifest.webmanifest">
+diff --git a/crates/tanoshi-web/static/manifest.webmanifest b/crates/tanoshi-web/static/manifest.webmanifest
+index f413ccc..caf4b57 100644
+--- a/crates/tanoshi-web/static/manifest.webmanifest
++++ b/crates/tanoshi-web/static/manifest.webmanifest
+@@ -1,7 +1,7 @@
+ {
+-  "short_name": "Tanoshi",
+-  "name": "Tanoshi - selfhosted web manga reader",
+-  "description": "Read manga online for free from various site",
++  "short_name": "Yakushi",
++  "name": "Yakushi - self-hosted manga reader",
++  "description": "Self-hosted manga reader (fork of Tanoshi)",
+   "icons": [
+     {
+       "src": "/icons/192.png",

@@ -1,0 +1,262 @@
+diff --git a/crates/tanoshi-web/src/login.rs b/crates/tanoshi-web/src/login.rs
+index 316a7fb..cb553d3 100644
+--- a/crates/tanoshi-web/src/login.rs
++++ b/crates/tanoshi-web/src/login.rs
+@@ -13,9 +13,16 @@ use crate::query;
+ use crate::utils::local_storage;
+ use crate::utils::AsyncLoader;
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum Mode {
++    Login,
++    Register,
++}
++
+ pub struct Login {
+     username: Mutable<String>,
+     password: Mutable<String>,
++    mode: Mutable<Mode>,
+     loader: AsyncLoader,
+ }
+ 
+@@ -24,6 +31,7 @@ impl Login {
+         Rc::new(Self {
+             username: Mutable::new("".to_string()),
+             password: Mutable::new("".to_string()),
++            mode: Mutable::new(Mode::Login),
+             loader: AsyncLoader::new(),
+         })
+     }
+@@ -45,18 +53,35 @@ impl Login {
+         });
+     }
+ 
+-    pub fn register(login: Rc<Self>, app: Rc<App>) {
++    pub fn register(login: Rc<Self>, app: Rc<App>, is_admin: bool) {
+         let username = login.username.get_cloned();
+         let password = login.password.get_cloned();
++        if username.trim().is_empty() || password.is_empty() {
++            snackbar::show("Enter a username and a password".to_string());
++            return;
++        }
+         login.loader.load(clone!(login => async move {
+-            match query::user_register(username, password, true).await {
++            match query::user_register(username.clone(), password.clone(), is_admin).await {
+                 Ok(_) => {
++                    // Sign the new account in right away.
++                    match query::user_login(username, password).await {
++                        Ok(token) => {
++                            local_storage().set("token", &token).unwrap_throw();
++                            routing::go_to_url(&Route::Root.url());
++                        }
++                        Err(e) => {
++                            snackbar::show(format!(
++                                "Account created, please log in: {e}"
++                            ));
++                        }
++                    }
+                     login.username.set("".to_string());
+                     login.password.set("".to_string());
++                    login.mode.set(Mode::Login);
+                     App::fetch_server_status(app);
+                 }
+                 Err(e) => {
+-                    snackbar::show(format!("Register failed: {:?}", e));
++                    snackbar::show(format!("Register failed: {e}"));
+                 }
+             }
+         }));
+@@ -68,6 +93,84 @@ impl Login {
+         })
+     }
+ 
++    fn render_actions(login: Rc<Self>, app: Rc<App>, activated: bool) -> Dom {
++        if !activated {
++            // No account exists yet: the first account becomes the admin.
++            return html!("div", {
++                .style("display", "flex")
++                .style("justify-content", "flex-end")
++                .child(html!("button", {
++                    .text("Create Account")
++                    .event_with_options(&EventOptions::preventable(), clone!(login, app => move |e: events::Click| {
++                        e.prevent_default();
++                        Self::register(login.clone(), app.clone(), true);
++                    }))
++                }))
++            });
++        }
++
++        html!("div", {
++            .style("display", "flex")
++            .style("justify-content", "flex-end")
++            .style("gap", "0.5rem")
++            .child_signal(login.mode.signal().map(clone!(login, app => move |mode| {
++                match mode {
++                    Mode::Login => Some(html!("div", {
++                        .style("display", "flex")
++                        .style("justify-content", "flex-end")
++                        .style("gap", "0.5rem")
++                        .children(&mut [
++                            html!("button", {
++                                .text("Register")
++                                .event_with_options(&EventOptions::preventable(), clone!(login => move |e: events::Click| {
++                                    e.prevent_default();
++                                    login.mode.set(Mode::Register);
++                                }))
++                            }),
++                            html!("button", {
++                                .text("Login")
++                                .event_with_options(&EventOptions::preventable(), clone!(login, app => move |e: events::Click| {
++                                    e.prevent_default();
++                                    Self::login(login.clone(), app.clone());
++                                }))
++                            }),
++                        ])
++                    })),
++                    Mode::Register => Some(html!("div", {
++                        .style("display", "flex")
++                        .style("justify-content", "flex-end")
++                        .style("gap", "0.5rem")
++                        .children(&mut [
++                            html!("button", {
++                                .text("Cancel")
++                                .event_with_options(&EventOptions::preventable(), clone!(login => move |e: events::Click| {
++                                    e.prevent_default();
++                                    login.mode.set(Mode::Login);
++                                }))
++                            }),
++                            html!("button", {
++                                .text("Create Account")
++                                .event_with_options(&EventOptions::preventable(), clone!(login, app => move |e: events::Click| {
++                                    e.prevent_default();
++                                    Self::register(login.clone(), app.clone(), false);
++                                }))
++                            }),
++                        ])
++                    })),
++                }
++            })))
++            .child_signal(login.mode.signal().map(|mode| {
++                (mode == Mode::Register).then(|| html!("p", {
++                    .style("margin", "0.5rem 0 0 0")
++                    .style("opacity", "0.8")
++                    .style("font-size", "0.8rem")
++                    .style("text-align", "right")
++                    .text("New accounts are regular users; an admin can promote them in Settings → Users.")
++                }))
++            }))
++        })
++    }
++
+     pub fn render_main(login: Rc<Self>, app: Rc<App>) -> Dom {
+         html!("div", {
+             .class("content")
+@@ -94,7 +197,7 @@ impl Login {
+                             .style("border-radius", "0.5rem")
+                             .style("padding", "0.5rem")
+                             .style("margin", "0.5rem")
+-                            .text("Server is not activated, activate by create an account")
++                            .text("Server is not activated yet: create the first account (it becomes the admin).")
+                         }))
+                     } else {
+                         None
+@@ -134,30 +237,8 @@ impl Login {
+                             })
+                         }),
+                         html!("div", {
+-                            .style("display", "flex")
+-                            .style("justify-content", "flex-end")
+-                            .child_signal(app.server_status.signal_cloned().map(clone!(login, app => move |x| {
+-                                if let Some(x) = x {
+-                                    if x.activated {
+-                                        Some(html!("button", {
+-                                            .text("Login")
+-                                            .event_with_options(&EventOptions::preventable(), clone!(login, app => move |e: events::Click| {
+-                                                e.prevent_default();
+-                                                Self::login(login.clone(), app.clone());
+-                                            }))
+-                                        }))
+-                                    } else {
+-                                        Some(html!("button", {
+-                                            .text("Create Account")
+-                                            .event_with_options(&EventOptions::preventable(), clone!(login, app => move |e: events::Click| {
+-                                                e.prevent_default();
+-                                                Self::register(login.clone(), app.clone());
+-                                            }))
+-                                        }))
+-                                    }
+-                                } else {
+-                                    None
+-                                }
++                            .child_signal(app.server_status.signal_cloned().map(clone!(login, app => move |status| {
++                                status.map(|status| Self::render_actions(login.clone(), app.clone(), status.activated))
+                             })))
+                         })
+                     ])
+diff --git a/crates/tanoshi/src/infrastructure/config.rs b/crates/tanoshi/src/infrastructure/config.rs
+index 4f43a6e..f4e1ed7 100644
+--- a/crates/tanoshi/src/infrastructure/config.rs
++++ b/crates/tanoshi/src/infrastructure/config.rs
+@@ -103,6 +103,10 @@ pub struct Config {
+     pub cache_path: String,
+     #[serde(default)]
+     pub enable_playground: bool,
++    /// Allow anyone who can reach the server to create an account from the
++    /// login page (the first account is always allowed and becomes admin).
++    #[serde(default = "default_enable_registration")]
++    pub enable_registration: bool,
+     pub telegram: Option<TelegramConfig>,
+     pub pushover: Option<PushoverConfig>,
+     pub gotify: Option<GotifyConfig>,
+@@ -129,6 +133,7 @@ impl Default for Config {
+             download_path: default_download_path(),
+             cache_path: default_cache_path(),
+             enable_playground: false,
++            enable_registration: default_enable_registration(),
+             telegram: None,
+             pushover: None,
+             gotify: None,
+@@ -158,6 +163,10 @@ fn tanoshi_home() -> PathBuf {
+     proj_dirs.data_dir().to_path_buf()
+ }
+ 
++fn default_enable_registration() -> bool {
++    true
++}
++
+ fn default_port() -> u16 {
+     80
+ }
+diff --git a/crates/tanoshi/src/presentation/graphql/user.rs b/crates/tanoshi/src/presentation/graphql/user.rs
+index f95e928..3c9ffa2 100644
+--- a/crates/tanoshi/src/presentation/graphql/user.rs
++++ b/crates/tanoshi/src/presentation/graphql/user.rs
+@@ -186,15 +186,19 @@ impl UserMutationRoot {
+         let user_svc = ctx.data::<UserService<UserRepositoryImpl>>()?;
+ 
+         let user_count = user_svc.fetch_all_users().await?.len();
+-        // only the very first user may register unauthenticated; after that
+-        // account creation requires an admin token
+-        if user_count > 0
+-            && !ctx
+-                .data::<Claims>()
+-                .map(|claim| claim.is_admin)
+-                .unwrap_or(false)
+-        {
+-            return Err("Forbidden".into());
++        let is_admin_claim = ctx
++            .data::<Claims>()
++            .map(|claim| claim.is_admin)
++            .unwrap_or(false);
++        // The first account may always be created (it becomes the admin).
++        // Afterwards registration is open when `enable_registration` is set
++        // (the default), otherwise it requires an admin token.
++        let registration_enabled = ctx
++            .data::<Config>()
++            .map(|config| config.enable_registration)
++            .unwrap_or(true);
++        if user_count > 0 && !is_admin_claim && !registration_enabled {
++            return Err("Registration is disabled on this server".into());
+         }
+ 
+         Ok(user_svc

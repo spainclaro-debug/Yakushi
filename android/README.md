@@ -1,16 +1,23 @@
-# Tanoshi for Android (standalone APK)
+# Yakushi for Android (standalone APK)
 
 A standalone Android app that bundles the same [Tanoshi](https://github.com/luigi311/tanoshi)
-manga server and the same nine extensions as the Termux package in the
-repository root — **without Termux**. The app runs the server as a foreground
+manga server (the open-source core Yakushi is forked from) and the same nine
+extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.10.0** — see the
-[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.10.0 adds **Backup and Restore** in
-Settings: **Backup Library** saves your library titles, reading history, the
-sources they use and your current chapter as a portable `.json` file in the
-phone's Downloads folder, and **Restore Library** picks that file, restores
+Current release: **0.11.0** — see the
+[latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
+and [`CHANGELOG.md`](CHANGELOG.md). 0.11.0 renames the app to **Yakushi** (a
+fork of Tanoshi) and adds a **Register** button to the login page so additional
+users can create their own accounts (registration can be disabled in the
+server config; admins keep the Users settings). The APK is now named
+`yakushi-server-release-<date>.apk`; a compatibility copy with the old asset
+name is published on releases so earlier installs can still self-update. The
+application id, data directories and signing key are unchanged, so existing
+Yakushi/Tanoshi installs update in place. 0.10.0 added **Backup and Restore**
+in Settings: **Backup Library** saves your library titles, reading history,
+the sources they use and your current chapter as a portable `.json` file in
+the phone's Downloads folder, and **Restore Library** picks that file, restores
 your library, categories and reading progress, and reports any sources that
 are not installed — with a one-tap **Install Missing Sources** action that
 installs them through the app and restarts the server. The 0.9.x line adds the
@@ -38,7 +45,7 @@ non-working Install/Update/Uninstall buttons), with the built-in extension
 repository at
 [**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension).
 The repository is now
-[`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile)
+[`spainclaro-debug/Yakushi`](https://github.com/spainclaro-debug/Yakushi)
 (the old `tanoshi-termux` URL redirects); the APK name is unchanged
 (`tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`).
 
@@ -58,7 +65,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.10.0](#whats-new-in-0100)
+- [What's new in 0.11.0](#whats-new-in-0110)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -107,6 +114,23 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.11.0
+
+- **Yakushi branding** — the app is now called **Yakushi** (fork of Tanoshi):
+  launcher name, notification titles, screen labels, the embedded web UI title
+  and manifest, the APK name (`yakushi-server-release-<date>.apk`) and the
+  in-app updater (which still accepts the previous asset name so 0.10.0
+  installs can update).
+- **Register button on the login page** — after the first (admin) account
+  exists, the login page shows **Register**. New accounts are regular users
+  and are signed in immediately after creation. Registration is enabled by
+  default (`enable_registration: true` in the server config); admins can
+  promote or remove users in Settings → Users.
+- **Version 0.11.0** — `versionCode` 1100; the `android-v0.11.0` tag produces
+  `versionCode` 1100.
+
+Previous release — **0.10.0** — and its features:
 
 ## What's new in 0.10.0
 
@@ -217,7 +241,7 @@ Previous release — **0.9.0** — and its features:
   features (Delete History, catalogue filter sheet, Layout Preference presets,
   Tap Area) and everything from earlier releases.
 - **Repository renamed** — the project now lives at
-  [`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile);
+  [`spainclaro-debug/Yakushi`](https://github.com/spainclaro-debug/Yakushi);
   the old `tanoshi-termux` URL redirects, and the app updater already targets
   the new repository. The Termux package tarball/asset names
   (`tanoshi-termux-aarch64.tar.gz`) are unchanged package artifact names.
@@ -352,12 +376,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.10.0**,
-`versionCode` 1000) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.11.0**,
+`versionCode` 1100) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.10.0 -PappVersionCode=1000 \
+./gradlew :app:assembleDebug -PappVersionName=0.11.0 -PappVersionCode=1100 \
   -PapkDate=2026-11-14
 ```
 
@@ -418,11 +442,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.10.0`. For a tag, CI derives everything from the tag and
+example `android-v0.11.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.10.0` → `1000`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.11.0` → `1100`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -441,7 +465,7 @@ trains cannot collide.
 ## Installing and updating
 
 Download `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` from the
-[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
+[latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
 (or a CI artifact), or build it yourself. Then either:
 
 ```bash
@@ -685,7 +709,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.10.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.11.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -722,7 +746,7 @@ Requirements and limitations:
 - **Manual only.** There is no background/automatic update check, and no
   delta or incremental update: each update is a full APK download.
 - **Channel.** Only GitHub releases of
-  [`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile/releases)
+  [`spainclaro-debug/Yakushi`](https://github.com/spainclaro-debug/Yakushi/releases)
   tagged `android-v*` are considered; there is no Play Store channel.
 - **From 0.1.0** the updater cannot help, because 0.1.0 predates it and is
   signed with a different key — see the one-time uninstall note in
@@ -974,7 +998,7 @@ The script clones `luigi311/tanoshi-extensions`, applies the repo's
 `patches/`, copies the crate in, builds for `aarch64-linux-android` (16 KB-page
 aligned), strips it to `android/extensions/plugins/lib<name>.so`, and prints
 the SHA-256, size and a ready-to-paste catalog entry. The
-`tanoshi-mobile` copy is at `android/native/build_extension.sh` and writes to
+`Yakushi` copy is at `android/native/build_extension.sh` and writes to
 `android/extensions/plugins/` instead.
 
 Publishing a new source to `tanoshi-extension`:
@@ -1667,7 +1691,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| App version | 0.10.0 (`versionName`); `versionCode` 1000 in local builds and for the `android-v0.10.0` tag |
+| App version | 0.11.0 (`versionName`); `versionCode` 1100 in local builds and for the `android-v0.11.0` tag |
 | APK filename | `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk` (0.3.0+; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1710,7 +1734,7 @@ workflows live in `.github/workflows/`.
 ## Changelog
 
 Release history lives in [`CHANGELOG.md`](CHANGELOG.md), and published APKs are
-on the [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest).
+on the [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest).
 
 ---
 

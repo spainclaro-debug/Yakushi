@@ -16,6 +16,34 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.11.0
+
+### Changed
+
+- **The app is now Yakushi.** Yakushi is a fork of the Tanoshi self-hosted
+  manga server. The launcher name, notification titles, screen labels, the
+  embedded web UI title/manifest, the documentation and the APK name
+  (`yakushi-server-release-<date>.apk`) use the new name. The application id
+  (`dev.spainclaro.tanoshi`), data directories and signing key are unchanged,
+  so existing installs upgrade in place.
+- **In-app updater** now looks at the Yakushi repository and prefers
+  `yakushi-server` release assets, while still accepting the previous
+  `tanoshi-mobile-server` asset name. Releases publish a compatibility copy
+  under the old name so 0.10.0 and earlier installs can still update.
+- **Version 0.11.0:** local builds default to `versionCode` 1100; the
+  `android-v0.11.0` tag produces `versionCode` 1100.
+
+### Added
+
+- **Register button on the login page.** Once the server has its first
+  (admin) account, the login page shows **Register** next to **Login**. A new
+  account is created as a regular user and signed in immediately. Registration
+  is controlled by the new `enable_registration` server option (default
+  `true`); when disabled, only admins can create accounts (Settings → Users).
+- The web UI was rebuilt with the fork branding (`yakushi-branding.patch`) and
+  the login changes; `libtanoshi.so` and the Termux package binary were
+  rebuilt. The backup/restore and theme features are unchanged and included.
+
 ## 0.10.0
 
 ### Added
@@ -170,7 +198,7 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
   infinite scroll, app-only extension management) plus the theme support; the
   new dist is vendored in `android/native/web-dist/` and the checked-in
   `libtanoshi.so` was rebuilt with it.
-- **Repository renamed to `spainclaro-debug/tanoshi-mobile`** (the old
+- **Repository renamed to `spainclaro-debug/Yakushi`** (the old
   `tanoshi-termux` URL redirects). The app's in-app updater already targets the
   new repository; GitHub links in these docs use `tanoshi-mobile`. The Termux
   package artifact/tarball name (`tanoshi-termux-aarch64.tar.gz`) is unchanged

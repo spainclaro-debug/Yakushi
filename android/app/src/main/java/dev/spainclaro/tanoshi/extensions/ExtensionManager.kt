@@ -977,7 +977,7 @@ class ExtensionManager(context: Context) {
         const val DEFAULT_REPO_LABEL = "tanoshi-extension (default)"
 
         private const val TAG = "ExtensionManager"
-        private const val USER_AGENT = "Tanoshi-Android"
+        private const val USER_AGENT = "Yakushi-Android"
         private const val NETWORK_TIMEOUT_MS = 15_000
         private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024
         private const val PROGRESS_THROTTLE_MS = 100L

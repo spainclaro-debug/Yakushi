@@ -3,13 +3,13 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="Description" content="Tanoshi: Selfhosted web manga reader">
-    <title>Tanoshi</title>
+    <meta name="Description" content="Yakushi: self-hosted manga reader (fork of Tanoshi)">
+    <title>Yakushi</title>
     <meta charset="utf-8">
     
 <script type="module">
-import init, * as bindings from '/tanoshi-web-e70105698be57b2f.js';
-const wasm = await init({ module_or_path: '/tanoshi-web-dab5ed5be726dcf6_bg.wasm' });
+import init, * as bindings from '/tanoshi-web-1056e5b093af8400.js';
+const wasm = await init({ module_or_path: '/tanoshi-web-38511cae732b9b3f_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -35,7 +35,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <!-- <meta name="apple-mobile-web-app-status-bar-style" content="default"/> -->
     <meta name="theme-color" content="#5b749b">
-<link rel="modulepreload" href="/tanoshi-web-e70105698be57b2f.js" crossorigin="anonymous" integrity="sha384-/BkYWEiCCvE928N4bXx+YnNSTKvO9rBTeOrhloKzQ2PjqOFy3l52L2dnwu55Ey5g"><link rel="preload" href="/tanoshi-web-dab5ed5be726dcf6_bg.wasm" crossorigin="anonymous" integrity="sha384-zS1nspT5aOz7kAdGHn0teo1JPrm73TSguDTXoOdGFzziTF7lJGqNoW7Ac4xbTQx7" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/tanoshi-web-1056e5b093af8400.js" crossorigin="anonymous" integrity="sha384-McIgj4yL4J5/at6yE6C6fKZD5YdUC6mKatyPJCxegytJ2iayQ1/o82sp8e0LWQ8G"><link rel="preload" href="/tanoshi-web-38511cae732b9b3f_bg.wasm" crossorigin="anonymous" integrity="sha384-NGJW42GHd4/uMQTMG6XjNvub308y9j9SrIq675mnWRa6BM23hUqnVqYWrEfq9XmQ" as="fetch" type="application/wasm"></head>
 
 <body>
     <noscript>

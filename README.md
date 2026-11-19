@@ -1,902 +1,324 @@
-# Tanoshi for Termux
+# Yakushi, fork from Tanoshi self hosting server for manga.
 
-A self-contained, ready-to-run build of [Tanoshi](https://github.com/luigi311/tanoshi)
-— a self-hosted web manga reader — packaged for **Termux on Android (arm64)**.
+**Yakushi** is a self-hosted manga reader for Android, forked from
+[Tanoshi](https://github.com/luigi311/tanoshi). It packages the Tanoshi server
+(patched for Android) inside a **standalone Android app** that runs the server
+on the phone itself — no Termux, no shell, no external runtime — and shows the
+full web UI in an embedded WebView or in any browser on your network. The same
+source and patch set also builds a **Termux package** for people who prefer a
+terminal install.
 
-Upstream ships no Android binary (only glibc Linux, Windows and macOS), so this
-package contains a native `aarch64` Android build plus nine source extensions,
-and the patch set needed to rebuild everything on Termux.
-
-> This repository also ships a **standalone Android app** that runs the same
-> server without Termux — see [Android app (no Termux)](#android-app-no-termux)
-> below.
+> Yakushi keeps the Tanoshi server core and its extension API, so existing
+> Tanoshi extensions and data keep working. The app is distributed as a
+> sideloadable APK (no Play Store build).
 
 ---
 
-## Android app (no Termux)
-
-[`android/`](android/README.md) contains a complete standalone Android app that
-runs the same Tanoshi server **inside the APK** — no Termux, no shell, no
-external runtime. It is the easiest way to run Tanoshi on a phone: install one
-APK, tap **Start server**, and open the web UI.
-
-The app bundles Tanoshi **0.40.0** and the nine source extensions (MangaDex,
-Guya, WeebCentral, Atsumaru, QiScans, MangaBall, MadaraDex, Manhwa18cc,
-HentaiNexus). The current release is **0.9.2**; download it from the
-[latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-(asset: `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, unchanged name).
-0.9.2 fixes the web-UI Settings list cells (Appearance, Chapters, Library,
-Categories, …): they now follow the selected theme with their own tinted
-surface and contrast-adaptive text in both light and dark mode. 0.9.1 reworks
-how the web-UI theme is applied (the 0.9.0 feature and
-per-device storage are unchanged): banners use the primary colour, icons and
-the unread-chapter badge use the secondary, the page background is the accent
-at 30% over the light/dark base, headers/titles and settings panels use the
-accent, and text is contrast-adaptive in both modes. 0.9.0 added the
-**per-device web-UI themes** to the embedded Tanoshi frontend (Settings →
-Appearance → Themes): 12 preset palettes plus a **New theme** builder with
-Primary/Secondary/Accent colour grids, **Apply** and **Reset to default**. The
-theme is stored only in that browser's `localStorage`
-(`settings:theme-palette`), so every device keeps its own and new devices
-default to Auto. The 0.8.0 release added the **Delete History** button, a
-working **catalogue filter** sheet, device-local **Layout Preference** reader
-presets and a **Tap Area** reader option. The 0.7.x line makes extension
-management **app-only** (the embedded web UI no longer shows the Available
-sources list or the non-working Install/Update/Uninstall buttons), with the
-built-in extension repository at
-[**tanoshi-extension**](https://github.com/spainclaro-debug/tanoshi-extension).
-The project repository is now
-[`spainclaro-debug/tanoshi-mobile`](https://github.com/spainclaro-debug/tanoshi-mobile)
-(the old `tanoshi-termux` URL redirects; the Termux package tarball name is
-unchanged).
-
-> The Termux package documented below and the Android app in `android/` are two
-> independent ways to run the same server. You only need one of them.
-
-### What's new in 0.9.2
-
-- **Themed Settings list cells** — the Settings-page cells (Appearance,
-  Chapters, Library, Categories, Reader, Sources, Users, Download Queue,
-  Migrate, …) now use their own themed surface
-  (`--theme-cell-light`/`--theme-cell-dark`) with contrast-adaptive cell
-  text in both light and dark mode, instead of the stock white cell
-  background that could make setting names unreadable under a dark theme.
-  Everything else from 0.9.1 is unchanged.
-
-Previous release — **0.9.1** — and its features:
-
-### What's new in 0.9.1
-
-- **Full-UI theme application** — top and bottom banners use the primary
-  colour, all icons and the library-cover unread-chapter badge use the
-  secondary, the page background is the accent at 30% opacity over the
-  mode's base colour, headers/titles and settings panels use the accent, and
-  all text is contrast-adaptive per light/dark mode. The 0.9.0 presets,
-  custom colour builder and per-device `localStorage` storage are unchanged.
-  See [Web UI themes](android/README.md#web-ui-themes).
-
-Previous release — **0.9.0** — and its features:
-
-### What's new in 0.9.0
-
-- **Per-device web-UI themes** — the embedded Tanoshi frontend has a new
-  **Settings → Appearance → Themes** section with **12 preset palettes**
-  (Monochromatic Blue, Complementary Orange, Triadic Yellow + Teal + Magenta,
-  Analogous Green + Blue + Teal, High Contrast Black + Yellow + White, Google
-  Material Blue, Airbnb Coral, Wise Mint, Duolingo Amber, Headspace Warmth,
-  Slack Aubergine, Pinterest Cherry) and a **New theme** button that opens
-  Primary/Secondary/Accent colour swatch grids (20 colours each). Pick
-  colours and press **Apply**, or **Reset to default**. The palette themes the
-  top bar (luminance-based readable text), accent borders and hover colours.
-  See [Web UI themes](android/README.md#web-ui-themes).
-- **Stored per device only** — the choice lives in the browser's
-  `localStorage` under `settings:theme-palette` and is re-applied at boot;
-  nothing is server-side or synced. Other devices keep their own theme, and a
-  new device/browser starts at Auto/default.
-- **Includes the 0.8.0 features** — Delete History button, working catalogue
-  filter sheet, device-local Layout Preference presets and the reader Tap Area
-  option.
-- **Repository renamed** to `spainclaro-debug/tanoshi-mobile` (old
-  `tanoshi-termux` URL redirects); the app's in-app updater already uses the
-  new repository. The Termux package tarball
-  (`tanoshi-termux-aarch64.tar.gz`) keeps its artifact name.
-
-Earlier releases — **0.8.0** (Delete History, catalogue filter sheet,
-Layout Preference presets, Tap Area) and **0.7.1** below:
-
-### What's new in 0.7.1
-
-- **Readable Install/Update button in the Add-extension list** — catalog rows
-  stack the repository label and the Ported-to-Rust badge vertically (with
-  Disabled/Update-available below) and the Install/Update/Reinstall button has
-  a minimum width and single-line text, so it is no longer squeezed on narrow
-  dialogs.
-
-Previous release — **0.7.0** — and its features:
-
-### What's new in 0.7.0
-
-- **Extension management is app-only** — the embedded Tanoshi web UI is now
-  backend-only for extensions: Settings → Sources shows only the
-  **Installed** sources (no **Available** list), and the
-  **Install/Update/Uninstall** buttons are gone. Those controls never worked on
-  Android. Use the app's **Sources** tab to add, update, disable or remove
-  extensions; the web UI still lists installed sources and their preferences.
-  See [Sources and extensions](#sources-and-extensions).
-- **New dedicated extension repository: `tanoshi-extension`** — the app's
-  built-in repository is now
-  [github.com/spainclaro-debug/tanoshi-extension](https://github.com/spainclaro-debug/tanoshi-extension)
-  (raw `main/android/extensions/index.json`, label `tanoshi-extension
-  (default)`). It hosts the nine prebuilt Android plugins, the catalog (plus a
-  root `tanoshi-extensions.json`), the ported extension sources, patches and
-  `tools/build_extension.sh`. You can also add it with the GitHub link or the
-  raw catalog URL in **Sources → Add repository**.
-- **Rebuilt web UI** — the embedded wasm frontend was rebuilt with the
-  infinite-scroll patch plus a patch that hides the extension-management
-  controls; the infinite-scroll catalogue still works. The rebuilt dist is
-  embedded in `libtanoshi.so`.
-- Everything from 0.6.0 and earlier (custom repositories, persistent
-  Enable/Disable, silent keep-alive, watchdog, LAN QR sharing, in-app updates,
-  themes) is unchanged.
-
-### Requirements
-
-| | |
-| --- | --- |
-| Android | 8.0 (API 26) or newer |
-| CPU | **arm64 / aarch64 only** (all modern phones; 32-bit and x86 are not supported) |
-| Storage | ~120 MB installed for the app (bundled server + plugins), plus room for your library, downloads and cache |
-| Network | Internet for source browsing/downloads; Wi-Fi or Ethernet for sharing to other devices |
-| Permissions | Notifications, and "install unknown apps" when you use in-app updates |
-
-### Install
-
-1. Open the
-   [latest Android release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-   and download `tanoshi-mobile-server-release-<date>.apk`.
-2. Allow your browser or file manager to install unknown apps, open the APK and
-   install it.
-3. Launch **Tanoshi** and allow notifications (this is the ongoing
-   background-server notification).
-4. On the **Server** tab, tap **Start server**.
-
-Releases are signed with the same committed sideload key, so new versions
-install over an existing install (see [Updating](#updating-the-app)). If you
-still have 0.1.0, uninstall it once first — it used a different key.
-
-### First run: create the admin account
-
-The Android app has **no default account** (unlike the Termux package below).
-When the server is running, the app offers to create the first administrator
-(username and password; it uses Tanoshi's `register` GraphQL mutation). You can
-also tap **Skip** and register from the web UI instead. Log in with that
-account — the session is kept by the embedded browser.
-
-### What it can do
-
-**Run and supervise the server**
-
-- Runs the bundled Tanoshi server as a **foreground service**: persistent
-  notification with a **Stop server** action, partial WakeLock, and the server
-  keeps running when you leave the app or swipe it from recents.
-- **Server dashboard**: state (stopped/starting/running/stopping/error), PID,
-  port, bind address, uptime and the last error, with one-tap start/stop.
-- **Logs** tab: live stdout/stderr from the server, follow-output toggle, copy
-  all and clear; the same output is mirrored to `server.log` (rotated at 5 MB).
-- **Anti-kill protection**: a hidden, inaudible silent-audio keep-alive keeps
-  the app in a media-playback foreground state, and an **auto-restart
-  watchdog** brings the server back after an unexpected kill (up to 5 times in
-  a rolling 10-minute window). The service also resumes the server after an
-  Android service restart if it was running. See
-  [Keeping the server alive in the background](#keeping-the-server-alive-in-the-background).
-
-**Use the full Tanoshi web UI**
-
-- **Open in app**: an embedded WebView pointing at `http://127.0.0.1:<port>`.
-- **Open in browser**: hands the loopback URL to your normal browser.
-- This is the real Tanoshi frontend (catalogue, library, reader, downloads,
-  sources, trackers, settings). It includes the **infinite-scroll catalogue**:
-  the next page loads automatically ~600 px before the bottom, and the button
-  changes to *No more results* at the end.
-
-**Share the server with other devices**
-
-- Turn on **Settings → Network → Expose on LAN** (binds `0.0.0.0` instead of
-  loopback) and restart the server.
-- The **Server** tab then shows a **Share on your network** card: a QR code for
-  `http://<host-ip>:<port>`, the host **IP and port** below it, and a copy
-  button. Scan the QR from another device on the same Wi-Fi/Ethernet network
-  and Tanoshi opens in that device's browser.
-- The QR only appears when the server is actually running and bound to the LAN;
-  on guest/isolated Wi-Fi it may not be reachable even though the QR scans.
-
-**Install and manage sources (extensions)**
-
-- The **Sources** tab is a Suwayomi-style extension manager: it lists
-  repositories (built-in + custom), and the bundled/user/disabled extensions
-  with badges for Bundled/installed-by-you/override/ported/update/disabled.
-- **Add extension** loads the merged catalogs and installs/updates a prebuilt
-  Android plugin with a progress bar and SHA-256/size verification; **Add
-  repository** accepts a direct catalog URL or a GitHub repo link;
-  **Enable/Disable** persists via the server marker; **Remove** deletes only
-  your copy (bundled extensions can only be disabled).
-- After any change, restart the server from the prompt so Tanoshi loads the
-  new sources. See [Sources and extensions](#sources-and-extensions).
-
-**Configure everything**
-
-| Where | What you can do |
-| --- | --- |
-| **Settings → Server** | Change the HTTP **port** (1024–65535; restart to apply). Saving works even before the first server start. |
-| **Settings → Network** | **Expose on LAN** toggle, with a plain-HTTP warning; the new bind is used on the next start. |
-| **Settings → Config** | View and edit the full `config.yml` (paths, secret, update interval, trackers, local folders, download/cache paths). Changes are validated and need a server restart. |
-| **Settings → Appearance** | **Dark** (default), **Light**, **Nord** and **Catppuccin** Material 3 themes, applied instantly and remembered. This themes the app UI only; the Tanoshi web UI keeps its own theme. |
-| **Settings → Updates** | Check for updates, read the release notes, download the new APK with a progress bar and install it (SHA-256 verified when GitHub exposes an asset digest; the system installer still asks for confirmation). |
-| **Settings → Permissions** | Notification permission and "ignore battery optimisations" shortcut. |
-| **Settings → Storage** | Show/copy the data directory and server log path. |
-
-**Storage and data**
-
-Everything lives in the app's private storage under `filesDir/tanoshi/`:
-
-```
-files/tanoshi/
-├── config.yml      # server configuration (port, secret, paths, trackers)
-├── tanoshi.db      # SQLite database: accounts, library, history, progress
-├── downloads/      # downloaded chapters
-├── cache/          # image cache
-├── manga/          # "Local" source folder — put your own manga here
-├── plugins/        # user-installed extensions (<name>.so) + preferences
-└── server.log      # server log, rotated to server.log.1 at 5 MB
-```
-
-The nine bundled extensions ship read-only inside the APK; anything you install
-from the **Sources** tab is added under `plugins/` and overrides a bundled
-extension with the same name. Managing extensions no longer needs a new APK,
-but the server must be restarted to load changes. Data survives app updates
-but is **deleted when you uninstall** the app (there is no export feature
-yet), so keep your own backups if needed.
-
-### Sources and extensions
-
-The app bundles nine Tanoshi extensions and can install more at runtime from
-the built-in catalog plus any repositories you add:
-
-1. Tap the **Sources** tab (between Server and Logs).
-2. **Repositories** shows the built-in **`tanoshi-extension`** repository
-   (label `tanoshi-extension (default)`) and yours. **Add repository** accepts
-   a direct HTTPS `index.json` URL or a GitHub repository link such as
-   `https://github.com/owner/repo`; the app resolves the raw catalog
-   (`main`/`master`, `android/extensions/index.json` or
-   `tanoshi-extensions.json`) and remembers it (up to 10 custom repositories).
-   The dedicated repo can be added explicitly with
-   `https://github.com/spainclaro-debug/tanoshi-extension` (or its raw
-   `android/extensions/index.json` URL), though it is already the built-in
-   default.
-3. The **Installed** list shows bundled and user-installed extensions with
-   **Bundled** / **Installed by you** / **Overrides bundled** / **Ported to
-   Rust** / **Update available** / **Disabled** badges and the source
-   repository. Actions: **Reinstall/Update**, **Enable/Disable**, and
-   **Remove** (user copies only).
-4. **Add extension** loads the merged catalogs from all repositories; pick an
-   entry, **Install/Update/Reinstall** it (HTTPS download with SHA-256/size
-   verification) and restart the server from the prompt when asked.
-
-**Disable vs uninstall:** disabling writes the server's
-`files/tanoshi/plugins/.tanoshi-disabled` marker and keeps the plugin file, so
-the source can be re-enabled; it works for bundled extensions too (their APK
-files are read-only). Removing a user-installed copy deletes
-`files/tanoshi/plugins/<name>.so` and clears the marker, so a bundled copy
-becomes active again. Installing/updating clears the marker. Everything takes
-effect after a **server restart**. The embedded Tanoshi web UI no longer
-offers Install/Update/Uninstall at all — extension management is app-only —
-so use the Sources tab for everything. (The marker is still used for bundled
-uninstalls from older builds and for the app's Enable/Disable actions.)
-
-**Catalog format:** a catalog is `android/extensions/index.json` (or a
-top-level `tanoshi-extensions.json` when the app resolves a GitHub link) with
-`extensions[]` entries containing a bare `name`, optional
-`displayName`/`description`, an HTTPS `url` to a prebuilt `.so`, `sha256`,
-`size` and a `ported` flag. The built-in catalog is the one in
-[`tanoshi-extension`](https://github.com/spainclaro-debug/tanoshi-extension)
-(`android/extensions/index.json`); the nine entries mirror the nine bundled
-plugins. This repository keeps a legacy
-[`android/extensions/index.json`](android/extensions/index.json) for
-tooling/back-compat, and
-[`android/extensions/repo-template/`](android/extensions/repo-template/) shows
-the repository layout for publishing your own. See
-[`android/README.md`](android/README.md#extensions-sources-tab) for the full
-contract.
-
-**Porting more sources:** the canonical sources and build tooling live in
-[`tanoshi-extension`](https://github.com/spainclaro-debug/tanoshi-extension)
-(`sources/`, `patches/`, `tools/build_extension.sh`). This repository keeps
-back-compat copies in
-[`android/extensions/sources/`](android/extensions/sources/) (plus a zip
-snapshot) and
-[`android/native/build_extension.sh`](android/native/build_extension.sh). Both
-build a crate for `aarch64-linux-android` inside the upstream
-`tanoshi-extensions` workspace, strip it into
-`android/extensions/plugins/`, and print the SHA-256, size and a
-ready-to-paste catalog entry. Build on the phone in Termux or on a desktop with
-the Android NDK; the app itself cannot compile extensions. Publish the `.so` in
-a repository with the template layout (or contribute it to
-`tanoshi-extension`), then add that repository's link in the app.
-
-**Limitations:** extensions are native code for the exact Tanoshi
-version/`tanoshi-lib` ABI and `arm64-v8a`; the app cannot compile them on the
-phone and cannot install Tachiyomi/Keiyoushi `.apk` extensions. Only entries
-from configured catalogs are accepted; catalogs and downloads need network
-access to GitHub/raw.githubusercontent.com (or the custom host), and changes
-need a server restart. Extensions run with the server's privileges, so only
-install entries and add repositories you trust — built-in entries come from
-this repository's `main` branch and custom repositories are third-party
-content. Full details:
-[`android/README.md`](android/README.md#extensions-sources-tab).
-
-### Keeping the server alive in the background
-
-Android 12+ and many OEM ROMs kill background apps and their **child
-processes** aggressively — and the Tanoshi server runs as a child of the app
-process. While the server is running the app ships three layers of protection:
-
-- **Silent-audio keep-alive** (0.4.0): the app loops a generated, inaudible
-  one-second WAV at volume 0 through `MediaPlayer` and declares the foreground
-  service as `specialUse|mediaPlayback`, so Android/OEMs treat it as actively
-  playing media. There is **no MediaSession and no extra notification** — the
-  only notification stays the normal server one. It is inaudible, has no
-  setting/toggle, starts and stops with the server, and adds a small
-  continuous battery cost.
-- **Auto-restart watchdog** (0.4.0): if the server process is killed
-  unexpectedly while you still want it running, the app restarts it
-  automatically — up to **5 times in a rolling 10-minute window**, about 3
-  seconds apart, keeping the foreground service and audio alive. When the
-  budget is used up it shows the `ERROR` state and stays stopped.
-- **Battery-optimisation exemption**: on every device, enable **Settings →
-  Permissions → Ignore battery optimisations**.
-
-**Limitations — this is best-effort, not a guarantee.** The Android 12+
-*phantom-process killer* still limits app child processes: when more than
-**32 phantom processes** exist device-wide, or a child uses excessive CPU,
-`ActivityManager` kills them. Media playback does **not** exempt the app from
-those limits, and OEM task cleaners can still kill it.
-
-How to confirm the phantom-process killer is the cause: the app's **Logs** tab
-shows `Tanoshi server process <pid> exited (code ...)` (and then watchdog
-restart attempts or the `ERROR` state). With USB debugging,
-`adb logcat -s ActivityManager` shows `Killing PhantomProcessRecord`,
-`Trimming phantom processes` or an `excessive cpu` reason.
-
-Recommended workaround when it is confirmed (device-side, no root, **not
-needed on most phones**):
-
-- **Developer options:** enable Developer options and look for **"Disable
-  child process restrictions"** (Samsung/One UI and some other builds expose
-  this), then restart the server.
-- **ADB, Android 12:**
-
-  ```bash
-  adb shell settings put global settings_enable_monitor_phantom_procs false
-  adb shell settings get global settings_enable_monitor_phantom_procs  # -> false
-  ```
-
-- **ADB, Android 12L/13/14/15:**
-
-  ```bash
-  adb shell device_config put activity_manager max_phantom_processes 2147483647
-  adb shell device_config get activity_manager max_phantom_processes   # -> 2147483647
-  ```
-
-  A reboot may be needed before the change takes effect, and an OS update can
-  reset it (re-check and re-apply).
-
-Not every device/OEM build exposes or honours these settings, and a system
-update can reset them. They are **device-wide** settings, not app settings:
-they affect every app, can increase background memory use and battery drain,
-and remove a protection Android added deliberately. Only do it if you actually see the killer in
-`logcat`. The app cannot change them itself.
-
-Full details, including the API-level differences and failure modes:
-[`android/README.md`](android/README.md#keeping-the-server-alive-in-the-background).
-
-### Updating the app
-
-- **In-app**: **Settings → Updates → Check for updates**. The app reads this
-  repository's GitHub releases (only tags like `android-v0.9.2`), compares the
-  version, downloads the release APK, verifies it when a digest is available and
-  opens the system installer. You must allow "install unknown apps" once and
-  confirm the install prompt.
-- **Manual**: download `tanoshi-mobile-server-release-<date>.apk` from the
-  [latest release](https://github.com/spainclaro-debug/tanoshi-mobile/releases/latest)
-  and install it over the existing app.
-- Updates come from **published releases**, not from every commit: a new app
-  version is released by pushing an `android-vX.Y.Z` tag, which the
-  [CI workflow](.github/workflows/android-apk.yml) builds and publishes.
-- If Android reports a signature mismatch, you are coming from 0.1.0 (whose
-  throwaway CI key differed): uninstall once, then install the new APK.
-
-### Security notes
-
-- By default the server is reachable **only from the phone** (loopback). LAN
-  mode exposes it to every device on your network.
-- There is **no TLS**: LAN traffic, including your Tanoshi password, is plain
-  HTTP. Only enable LAN mode on a network you trust and never expose the port
-  to the internet.
-- The APK is debug-signed and distributed as a **sideload** build (no Play
-  Store, no automatic updates except the manual in-app updater).
-- The app stores no analytics and talks only to the Tanoshi sources you use,
-  plus GitHub when you check for updates or install extensions.
-- **Extensions are native code.** Extensions installed from the Sources tab run
-  with the Tanoshi server's privileges. Installs are SHA-256/size checked, but
-  the built-in catalog and binaries come from this repository's `main` branch,
-  and custom repositories are third-party content — only install entries and
-  add repositories you trust.
-
-### Limitations and troubleshooting
-
-| Symptom | What to do |
-| --- | --- |
-| Server stops when the screen sleeps | Open **Settings → Permissions → Ignore battery optimisations** and exempt Tanoshi from your OEM's battery saver. If it still dies, it may be the Android 12+ phantom-process killer — see [Keeping the server alive in the background](#keeping-the-server-alive-in-the-background). |
-| Server keeps restarting itself, then shows ERROR | That is the 0.4.0 auto-restart watchdog: the server was killed up to 5 times in 10 minutes. Check the **Logs** tab and the phantom-process-killer guidance in [Keeping the server alive in the background](#keeping-the-server-alive-in-the-background). |
-| "Port already in use" / server won't start | Pick a different port in **Settings → Server** and restart. |
-| No QR code on the Server tab | Enable **Expose on LAN**, restart the server, and make sure the phone is on Wi-Fi/Ethernet (not just mobile data). |
-| QR scans but the other device can't connect | Guest Wi-Fi / client isolation or a VPN is blocking it; both devices must be on the same network. Use the shown `IP:port` in a browser to test. |
-| Old versions: error saving the port (`config.yml.tmp`, `ENOENT`) | Fixed in 0.3.0 — update the app. |
-| Update check fails | Needs network access; GitHub rate limits can apply. Download the APK from the release page manually. |
-| A source/extension is missing after installing it | Open **Sources** and **restart the server** — Tanoshi loads plugins at startup. If it is listed but still missing, it is incompatible (exact Tanoshi version/`tanoshi-lib` ABI/arm64); check the **Logs** tab and use a compatible catalog entry. |
-| An extension shows **Disabled** after a disable/uninstall | Expected for bundled extensions (their files are read-only): a disable action (or an uninstall in older builds) wrote the `.tanoshi-disabled` marker. Tap **Enable** in the Sources tab and restart the server. |
-| The web UI has no Install/Update/Uninstall or Available sources list | Intentional from 0.7.0: the embedded Tanoshi web UI is backend-only for extensions (those controls never worked on Android). Use the app's **Sources** tab; the web UI still shows installed sources and their preferences. |
-| "Add repository" rejects my link | Only `https://` is accepted: a direct catalog `.json` URL, or a GitHub link `https://github.com/owner/repo` that actually contains `android/extensions/index.json` (or `tanoshi-extensions.json`) on `main`/`master`. Up to 10 custom repositories. |
-| Some repositories failed to load | Only those repositories had a problem (network/GitHub/malformed catalog); the rest still work. Use Retry or remove the repository in the Sources tab. |
-| Old builds logged `undefined symbol: plugin_declaration` | Fixed in 0.6.0 (support libraries are no longer treated as extensions) — update the app. |
-| The Sources catalog will not load / Add extension is empty | Needs network access to raw.githubusercontent.com (and the repository `main` branch). Retry; installed extensions keep working. |
-| Tachiyomi/Keiyoushi `.apk` extension won't work | Different format/runtime: the app only installs catalog-listed Tanoshi native `.so` plugins. |
-| An extension install fails a checksum/size check | Retry the download; if it keeps failing, the catalog's `sha256`/`size` and the uploaded `.so` disagree (a catalog issue). |
-| Other problems | **Logs** tab and `server.log`; full troubleshooting in [`android/README.md`](android/README.md#troubleshooting). |
-
-### Building the Android app
-
-The project is a normal Gradle/Android Studio project in `android/` (JDK 17,
-AGP 8.7.3, compileSdk 35). Native binaries (Tanoshi server, `libarchive.so`,
-the nine plugins) are prebuilt and checked into `jniLibs/`:
-
-```bash
-cd android
-./gradlew :app:assembleDebug
-# -> app/build/outputs/apk/debug/tanoshi-mobile-server-release-<date>.apk
-```
-
-The CI workflow builds the APK on every push and publishes it for
-`android-v*` tags. To rebuild the native server or plugins, follow
-[`android/native/README.md`](android/native/README.md).
-
-### More
-
-- Full app documentation: [`android/README.md`](android/README.md)
-- Changelog: [`android/CHANGELOG.md`](android/CHANGELOG.md)
-- Assumptions and open questions:
-  [`android/ASSUMPTIONS_AND_OPEN_QUESTIONS.md`](android/ASSUMPTIONS_AND_OPEN_QUESTIONS.md)
-- Releases: <https://github.com/spainclaro-debug/tanoshi-mobile/releases>
+## Contents
+
+- [What Yakushi is](#what-yakushi-is)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Install (Android APK)](#install-android-apk)
+- [Install (Termux)](#install-termux)
+- [First run](#first-run)
+- [Upgrading](#upgrading)
+- [Building](#building)
+- [Repository layout](#repository-layout)
+- [Releases](#releases)
+- [Security notes](#security-notes)
+- [Credits and license](#credits-and-license)
 
 ---
 
-## Default login
+## What Yakushi is
 
-After installation the server has one account:
-
-| Username | Password | Role |
-| -------- | -------- | ---- |
-| `admin` | `tanoshi123` | Administrator |
-
-> **Change this password** the first time you log in (Settings → account). It is
-> a well-known default, and the server listens on all interfaces.
-
-You can choose different credentials at install time:
-
-```bash
-bash install.sh --user myname --password 'something-strong'
-```
-
----
-
-## Requirements
-
-- Termux from [F-Droid](https://f-droid.org/packages/com.termux/) or GitHub
-  releases *(not the Play Store build, which is outdated)*
-- Android on **arm64 / aarch64** (all modern phones)
-- ~250 MB free disk for a prebuilt install; ~6 GB if you later rebuild from source
-
-Check your architecture:
-
-```bash
-uname -m          # expect: aarch64
-```
+- **One APK, a complete manga server.** The app embeds the Tanoshi server
+  binary (`libtanoshi.so`), `libarchive` and nine extension plugins. It starts
+  the server as a foreground service on `127.0.0.1`, keeps it alive, and opens
+  the server's web UI in a WebView.
+- **The full Tanoshi frontend.** Library, catalogue and source browsing,
+  search, reader, history, downloads, trackers, settings — all served by the
+  bundled server and rebuilt for Yakushi (themes, backup/restore, layout
+  presets, filters and more).
+- **Android-native extras.** The app adds everything a plain web UI cannot do
+  on a phone: server lifecycle, extension management, QR sharing over LAN,
+  in-app update checks and APK installation, and a small JavaScript bridge the
+  web UI uses to save backups and install missing extensions.
+- **Termux package optional.** The repository root also builds a ready-to-run
+  Termux package (`tanoshi-termux-aarch64.tar.gz`) with the same server and
+  plugins for users who run Tanoshi from a terminal.
 
 ---
 
-## Quick start
+## Features
 
-One command does everything — extract, install and set up:
+### Reader
 
-```bash
-tar -xzf tanoshi-termux-aarch64.tar.gz && cd tanoshi && bash install.sh
+- **Reading modes:** paged and continuous.
+- **Display:** single, double and auto (landscape-aware) pages.
+- **Direction:** left-to-right and right-to-left.
+- **Fit:** fit all, fit width, fit height; zoom; page padding.
+- **Backgrounds:** white and black.
+- **Layout Preference presets** — bundle the reader options (mode, padding,
+  display, direction, background, fit) under names, with a built-in
+  **Default** preset (Paged, padding off, Single, Left to Right, White, Fit
+  All) and **Add New Preset**. Presets and the selected preset are stored
+  **per device**; a new device starts at Default.
+- **Tap Area** — choose whether the right or the left screen edge belongs to
+  the next page ("bottom right: NEXT, bottom left: PREV" or the mirrored
+  layout).
+- Page counter, chapter navigation, keyboard shortcuts and progress saving.
+
+### Library and catalogue
+
+- **Library** with categories, unread counts and recent updates.
+- **Catalogue** browsing per source with popular/latest/search listings and
+  **infinite scroll** (loads the next page automatically).
+- **Filter sheet that shows the actual choices** — genres/tags (expanded by
+  default), status, content rating and sort controls, the way Suwayomi/Mihon
+  present filters. Sources without filters say so explicitly.
+- Titles can be added to the library, migrated between sources and tracked.
+
+### History
+
+- **History page** with the last-read chapter, page and relative date.
+- **Delete History** button — clears every read-history entry after an inline
+  Delete/Cancel confirmation.
+
+### Backup and Restore
+
+- **Backup Library** — exports a versioned `tanoshi-backup` JSON file
+  containing:
+  - every library title, including its categories,
+  - the complete reading history (chapter, read time, last page),
+  - the sources those entries use (id, name, version, URL),
+  - the chapter currently being read for each title.
+  In the app the file is saved to the phone's **Downloads** folder
+  (MediaStore on Android 10+; an app-specific Downloads folder on older
+  releases); in a browser it downloads normally.
+- **Restore Library** — opens the system file picker, uploads the file and
+  restores the library, categories and reading progress. Titles are matched by
+  source + source path and chapters by path/number, so a backup restores
+  correctly on a different server. Restoring is additive and idempotent.
+- **Missing sources** — sources used by the backup that are not installed are
+  listed with their version; **Install Missing Sources** installs them through
+  the extension catalog (the app restarts the server) and the restore is
+  retried automatically.
+
+### Accounts
+
+- The **first account** created on a new server becomes the administrator.
+- The **login page has a Register button** so additional users can create
+  their own accounts. Registration is open by default and can be disabled by
+  setting `enable_registration: false` in the server configuration; admins can
+  also create, promote and remove users in Settings → Users.
+
+### Themes (web UI)
+
+- **Per-device themes** in Settings → Appearance: 12 preset palettes plus a
+  **New theme** builder with Primary/Secondary/Accent colour grids, **Apply**
+  and **Reset to default**.
+- The palette is applied across the whole frontend: banners, icons, the unread
+  badge, page background, headers/titles, settings panels and the settings list
+  cells, with contrast-adaptive text in light and dark mode.
+- The theme lives in the browser's `localStorage` (`settings:theme-palette`),
+  so every device keeps its own theme and a new device defaults to Auto.
+
+### Extensions and sources
+
+- Nine bundled sources: MangaDex, Guya, Manhwa18.cc, WeebCentral, Atsumaru,
+  QiScans, MangaBall, MadaraDex and HentaiNexus.
+- **App-only extension management** (Settings in the app): install, update,
+  reinstall, disable/enable and remove extensions from the catalog; the server
+  restarts to load them.
+- **Extension repositories**: the built-in `tanoshi-extension` catalog plus up
+  to 10 custom HTTPS catalog repositories. Catalogs are merged, deduplicated
+  and validated; per-repository failures can be retried.
+- User-installed plugins live in the app's writable storage and are loaded by
+  the patched server; bundled plugins stay in the APK.
+
+### Server and app
+
+- Start/stop/restart the server from the app; a watchdog restarts a killed
+  server within a bounded budget; optional silent keep-alive.
+- Port selection, **Expose on LAN** (0.0.0.0) and **QR code sharing** of the
+  server URL.
+- **In-app updates**: Settings → Updates checks GitHub releases, downloads the
+  APK, verifies it and opens the system installer.
+- Backup/restore and extension installation are exposed to the web UI through
+  a restricted `window.TanoshiApp` bridge.
+- Logs screen and log file.
+
+### Downloads and trackers
+
+- Download queue and chapter downloads managed by the server (Downloads in
+  settings), including pause/resume and queue management.
+- MyAnimeList/AniList tracker support from the web UI.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────── Android app (Compose) ───────────────────────────┐
+│  TanoshiRoot / screens        Foreground service (TanhoshiService)         │
+│  ┌─────────────┐   displays  ┌───────────────────────────────────────────┐  │
+│  │  Browser    │◄───────────►│  libtanoshi.so  (Tanoshi server, patched)  │  │
+│  │  (WebView)  │   loopback  │  ├─ web UI (wasm, embedded with rust-embed)│  │
+│  └─────────────┘   HTTP/WS   │  ├─ libarchive.so                          │  │
+│        │                    │  └─ extensions: lib*.so (bundled + user)    │  │
+│        │ window.TanoshiApp  └───────────────────────────────────────────┘  │
+│        ▼ (save backup, install extensions)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Then open **http://127.0.0.1:8080** in your phone's browser and log in with
-`admin` / `tanoshi123`.
+- The web UI is a Rust/wasm application built with trunk and embedded into the
+  server binary; the app serves it from `127.0.0.1`.
+- The server stores its data in the app's private storage
+  (`files/tanoshi`), never in shared storage.
+- The Termux package contains the same server binary and plugins and runs it
+  from the Termux prefix.
 
-Or step by step:
+---
+
+## Install (Android APK)
+
+**Requirements:** Android 8.0+ (`minSdk` 26), **arm64-v8a** device. The APK is
+a sideloadable debug-signed build (signed with the project's shared sideload
+key so updates install over each other).
+
+1. Download the latest `yakushi-server-release-<date>.apk` from the
+   [releases page](https://github.com/spainclaro-debug/Yakushi/releases/latest).
+2. Allow installing unknown apps for your browser/file manager and open the
+   APK.
+3. Start the app, press **Start server**, and open the web UI (Browser tab).
+
+> Releases also publish a `tanoshi-mobile-server-release-<date>.apk` copy
+> (byte-identical) so installations from before the Yakushi rename can still
+> find their update through **Settings → Updates**.
+
+---
+
+## Install (Termux)
+
+The root package is the same Tanoshi/Yakushi server for Termux on Android
+arm64:
 
 ```bash
-# 1. Install the basic Termux tools once
-pkg update -y && pkg install -y tar curl python
-
-# 2. Extract the package (it unpacks into ./tanoshi)
-tar -xzf tanoshi-termux-aarch64.tar.gz
-cd tanoshi
-
-# 3. Install and start
+# from a checkout of this repository
 bash install.sh
 ```
 
-### Installer options
+or download `tanoshi-termux-aarch64.tar.gz` and its `.sha256` from the latest
+release and follow the installer's instructions. The package installs the
+server binary, the nine plugins and helper scripts into `$PREFIX`-managed
+paths; your data lives in the package directory and is never touched by
+`update.sh`/`selfupdate.sh`.
 
-| Option | Meaning |
+---
+
+## First run
+
+1. Start the server (app: **Start server**; Termux: `tanoshi`).
+2. Open the web UI and **create the first account** — it becomes the admin.
+3. Add sources/extensions (app: **Sources** tab; Termux: the server's Source
+   settings), then browse the catalogue, add titles to your library and read.
+4. Additional users can register from the login page (**Register**), or be
+   created by an admin in Settings → Users.
+
+---
+
+## Upgrading
+
+- **0.2.0 and later** install over each other (same signing key).
+- **0.1.0** must be uninstalled once (different signing key).
+- **0.10.0 → 0.11.0**: update from **Settings → Updates** (the release keeps
+  the old asset name as a compatibility copy) or sideload the new APK over the
+  old one.
+- Your library, history, themes and reader settings are preserved; the
+  application id stays `dev.spainclaro.tanoshi`.
+
+---
+
+## Building
+
+### Android APK
+
+Only JDK 17 and the Android SDK are needed — the native binaries are prebuilt
+and checked in.
+
+```bash
+cd android
+./gradlew :app:assembleDebug        # debug APK
+./gradlew :app:assembleRelease      # release variant (same shared key)
+./gradlew :app:installDebug         # build + install on a device
+```
+
+The APK is written to
+`app/build/outputs/apk/debug/yakushi-server-release-<date>.apk`.
+
+### Native binaries and the embedded web UI
+
+Rebuilding `libtanoshi.so` (with the web UI), `libarchive.so` or the extension
+plugins needs a Linux build host with the Android NDK r26+ and Rust 1.99.1;
+see [`android/native/README.md`](android/native/README.md). The web UI is a
+Rust/wasm app built with trunk, wasm-bindgen 0.2.129, sass 1.106.1 and
+wasm-opt 133, and is embedded into the server binary at compile time.
+
+The Android app and server changes made by this fork are shipped as
+reproducible patches in [`patches/`](patches/README-patches.txt), applied by
+both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
+
+---
+
+## Repository layout
+
+| Path | Contents |
 | --- | --- |
-| `--port N` | HTTP port (default `8080`) |
-| `--user NAME` | admin username (default `admin`) |
-| `--password PASS` | admin password (default `tanoshi123`) |
-| `--from-source` | build everything locally instead of using bundled binaries |
-| `--with-build-tools` | also install the Rust/wasm toolchain so updates can rebuild locally |
-| `--no-start` | set up without starting the server |
-| `--no-admin` | do not create the initial admin account |
-| `--yes` | assume yes for prompts |
-
-Examples:
-
-```bash
-bash install.sh --port 9000                  # different port
-bash install.sh --with-build-tools           # enable local rebuilds for updates
-bash install.sh --from-source                # ignore bundled binaries, build fresh
-```
+| `android/` | The standalone Android app (Kotlin/Compose) and its prebuilt `arm64-v8a` binaries, plus the native build pipeline. |
+| `patches/` | Fork patches applied to upstream Tanoshi and its extensions. |
+| `extensions/` | Sources of the ported extensions (Atsumaru, MadaraDex, QiScans, MangaBall, HentaiNexus). |
+| `lib/` | Termux package build scripts. |
+| `vendor/` | Vendored `compress-tools` crate patched for Android. |
+| `install.sh`, `update.sh`, `selfupdate.sh`, `uninstall.sh` | Termux package management. |
 
 ---
 
-## Using the server
+## Releases
 
-A control command is added to your `PATH` as `tanoshi-ctl`:
-
-```bash
-tanoshi-ctl start      # start in the background
-tanoshi-ctl stop       # stop it
-tanoshi-ctl restart    # restart
-tanoshi-ctl status     # running? which URL?
-tanoshi-ctl url        # print the web UI URL
-tanoshi-ctl logs       # follow the live log (Ctrl+C to stop)
-```
-
-The equivalent script inside the folder is `./tanoshi.sh`.
-
-Other maintenance scripts in the same folder:
-
-| Script | Purpose |
-| --- | --- |
-| `bash selfupdate.sh` | update from the newest **prebuilt package** in this project's GitHub repo (fast, no toolchain) |
-| `bash update.sh` | rebuild from the newest **upstream Tanoshi release** (needs the Rust toolchain) |
-| `bash reinstall.sh` | repair the install (keeps data) |
-| `bash uninstall.sh` | remove Tanoshi (backs up data first) |
-| `bash install.sh` | (re)run setup |
-
-### Browsing
-
-The catalogue loads the next page automatically as you scroll: a sentinel below
-the grid starts fetching when it comes within ~600px of the viewport, so the
-next batch is usually ready before you reach the bottom. The **Load More**
-button remains as a manual fallback and changes to *No more results* once a
-source runs out of pages.
-
-### Where everything lives
-
-```
-tanoshi/
-├── bin/tanoshi          # the server binary (arm64 Android)
-├── plugins/*.so         # extension plugins
-├── data/                # TANOSHI_HOME — all your data
-│   ├── config.yml       # configuration (port, paths, secret)
-│   ├── tanoshi.db       # SQLite database (users, library, history)
-│   ├── downloads/       # downloaded chapters
-│   ├── cache/           # image cache
-│   ├── manga/           # "Local" source folder
-│   └── tanoshi.log      # server log
-├── src/                 # Tanoshi source (patched for Termux)
-├── extensions/          # the four ported Keiyoushi extensions
-├── patches/             # Android patches + vendored patches
-├── vendor/              # patched compress-tools crate
-├── install.sh           # setup script
-├── update.sh            # rebuild from upstream source
-├── PACKAGE_TAG          # which prebuilt package this is
-├── reinstall.sh         # repair an install, keep or reset data
-├── selfupdate.sh        # update from this project's GitHub releases
-├── uninstall.sh         # remove Tanoshi (backs up data first)
-└── tanoshi.sh           # service control
-```
-
-Everything is inside the `tanoshi/` folder, so you can move it, back it up, or
-delete it cleanly. Back up `data/` — that is your whole library.
-
-### Reading from another device on your LAN
-
-The server listens on `0.0.0.0`, so other devices can reach it at
-`http://<phone-ip>:8080`. Find the phone's IP with `ifconfig wlan0` or in
-Android's Wi-Fi settings.
-
-> There is **no TLS**. Traffic, including your password, is unencrypted on the
-> LAN. Only do this on a network you trust, or put a reverse proxy with HTTPS in
-> front of it.
-
----
-
-## Updating
-
-There are two updaters. Use **selfupdate.sh** unless you specifically want to
-build Tanoshi yourself.
-
-### From the prebuilt package (recommended)
-
-Pulls the newest package published in
-[spainclaro-debug/tanoshi-mobile](https://github.com/spainclaro-debug/tanoshi-mobile),
-verifies its checksum and applies it. No Rust toolchain needed, takes seconds.
-
-```bash
-cd tanoshi
-bash selfupdate.sh --check    # is there a newer package?
-bash selfupdate.sh            # download, verify and install it
-bash selfupdate.sh --rollback # undo the last package update
-```
-
-How it works:
-
-1. Asks the GitHub API for the newest release in this project's repo, and
-   compares its tag (`v0.40.0-termux.2`) with the local `PACKAGE_TAG`. A release
-   is never applied backwards.
-2. Downloads the archive and its `.sha256`, and **refuses to install on a
-   checksum mismatch**.
-3. Extracts to a temporary directory and checks it really contains
-   `bin/tanoshi` and `plugins/`.
-4. Backs up the current binary and plugins to `backups/selfupdate-<timestamp>/`
-   (five newest kept).
-5. Swaps in the new binary, plugins and helper scripts. Plugins the new package
-   no longer ships are removed; runtime scratch files are cleared.
-6. Repairs `config.yml` if needed, restarts and reports how many plugins loaded.
-
-Your `data/` directory — library, accounts, history, downloads — is **never
-touched**. Only program files are replaced.
-
-If the API rate-limits you, wait an hour and retry; the script also falls back
-to the archive committed in the repository if a release has no assets.
-
-### From upstream source (rebuild)
-
-Use this to follow upstream Tanoshi itself rather than this package:
-
-```bash
-cd tanoshi
-bash update.sh --check     # is there a newer upstream release?
-bash update.sh             # rebuild and install the latest release
-```
-
-What the updater does:
-
-1. Asks GitHub for the newest release tag and compares it with `VERSION`.
-2. Backs up the current binary and plugins into `backups/<timestamp>/`
-   (the five newest backups are kept).
-3. Clones that exact tag, applies the Android patches, and rebuilds the wasm web
-   UI and the server.
-4. If the new release changed `tanoshi-lib`'s version, **rebuilds the extension
-   plugins too** — plugins embed that version and refuse to load on a mismatch.
-5. Restarts the server and verifies that it reports the new version and that the
-   expected number of plugins loaded.
-
-Options:
-
-| Option | Meaning |
-| --- | --- |
-| `--check` | report whether an update exists, change nothing |
-| `--force` | rebuild even if already up to date |
-| `--server-only` | never rebuild extensions (fast, only safe if lib version is unchanged) |
-| `--with-extensions` | always rebuild extensions |
-| `--rollback` | restore the most recent backup |
-| `--yes` | assume yes for prompts |
-
-If an update goes wrong:
-
-```bash
-bash update.sh --rollback
-```
-
-The first update needs the Rust toolchain (~160 MB download plus a
-`wasm-bindgen` compile). If it is missing, the updater installs it
-automatically. Pre-installing it during setup avoids the wait later:
-
-```bash
-bash install.sh --with-build-tools
-```
-
-> Updating replaces `bin/` and `plugins/` only. `data/` — your account, library,
-> reading history and settings — is never touched.
-
----
-
-## Extensions
-
-Nine sources are bundled and load automatically:
-
-| Extension | Language | Notes |
-| --- | --- | --- |
-| Mangadex | multi | |
-| Guya | multi | |
-| Manhwa18cc | multi | NSFW |
-| WeebCentral | en | |
-| **Atsumaru** | en | ported from Keiyoushi |
-| **QiScans** | en | ported from Keiyoushi |
-| **Manga Ball** | en | ported from Keiyoushi; English chapters only |
-| **MadaraDex** | en | ported from Keiyoushi |
-| **HentaiNexus** | en | ported from Keiyoushi; NSFW; one chapter per gallery |
-
-The last five are **Rust ports of [Keiyoushi](https://github.com/keiyoushi/extensions)
-(Tachiyomi) extensions**, rewritten against Tanoshi's plugin API. Their sources
-live in `extensions/` and the upstream ids are preserved.
-
-Install or remove sources from the web UI (admin account required).
-
-### Why can't I just install a Tachiyomi/Keiyoushi `.apk`?
-
-Because they are not the same kind of plugin. Keiyoushi extensions are Kotlin
-bytecode that runs inside an Android app's JVM; Tanoshi plugins are native Rust
-libraries (`.so`) loaded by the server. They cannot be interchanged. The four
-above were ported source-by-source to bridge that gap.
-
----
-
-## Troubleshooting
-
-**The server does not start**
-
-```bash
-tanoshi-ctl status
-tanoshi-ctl logs 100
-```
-
-The usual cause is a port already in use. Change it in `data/config.yml`
-(`port:`) and run `tanoshi-ctl restart`.
-
-**"Port 80 is not permitted"** — Android does not allow binding privileged ports
-for normal apps. Keep a port ≥ 1024.
-
-**Plugins do not appear in the UI** — the plugins and the server disagree on the
-`tanoshi-lib` version. Check `LIB_VERSION` against the log line
-`Version mismatch: extension.lib_version=...`. Fix by rebuilding:
-
-```bash
-bash update.sh --with-extensions --force
-```
-
-**"Fetch manga from source failed: error decoding response body"** — this means
-your `data/config.yml` has a `secret` that is not exactly **16 bytes**. Tanoshi
-encrypts cover images with AES-128-CBC and the key length is fixed, so any other
-length makes every `coverUrl` fail. Repair it automatically:
-
-```bash
-bash reinstall.sh
-```
-
-That detects the bad length, writes a new 16-character secret and restarts.
-Because the secret signs login tokens, you will have to **log in again**.
-
-**A source stopped working** — these are scrapers of third-party sites; they
-break when a site changes. Run `bash update.sh` to pick up rebuilt extensions.
-
-**Termux kills the server when the app closes** — Android suspends background
-processes. Options:
-
-- Keep Termux open (swipe it away in the notification).
-- Run `termux-wake-lock` before starting, and acquire the notification.
-- Use `pkg install termux-services` and run Tanoshi under `svir`.
-- Install [Termux:Boot](https://f-droid.org/packages/com.termux.boot/) and add
-  `tanoshi-ctl start` to `~/.termux/boot/`.
-
-**Reset everything** — stop the server, delete `data/`, then re-run
-`bash install.sh`. That recreates the database and the admin account. This
-deletes your library.
-
-**Move to a new phone** — copy the whole `tanoshi/` folder across, then run
-`bash install.sh` (it keeps the existing `data/`) or just
-`bash tanoshi.sh start`.
+- Android releases use tags **`android-vX.Y.Z`** (for example
+  `android-v0.11.0`). CI builds the APK and publishes it on a GitHub release
+  with the app changelog.
+- Termux package releases use `v*` tags (`PACKAGE_TAG`), independent of the
+  app's version.
+- The in-app updater compares the numeric version of published `android-v*`
+  releases with the installed version.
 
 ---
 
 ## Security notes
 
-- The bundled admin password is public. **Change it immediately.**
-- There is no HTTPS. Do not expose port 8080 to the internet without a reverse
-  proxy and TLS.
-- `data/config.yml` contains the JWT signing secret; it is created with mode
-  `600`. Keep it private — anyone with it can forge login tokens.
-- Tanoshi fetches content from third-party sites chosen by its extensions.
-  Respect their terms of service and the laws of your country.
+- **HTTP only, no TLS.** The server listens on loopback by default. Enabling
+  **Expose on LAN** makes the UI reachable from other devices on the network
+  in plain HTTP — only do that on a network you trust.
+- The first account is the administrator; protect its password. Open
+  registration can be disabled with `enable_registration: false`.
+- The extension catalogs are fetched over HTTPS and plugin hashes are verified
+  before installation when the catalog provides them.
+- Keep backups (`Backup Library`) in a safe place: they contain your library,
+  reading history and source list (not your account password).
 
-## Reinstalling / repairing
+---
 
-If something breaks — a corrupted `config.yml`, a deleted data folder, a broken
-`tanoshi-ctl`, wrong permissions, or plugins that stopped loading — repair the
-install in place instead of starting over:
+## Credits and license
 
-```bash
-cd tanoshi
-bash reinstall.sh
-```
-
-It stops the server, backs up `config.yml` and `tanoshi.db` into
-`backups/reinstall-<timestamp>/`, recreates any missing folders and files,
-resets permissions, clears stale plugin copies, reinstalls the control command
-and restarts. **Your library, accounts and history are kept.**
-
-To also wipe the data and start fresh:
-
-```bash
-bash reinstall.sh --reset-data
-```
-
-The old data is never deleted — it is moved to `data.old-<timestamp>/` so you can
-recover from it, and a new admin account is created.
-
-| Option | Meaning |
-| --- | --- |
-| `--reset-data` | move `data/` aside and start clean (recreates admin) |
-| `--port N` | port to use if `config.yml` must be recreated |
-| `--user` / `--password` | admin credentials for a reset |
-| `--no-start` | repair files but leave the server stopped |
-| `--yes` | assume yes for prompts |
-
-`reinstall.sh` never reinstalls the program binaries from scratch — for a fresh
-program build use `update.sh` or `install.sh --from-source`.
-
-## Uninstall
-
-```bash
-cd tanoshi
-bash uninstall.sh
-```
-
-It stops the server, backs up your data to `~/tanoshi-backup-<timestamp>.tar.gz`,
-removes `tanoshi-ctl` from your `PATH`, and deletes the folder.
-
-| Option | Meaning |
-| --- | --- |
-| `--keep-data` | delete the program but keep `data/` for a later reinstall |
-| `--no-backup` | skip the backup (your data will be gone permanently) |
-| `--yes` | assume yes for prompts |
-
-To restore a backup into a fresh install:
-
-```bash
-tar -xzf ~/tanoshi-backup-<timestamp>.tar.gz -C /path/to/tanoshi
-```
-
-Doing the steps by hand instead:
-
-```bash
-tanoshi-ctl stop
-rm -f "$PREFIX/bin/tanoshi-ctl"
-rm -rf ~/tanoshi            # or wherever the folder is
-```
-
-## Credits and licences
-
-- Tanoshi © luigi311, MIT — <https://github.com/luigi311/tanoshi>
-- Extensions © luigi311 — <https://github.com/luigi311/tanoshi-extensions>
-- The four ported extensions are derived from
-  [Keiyoushi](https://github.com/keiyoushi/extensions) (Apache-2.0) and adapted
-  to Tanoshi's plugin API.
-- Android/Termux patches in `patches/` are local modifications, documented in
-  `patches/README-patches.txt`.
+- Forked from **[Tanoshi](https://github.com/luigi311/tanoshi)** by luigi311
+  (MIT). The server, web UI and extension API are upstream work; Yakushi adds
+  the Android packaging, extension management, theme/reader/backup features
+  and the fork branding.
+- Extensions are ports of the
+  [Keiyoushi](https://github.com/keiyoushi/extensions) Tachiyomi extensions and
+  the upstream Tanoshi extension repository.
+- The Android app, patches and build pipeline in this repository are released
+  under the MIT license (see the upstream LICENSE for the server code).
