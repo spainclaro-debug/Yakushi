@@ -144,7 +144,8 @@ apply_android_patches() {
   local web_ui_backup_settings_patch="$PKG_DIR/patches/tanoshi-web-ui-backup-settings.patch"
   local branding_patch="$PKG_DIR/patches/yakushi-branding.patch"
   local login_patch="$PKG_DIR/patches/yakushi-login-register.patch"
-  for patch in "$web_ui_patch" "$web_ui_settings_patch" "$web_ui_backup_patch" "$web_ui_backup_settings_patch" "$branding_patch" "$login_patch"; do
+  local info_links_patch="$PKG_DIR/patches/yakushi-info-links.patch"
+  for patch in "$web_ui_patch" "$web_ui_settings_patch" "$web_ui_backup_patch" "$web_ui_backup_settings_patch" "$branding_patch" "$login_patch" "$info_links_patch"; do
     [ -f "$patch" ] || die "missing $patch"
     if git -C "$SRC_DIR" apply --check --whitespace=nowarn "$patch" 2>/dev/null; then
       git -C "$SRC_DIR" apply --whitespace=nowarn "$patch"
@@ -153,6 +154,13 @@ apply_android_patches() {
       die "cannot apply $(basename "$patch"); upstream web UI changed?"
     fi
   done
+  # Fork icons for the embedded web UI (PWA icons, favicon, logo).
+  if [ -d "$PKG_DIR/patches/yakushi-icons" ]; then
+    rm -f "$SRC_DIR/crates/tanoshi-web/static/icons/tanoshi.png"
+    cp -f "$PKG_DIR/patches/yakushi-icons/"*.png "$SRC_DIR/crates/tanoshi-web/static/icons/"
+    ok "fork icons installed"
+  fi
+
   # Register the new modules/patch anchors that the diff already handled; the
   # copies above only provide file contents.
   ok "helper sources in place"

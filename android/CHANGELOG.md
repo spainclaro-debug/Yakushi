@@ -16,6 +16,30 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.12.0
+
+### Changed
+
+- **Complete Yakushi branding in the web UI.** The browser tab title, the
+  favicon, the PWA icons (192/512/apple-touch) and the PWA splash now use the
+  Yakushi logo; the installable-app manifest name/colors were already Yakushi.
+- **New launcher icon and splash screen.** The Android adaptive icon is the
+  Yakushi glyph on the brand red (the previous Tanoshi vector was removed), and
+  the app's launch screen shows the Yakushi logo on red for Android 12+ (system
+  splash API) and older releases (window background). The notification small
+  icon is the monochrome Yakushi glyph.
+- **Local source icon.** The server's built-in "Local" source uses
+  `/icons/192.png`, which is now the Yakushi logo, so local source rows in the
+  catalogue show the fork's icon.
+- **Settings footer links.** "Changelog" points at the Yakushi repository's
+  `android/CHANGELOG.md` and "Github" at the Yakushi repository; "Website" and
+  "Discord" links were removed because the fork does not have them yet.
+- **Frontend version matches the server.** The web UI's package/manifest
+  version is now the server version (0.40.0) instead of the upstream frontend
+  version, so everything reports the same version.
+- **Version 0.12.0:** local builds default to `versionCode` 1200; the
+  `android-v0.12.0` tag produces `versionCode` 1200.
+
 ## 0.11.0
 
 ### Changed

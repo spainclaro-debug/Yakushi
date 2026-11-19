@@ -7,10 +7,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Version can be overridden from CI (`-PappVersionName=0.11.0 -PappVersionCode=1100`)
+// Version can be overridden from CI (`-PappVersionName=0.12.0 -PappVersionCode=1200`)
 // so tagged Android releases always carry an increasing version automatically.
-val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.11.0").get()
-val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("1100").get().toInt()
+val appVersionName: String = providers.gradleProperty("appVersionName").orElse("0.12.0").get()
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").orElse("1200").get().toInt()
 
 // Sideload APK file name, e.g. yakushi-server-release-2026-11-14.apk.
 // CI passes -PapkDate=$(date -u +%F); local builds use the local date so the

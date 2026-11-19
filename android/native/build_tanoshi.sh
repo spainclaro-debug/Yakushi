@@ -101,6 +101,14 @@ apply_patch "$REPO_ROOT/patches/tanoshi-web-ui-backup-settings.patch"
 apply_patch "$REPO_ROOT/patches/yakushi-branding.patch"
 # Login page: self-service account registration for additional users.
 apply_patch "$REPO_ROOT/patches/yakushi-login-register.patch"
+# Settings footer links point at the Yakushi changelog/repository.
+apply_patch "$REPO_ROOT/patches/yakushi-info-links.patch"
+
+# Fork icons for the embedded web UI (PWA icons, favicon, logo).
+if [ -d "$REPO_ROOT/patches/yakushi-icons" ]; then
+    rm -f crates/tanoshi-web/static/icons/tanoshi.png
+    cp -f "$REPO_ROOT/patches/yakushi-icons/"*.png crates/tanoshi-web/static/icons/
+fi
 # Android app: extension install/update/remove and the "Available" source list
 # are managed by the app's Sources tab, so the embedded web UI hides them.
 apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"

@@ -118,6 +118,16 @@ yakushi-login-register.patch
     accounts. Server side: the new `enable_registration` config option (default
     true) is honoured by the `register` mutation; the first account still
     always works and becomes admin, and admins can always create users.
+yakushi-info-links.patch
+    Settings footer links: Changelog and Github point at the Yakushi
+    repository (Changelog at android/CHANGELOG.md); the upstream Website and
+    Discord links are removed.
+
+yakushi-icons/
+    Yakushi logo assets copied into crates/tanoshi-web/static/icons/ by the
+    build scripts: 192.png, 512.png, apple-touch-icon.png and yakushi.png
+    (favicon). The PWA manifest and index.html refer to these files (the old
+    tanoshi.png is removed).
 
 tanoshi-web-ui-settings.patch
     The settings.rs hunks of tanoshi-web-ui.patch, generated with minimal

@@ -1,5 +1,4 @@
 diff --git a/crates/tanoshi-web/index.html b/crates/tanoshi-web/index.html
-index bab3bdf..e2001a8 100644
 --- a/crates/tanoshi-web/index.html
 +++ b/crates/tanoshi-web/index.html
 @@ -3,8 +3,8 @@
@@ -13,8 +12,17 @@ index bab3bdf..e2001a8 100644
      <meta charset="utf-8">
      <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="4">
      <link data-trunk rel="copy-file" href="static/manifest.webmanifest">
+@@ -14,7 +14,7 @@
+     <link data-trunk rel="copy-dir" href="static/images">
+     <link data-trunk rel="scss" href="static/css/styles.scss" />
+     <link rel="manifest" href="/manifest.webmanifest">
+-    <link rel='icon' href='/icons/tanoshi.png' type='image/png' />
++    <link rel='icon' href='/icons/yakushi.png' type='image/png' />
+     <link rel="stylesheet" href="/animate.min.css" />
+     <meta name="viewport"
+         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
+
 diff --git a/crates/tanoshi-web/static/manifest.webmanifest b/crates/tanoshi-web/static/manifest.webmanifest
-index f413ccc..caf4b57 100644
 --- a/crates/tanoshi-web/static/manifest.webmanifest
 +++ b/crates/tanoshi-web/static/manifest.webmanifest
 @@ -1,7 +1,7 @@
@@ -28,3 +36,28 @@ index f413ccc..caf4b57 100644
    "icons": [
      {
        "src": "/icons/192.png",
+@@ -18,8 +18,8 @@
+   ],
+   "start_url": "/",
+   "scope": "/",
+-  "background_color": "#2e3439",
++  "background_color": "#A51622",
+   "display": "standalone",
+-  "theme_color": "#5b749b",
+-  "version": "3.0"
++  "theme_color": "#A51622",
++  "version": "0.40.0"
+ }
+\ No newline at end of file
+
+diff --git a/crates/tanoshi-web/Cargo.toml b/crates/tanoshi-web/Cargo.toml
+--- a/crates/tanoshi-web/Cargo.toml
++++ b/crates/tanoshi-web/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "tanoshi-web"
+-version = "0.0.0"
++version = "0.40.0"
+ edition = "2024"
+ rust-version = "1.99.1"
+ description = "Tanoshi Web"

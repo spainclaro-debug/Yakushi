@@ -18,8 +18,8 @@
   ],
   "start_url": "/",
   "scope": "/",
-  "background_color": "#2e3439",
+  "background_color": "#A51622",
   "display": "standalone",
-  "theme_color": "#5b749b",
-  "version": "3.0"
+  "theme_color": "#A51622",
+  "version": "0.40.0"
 }

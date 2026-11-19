@@ -1018,7 +1018,7 @@ class TanhoshiService : Service() {
                 ?: getString(R.string.notification_stopped)
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.yakushi_notification)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

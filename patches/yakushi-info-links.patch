@@ -1,0 +1,28 @@
+diff --git a/crates/tanoshi-web/src/settings.rs b/crates/tanoshi-web/src/settings.rs
+--- a/crates/tanoshi-web/src/settings.rs
++++ b/crates/tanoshi-web/src/settings.rs
+@@ -470,3 +470,3 @@
+                     .class("list-item")
+-                    .attr("href", "https://github.com/luigi311/tanoshi/blob/main/CHANGELOG.md")
++                    .attr("href", "https://github.com/spainclaro-debug/Yakushi/blob/main/android/CHANGELOG.md")
+                     .attr("target", "_blank")
+@@ -476,3 +476,3 @@
+                     .class("list-item")
+-                    .attr("href", "https://github.com/luigi311/tanoshi")
++                    .attr("href", "https://github.com/spainclaro-debug/Yakushi")
+                     .attr("target", "_blank")
+@@ -480,14 +480,2 @@
+                 }),
+-                html!("a", {
+-                    .class("list-item")
+-                    .attr("href", "https://luigi311.github.io/tanoshi")
+-                    .attr("target", "_blank")
+-                    .text("Website")
+-                }),
+-                html!("a", {
+-                    .class("list-item")
+-                    .attr("href", "https://discord.gg/wPSEftdDqB")
+-                    .attr("target", "_blank")
+-                    .text("Discord")
+-                }),
+             ])
