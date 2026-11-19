@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Yakushi</string>
-    <string name="notification_channel_name">Yakushi server</string>
+    <string name="app_name">Yakushi Server</string>
+    <string name="notification_channel_name">Yakushi Server</string>
     <string name="notification_channel_description">Keeps the local Yakushi manga server running.</string>
-    <string name="notification_title">Yakushi server</string>
+    <string name="notification_title">Yakushi Server</string>
     <string name="notification_starting">Starting server…</string>
     <string name="notification_running">Running on port %1$d</string>
     <string name="notification_stopping">Stopping server…</string>
@@ -17,7 +17,7 @@
     <string name="nav_settings">Settings</string>
 
     <!-- Server dashboard -->
-    <string name="server_title">Yakushi</string>
+    <string name="server_title">Yakushi Server</string>
     <string name="server_subtitle">Local manga server</string>
     <string name="server_start">Start server</string>
     <string name="server_stop">Stop server</string>
@@ -167,9 +167,9 @@
     <string name="settings_updates_download">Download update</string>
     <string name="settings_updates_downloaded">Update downloaded. Install it to finish.</string>
     <string name="settings_updates_install">Install update</string>
-    <string name="settings_updates_install_started">Installer opened. Follow the system prompts to update Yakushi.</string>
+    <string name="settings_updates_install_started">Installer opened. Follow the system prompts to update Yakushi Server.</string>
     <string name="settings_updates_install_failed">Could not start the update installer: %1$s</string>
-    <string name="settings_updates_install_blocked">Android does not allow this app to install updates. Allow installing unknown apps for Yakushi, then try again.</string>
+    <string name="settings_updates_install_blocked">Android does not allow this app to install updates. Allow installing unknown apps for Yakushi Server, then try again.</string>
     <string name="settings_updates_allow_installs">Allow app installs</string>
     <string name="settings_updates_download_failed">Could not download the update: %1$s</string>
     <!-- LAN share QR card -->
@@ -189,7 +189,7 @@
     <!-- Sources / extensions -->
     <string name="nav_sources">Sources</string>
     <string name="extensions_title">Sources</string>
-    <string name="extensions_subtitle">Manage the extensions that add manga sources to Yakushi.</string>
+    <string name="extensions_subtitle">Manage the extensions that add manga sources to Yakushi Server.</string>
     <string name="extensions_explanation">Extensions are prebuilt Android (aarch64) Yakushi plugins. Install or update them from the repository catalog; the server loads them after a restart.</string>
     <string name="extensions_section_installed">Installed</string>
     <plurals name="extensions_installed_count">

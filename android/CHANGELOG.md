@@ -16,6 +16,21 @@ UTC build date in CI (via `-PapkDate`) and the local date otherwise.
 
 ---
 
+## 0.12.1
+
+### Changed
+
+- **The Android app is named Yakushi Server.** The launcher label, the
+  notification channel/title and the in-app server labels now say **Yakushi
+  Server**; the web frontend/PWA keeps the short name **Yakushi** (tab title,
+  manifest, icons and splash unchanged).
+- **A single APK asset per release.** The workflow no longer copies the APK
+  under the legacy `tanoshi-mobile-server-release-<date>.apk` name; releases
+  attach only `yakushi-server-release-<date>.apk`. The in-app updater still
+  accepts the previous prefix if an older release is encountered.
+- **Version 0.12.1:** local builds default to `versionCode` 1201; the
+  `android-v0.12.1` tag produces `versionCode` 1201.
+
 ## 0.12.0
 
 ### Changed

@@ -194,9 +194,9 @@ key so updates install over each other).
    APK.
 3. Start the app, press **Start server**, and open the web UI (Browser tab).
 
-> Releases also publish a `tanoshi-mobile-server-release-<date>.apk` copy
-> (byte-identical) so installations from before the Yakushi rename can still
-> find their update through **Settings → Updates**.
+> Only one APK is published per release: `yakushi-server-release-<date>.apk`
+> (the Android app is called **Yakushi Server**; the web frontend/PWA keeps the
+> short name **Yakushi**).
 
 ---
 
@@ -233,9 +233,10 @@ paths; your data lives in the package directory and is never touched by
 
 - **0.2.0 and later** install over each other (same signing key).
 - **0.1.0** must be uninstalled once (different signing key).
-- **0.10.0 → 0.11.0**: update from **Settings → Updates** (the release keeps
-  the old asset name as a compatibility copy) or sideload the new APK over the
-  old one.
+- **0.11.0 and later**: update from **Settings → Updates**, or sideload the
+  new `yakushi-server-release-<date>.apk` over the old one.
+- **Older than 0.11.0** (including 0.10.0): install the current APK manually
+  once; the old updater looked for the retired `tanoshi-mobile-server` asset.
 - Your library, history, themes and reader settings are preserved; the
   application id stays `dev.spainclaro.tanoshi`.
 

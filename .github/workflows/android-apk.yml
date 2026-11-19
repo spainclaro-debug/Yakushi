@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.12.0 (default)}' code '${CODE:-1200 (default)}'"
+          echo "Building version '${NAME:-0.12.1 (default)}' code '${CODE:-1201 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.12.0}"
-          CODE="${APP_VERSION_CODE:-1200}"
+          NAME="${APP_VERSION_NAME:-0.12.1}"
+          CODE="${APP_VERSION_CODE:-1201}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,16 +109,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi is a fork of the Tanoshi self-hosted manga server, wrapped in a standalone arm64-v8a Android app (no Termux). Highlights of 0.12.0: complete Yakushi branding everywhere - the browser tab title, favicon, PWA icons and splash, the in-app launch/launcher icon, the Local source icon and the web UI version (now the server version). Settings now links to the Yakushi changelog and GitHub repository (Website and Discord were removed). Also includes 0.11.0 (Register button, Yakushi rename), 0.10.0 (Backup and Restore) and the theme/reader features. Install: download yakushi-server-release-<date>.apk and sideload it, then open the app, start the server and create the first (admin) account. Existing installs can update from Settings -> Updates. See android/CHANGELOG.md and README.md."
+          NOTES="Yakushi Server 0.12.1 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux); the frontend/PWA keeps the short name Yakushi. This release names the Android app Yakushi Server (launcher, notifications and in-app labels) and publishes a single APK asset, yakushi-server-release-<date>.apk - the duplicate tanoshi-mobile-server asset is gone. Includes all 0.12.0 branding (Yakushi logo, tab title, PWA icons/splash, launcher icon, Local source icon), the Yakushi changelog/GitHub links in Settings, Register button, Backup and Restore, themes and reader features. Install: download yakushi-server-release-<date>.apk and sideload it; open the app, start the server and create the first (admin) account. Existing 0.11.x/0.12.x installs update from Settings -> Updates; installs older than 0.11.0 need a manual install once. See android/CHANGELOG.md and README.md."
           APK_DIR=android/app/build/outputs/apk/debug
-          # Older installed builds look for the pre-rename asset name; publish a
-          # copy under it so Settings -> Updates keeps working for them.
-          for apk in "$APK_DIR"/yakushi-server-release-*.apk; do
-            cp "$apk" "$APK_DIR/tanoshi-mobile-server-${apk##*/yakushi-server-}"
-          done
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \
-            "$APK_DIR"/tanoshi-mobile-server-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Yakushi Android $TAG" \
+            --title "Yakushi Server $TAG" \
             --notes "$NOTES"
