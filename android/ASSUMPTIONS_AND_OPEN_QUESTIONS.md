@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.7 / 1307, local date).
+three to Gradle; local builds use the Gradle defaults (0.13.8 / 1308, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.7 / versionCode
-1307 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.7`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.8 / versionCode
+1308 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.8`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -797,6 +797,50 @@ the primary colour). No server API or schema changes.
 *If wrong:* large libraries could show duplicate/missing manga if the merge
 key changed, and the All tab is slower because it fetches every category; the
 merge is by manga id and category tabs remain a fast single-query path.
+
+### A41 — Library tab display options are per-device; tabs are browser-style
+
+From 0.13.8 the Library tab bar has two **per-device** display options stored in
+the existing `LibrarySettings` localStorage object (key `settings:library`):
+`show_all_tab` and `show_category_counts` (both default true, serde
+`default = "default_true_mutable"` for old stored settings). They are toggled
+in **Settings → Categories → Library tabs** (`All tab: Shown/Hidden`,
+`Counts: Shown/Hidden`) and saved with the rest of `LibrarySettings`.
+Behaviour: the **All** tab button is hidden when `show_all_tab` is false; if
+the selected library was All (`selected == -1`) the page sets
+`selected = 0` (uncategorized/Default) after loading categories, so it never
+shows an empty hidden selection. Category tab labels include `Name (count)`
+only when `show_category_counts` is true. These options are local to the
+device/browser (localStorage), not synced via the server.
+
+Styling (CSS only): `.library-tabs` is a bottom-aligned flex strip with a
+bottom border, `.library-tab`s have rounded top corners, adjacent borders,
+`margin-bottom:-1px` and no bottom border so the active tab connects to the
+content, active = primary text + inset top accent + full opacity, plus hover
+opacity; the strip remains `overflow-x:auto`. At `min-width: 1024px`
+`.library-tabs` gets `margin-left:5rem` and a right margin to clear the fixed
+5rem desktop sidebar (the old CSS let the first tabs sit underneath it).
+
+*If wrong:* users on another device may wonder why All/counts differ — the
+docs say the toggles are per device; the hidden-All fallback prevents a
+stuck/blank tab, and a new device defaults both options to shown.
+
+### A42 — Category rename is inline and server-side via `updateCategory`
+
+From 0.13.8 every category row in Settings → Categories (when not in bulk
+edit mode) has a pencil button (`title="Rename library"`). Clicking sets
+`rename_id` to that category's id and replaces the row's name span with an
+`<input>` prefilled with the current name (focused after insert). Pressing
+**Enter** calls the existing `updateCategory(id, name)` mutation,
+clears `rename_id`, and refreshes the category list; errors are shown via
+snackbar. The existing bulk edit mode still exists and hides the per-row rename
+buttons while active; the count/Other rows are untouched. Renames are
+server-side (GraphQL mutation), so they appear on every device, unlike the A41
+tab display options.
+
+*If wrong:* a rename could fail silently or conflict with bulk edit; the input
+is row-scoped, Enter is the save action, the list refetches after success and
+the bulk-edit UI stays unchanged.
 
 ## Open questions for the repository owner
 

@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.7`). The Termux package in the repository root has
+(for example `android-v0.13.8`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,55 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.8
+
+### Fixed
+
+- **Desktop/tablet Library tabs no longer hidden under the sidebar.** The
+  desktop navigation is a fixed 5rem left sidebar; the tab strip was not offset
+  so its first tabs (All/Default) were covered. `.library-tabs` now gets
+  `margin-left: 5rem` and a right margin at `min-width: 1024px`, matching the
+  main content offset.
+
+### Added
+
+- **Category tab display options (per device).** Settings → Categories now
+  has a **Library tabs** panel with two toggles persisted in localStorage
+  (`settings:library`, per device): **All tab: Shown/Hidden** and
+  **Counts: Shown/Hidden**. The Library page hides the All tab when disabled
+  (an All selection falls back to the uncategorized/Default tab) and only
+  appends `Name (count)` to category tab labels when counts are enabled.
+- **Rename a library inline.** Each category row in Settings → Categories
+  has a pencil/**Rename** button (title "Rename library") that turns that row
+  into an inline text input; pressing **Enter** saves through the existing
+  `updateCategory` mutation and refreshes the list. The existing bulk edit
+  mode is unchanged, and the rename button is hidden while bulk editing; the
+  row's count/Other entries are untouched.
+
+### Changed
+
+- **Tabs restyled like desktop-browser tabs.** `.library-tabs`/`.library-tab`
+  are now a bottom-aligned strip with a bottom border, rounded top corners,
+  adjacent borders and a negative bottom margin so the active tab connects to
+  the content area; the active tab is raised, uses the primary colour for text
+  plus an inset top accent, and tabs get a hover opacity. The strip remains
+  horizontally scrollable.
+- **Web UI and `libtanoshi.so` rebuilt** with the new
+  `android/native/patches/0011-web-ui-library-tabs-options-sidebar.patch`
+  (applied after 0010; `library_settings.rs`, `settings_categories.rs`,
+  `library.rs`, `styles.scss`); version **0.13.8** (versionCode 1308, tag
+  `android-v0.13.8`). APK filename scheme unchanged. No server API/schema
+  changes.
+
+### Notes
+
+- The tab display options are **per device/browser** (localStorage
+  `settings:library`); category renames are **server-side** through the
+  existing `updateCategory` mutation, so they appear on every device.
+- Hidden-All fallback: if the selected library was the synthetic All tab and
+  All is turned off, the Library page switches to the uncategorized/Default
+  tab rather than showing an empty selection.
 
 ## 0.13.7
 

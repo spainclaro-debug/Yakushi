@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.7](#whats-new-in-0137)
+- [What's new in 0.13.8](#whats-new-in-0138)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,27 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.13.8
+
+- **Desktop/tablet Library tabs fixed.** The tab strip now offsets past the
+  fixed 5rem desktop sidebar (5rem left + right margin at ≥ 1024px), so the
+  All/Default tabs are no longer covered; tabs are restyled like desktop-browser
+  tabs (bottom-aligned strip, rounded top corners, connected active tab with
+  primary text/inset accent).
+- **Library tab options are per device.** Settings → Categories has a
+  **Library tabs** panel with **All tab: Shown/Hidden** and **Counts:
+  Shown/Hidden** toggles (localStorage `settings:library`, per device). The
+  Library hides the All tab when disabled (falling back to the
+  uncategorized/Default tab) and only shows `Name (count)` when counts are on.
+- **Inline category rename.** Each category row in Settings → Categories has
+  a pencil/**Rename** button; edit inline and press Enter to save via the
+  server's existing `updateCategory` mutation (renames apply to every device;
+  bulk edit still exists).
+- **Version 0.13.8** (`android-v0.13.8`, `yakushi-server-release-<date>.apk`);
+  includes all earlier features.
+
+Previous release — **0.13.7** — and its features:
 
 ## What's new in 0.13.7
 
@@ -154,12 +175,16 @@ trackers](#downloads-and-trackers).
 
 ### Library and catalogue
 
-- **Library** with category tabs (plus an **All** tab that merges
-  uncategorized and every category, with counts), unread counts and recent
-  updates. The old category-list page redirects to the tabbed library.
+- **Library** with category tabs (plus an optional **All** tab that merges
+  uncategorized and every category), unread counts and recent updates. Tab
+  display (All shown/hidden, counts shown/hidden) is a per-device setting in
+  Settings → Categories; the tabs are browser-style and offset past the
+  desktop sidebar. The old category-list page redirects to the tabbed library.
 - **Library actions on a manga** — add/remove, **Change Library** (replace the
   manga's categories with the picker), and **Migrate** to another installed
   source from the manga top bar (source-path migration via the catalogue).
+  Categories can be renamed inline in Settings → Categories (pencil button,
+  Enter, server `updateCategory`).
 - **Catalogue** browsing per source with popular/latest/search listings and
   **infinite scroll** (loads the next page automatically).
 - **Filter sheet that shows the actual choices** — genres/tags (expanded by
@@ -389,7 +414,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.7** (`android-v0.13.7`), published as
+- The current Android release is **0.13.8** (`android-v0.13.8`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

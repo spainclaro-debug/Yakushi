@@ -49,8 +49,9 @@ cells get their own tinted surface + adaptive cell text, 0.13.5 adds
 per-chapter download buttons/progress in the chapter list (patch 0007; the old
 reader image-save patch 0006 was deleted) and 0.13.6 adds server-shared layout
 presets (patch 0008 + copied `layout_presets.rs`), the gapless double-page
-reader (patch 0009) and 0.13.7 adds manga-page Migrate/Change Library +
-tabbed Library (patch 0010). Offline chapters are extracted as page images into public
+reader (patch 0009), 0.13.7 adds manga-page Migrate/Change Library + tabbed
+Library (patch 0010) and 0.13.8 adds browser-style/desktop-safe Library tabs,
+per-device tab display options and inline category rename (patch 0011). Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -115,7 +116,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007 + 0009 + 0010), the Android app/extension-loader patches (0001 + 0002), the downloads patch (0005) and the server layout-presets patch (0008 + copied `layout_presets.rs`), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007 + 0009 + 0010 + 0011), the Android app/extension-loader patches (0001 + 0002), the downloads patch (0005) and the server layout-presets patch (0008 + copied `layout_presets.rs`), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -191,11 +192,20 @@ the equivalent manual steps, which is what the scripts automate.
      tabbed Library page (All + per-category tabs, All merges every category by
      manga id; `/library/categories` redirects; topbar Categories hidden).
      Touches `manga.rs`, `library.rs`, `library_list.rs`, `styles.scss`.
+   - **`native/patches/0011-web-ui-library-tabs-options-sidebar.patch`**
+     (0.13.8, applied after 0010): browser-style Library tabs with a 5rem
+     desktop-sidebar offset at ≥1024px; Settings → Categories **Library
+     tabs** panel with per-device localStorage options (`settings:library`)
+     `show_all_tab`/`show_category_counts` (All hidden falls back to
+     uncategorized/Default; counts only in labels when enabled); inline
+     per-category **Rename** using the existing `updateCategory` mutation.
+     Touches `library_settings.rs`, `settings_categories.rs`, `library.rs`,
+     `styles.scss`.
    - These web patches only matter when regenerating the wasm UI: the vendored
      `native/web-dist/` already contains the patched output, so a normal server
      rebuild uses it as-is. `build_tanoshi.sh` applies them automatically
      (infinite scroll → web features → 0003 → `theme_settings.rs` +
-     0004 → 0007 → 0009 → 0010).
+     0004 → 0007 → 0009 → 0010 → 0011).
 5. **`native/patches/0005-downloads-tempchapter.patch`** (final in 0.13.5),
    applied after the app/loader patches: a new `AuthGuard` lets **any
    signed-in user** download/remove/reorder chapters and read the queue/
@@ -250,6 +260,8 @@ git apply ../android/native/patches/0007-web-ui-download-progress.patch
 git apply ../android/native/patches/0009-web-ui-layout-presets-double-gap.patch
 # Manga Migrate/Change Library + tabbed Library (0.13.7)
 git apply ../android/native/patches/0010-web-ui-manga-actions-library-tabs.patch
+# Library tab styling/options + inline category rename (0.13.8)
+git apply ../android/native/patches/0011-web-ui-library-tabs-options-sidebar.patch
 
 # Android app layer
 git apply ../android/native/patches/0001-android-app.patch
@@ -317,7 +329,7 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.7+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.8+:
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -336,25 +348,26 @@ default source is the **vendored dist** in this directory:
   `native/patches/0009-web-ui-layout-presets-double-gap.patch` (0.13.6:
   server-backed layout presets + gapless double-page reader) and
   `native/patches/0010-web-ui-manga-actions-library-tabs.patch` (0.13.7:
-  manga Migrate/Change Library + tabbed Library; patch 0006/reader Save image
-  was deleted). Its wasm bundle still contains the
-  `catalogue-scroll-sentinel`,
+  manga Migrate/Change Library + tabbed Library) and
+  `native/patches/0011-web-ui-library-tabs-options-sidebar.patch` (0.13.8:
+  browser-style/desktop-safe tabs, per-device tab options, inline category
+  rename; patch 0006/reader Save image was deleted). Its wasm bundle still
+  contains the `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.13.7):
-  `tanoshi-web-4d72108c58b42124.js`, `tanoshi-web-5ad4dab69102d403_bg.wasm`,
-  `styles-bf37b579fdc12dbc.css`.
+  Current dist asset names (0.13.8):
+  `tanoshi-web-9bef7b3f60888d4f.js`, `tanoshi-web-55a22fcf678b0969_bg.wasm`,
+  `styles-771514d76def24f9.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.7**
-  (0.13.6/0.13.5/0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier rebuilt dists;
-  0.2.0/0.5.0/0.6.0 used older dists). The 0.13.7 rebuild carries patch 0010
-  (manga Migrate/Change Library + Library tabs) on top of the 0009 layout
-  presets/double-page CSS and the 0008 server route/module; patch 0006 stays
-  deleted.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.8**
+  (0.13.7/0.13.6/0.13.5/0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier rebuilt
+  dists; 0.2.0/0.5.0/0.6.0 used older dists). The 0.13.8 rebuild carries patch
+  0011 (tab styling/sidebar offset, per-device tab options, inline rename) on
+  top of 0010/0009/0008; patch 0006 stays deleted.
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -629,6 +642,10 @@ grep -c -a "Migrate manga to source" libtanoshi.so     # expect >= 1 (0.13.7 mod
 grep -c -a "Change Library" libtanoshi.so              # expect >= 1 (0.13.7 action)
 grep -c -a "Library updated" libtanoshi.so             # expect >= 1 (0.13.7 snackbar)
 grep -c -a "library-tab" libtanoshi.so                 # expect >= 1 (0.13.7 tabs CSS)
+grep -c -a "All tab: Shown" libtanoshi.so              # expect >= 1 (0.13.8 toggle)
+grep -c -a "Counts: Shown" libtanoshi.so               # expect >= 1 (0.13.8 toggle)
+grep -c -a "Rename library" libtanoshi.so              # expect >= 1 (0.13.8 title)
+grep -c -a "Library tabs" libtanoshi.so                # expect >= 1 (0.13.8 settings panel)
 #   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
 #   match the names in android/native/web-dist/index.html
 
@@ -673,9 +690,9 @@ output of this pipeline, built on an x86_64 Linux host with:
 - the embedded web UI from `android/native/web-dist/` (rebuilt from source with
   the 0.8.0 web features, infinite-scroll, app-only extension-management,
   per-device theme patches, the 0.13.5 per-chapter download UI and the 0.13.6
-  shared-layout/double-page changes and the 0.13.7 manga actions/library-tabs
-  patch; 0.9.1 reworked the theme application and 0.9.2 themed the Settings
-  list cells),
+  shared-layout/double-page changes, the 0.13.7 manga actions/library-tabs patch
+  and the 0.13.8 tab styling/options/rename patch; 0.9.1 reworked the theme
+  application and 0.9.2 themed the Settings list cells),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -697,7 +714,8 @@ extraction (`AuthGuard`, folder downloads, directory reading, removal) and the
 final per-chapter download UI (patch 0006 deleted), **0.13.6 rebuilt it** with
 the shared layout-presets route/module and the double-page reader fix, and
 **0.13.7 rebuilt it** with patch 0010 (manga Migrate/Change Library + tabbed
-Library). The exported extension sources
+Library), and **0.13.8 rebuilt it** with patch 0011 (browser-style/desktop-safe
+tabs, per-device tab options, inline category rename). The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

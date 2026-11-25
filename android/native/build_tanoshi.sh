@@ -121,6 +121,8 @@ apply_patch "$HERE/patches/0007-web-ui-download-progress.patch"
 apply_patch "$HERE/patches/0009-web-ui-layout-presets-double-gap.patch"
 # Web UI: per-manga Migrate + Change Library actions and tabbed library page.
 apply_patch "$HERE/patches/0010-web-ui-manga-actions-library-tabs.patch"
+# Web UI: library tab display options, category rename, browser-style tabs.
+apply_patch "$HERE/patches/0011-web-ui-library-tabs-options-sidebar.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the

@@ -5,9 +5,13 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.7** — see the
+Current release: **0.13.8** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.7 adds a **Migrate** action on the
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.8 fixes the **desktop/tablet Library
+tabs** being hidden under the 5rem sidebar, restyles them like browser tabs,
+adds **Settings → Categories → Library tabs** per-device toggles (hide the
+All tab, hide category counts) and an inline **Rename** action per category
+(server-side via `updateCategory`). 0.13.7 adds a **Migrate** action on the
 manga page (pick an installed source, land in its catalogue pre-filled with the
 title, then confirm the existing source-path migration), a **Change Library**
 action that replaces the manga's categories, and a **tabbed Library** page
@@ -106,7 +110,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.7](#whats-new-in-0137)
+- [What's new in 0.13.8](#whats-new-in-0138)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -155,6 +159,32 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.13.8
+
+- **Desktop/tablet Library tabs fixed.** The desktop nav is a fixed 5rem left
+  sidebar; the tab strip now gets a 5rem left margin (and right margin) at
+  `min-width: 1024px`, so the All/Default tabs are no longer covered.
+- **Browser-style tabs.** The Library tab bar is a bottom-aligned strip with a
+  bottom border, rounded top corners, adjacent borders and a negative bottom
+  margin; the active tab connects to the content area and uses the primary
+  colour for text plus an inset top accent, with hover opacity. Still
+  horizontally scrollable.
+- **Settings → Categories → Library tabs options.** A new panel has two
+  per-device toggles persisted in localStorage (`settings:library`): **All tab:
+  Shown/Hidden** and **Counts: Shown/Hidden**. The Library page hides the All
+  tab when disabled (an All selection falls back to the uncategorized/Default
+  tab) and shows `Name (count)` labels only when counts are enabled.
+- **Inline Rename for categories.** Every category row in Settings →
+  Categories has a pencil/**Rename** button; it turns the row into an inline
+  text input and Enter saves via the existing `updateCategory` mutation (then
+  refreshes). Bulk edit mode is unchanged; the rename button is hidden in bulk
+  edit.
+- **Web UI and server rebuilt** with patch **0011** (after 0010; no server
+  API/schema changes); version **0.13.8** (`versionCode` 1308, tag
+  `android-v0.13.8`), APK filename scheme unchanged.
+
+Previous release — **0.13.7** — and its features:
 
 ## What's new in 0.13.7
 
@@ -564,12 +594,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.7**,
-`versionCode` 1307) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.8**,
+`versionCode` 1308) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.7 -PappVersionCode=1307 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.8 -PappVersionCode=1308 \
   -PapkDate=2026-11-14
 ```
 
@@ -630,11 +660,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.7`. For a tag, CI derives everything from the tag and
+example `android-v0.13.8`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.7` → `1307`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.8` → `1308`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -833,6 +863,21 @@ The embedded web UI's library/manga pages gained a few workflow improvements in
   filter and search controls still work. The former `/library/categories`
   list page redirects to the tabbed `/library`, and the topbar Categories link
   is hidden.
+- **Library tab display options (0.13.8).** Settings → Categories has a
+  **Library tabs** panel with two **per-device** toggles stored in
+  localStorage (`settings:library`): **All tab: Shown/Hidden** and
+  **Counts: Shown/Hidden**. The Library page hides the All tab when disabled
+  (if All was selected it falls back to the uncategorized/Default tab) and
+  appends `Name (count)` to category tab labels only when counts are enabled.
+  The tab bar also offsets itself past the 5rem desktop sidebar on wide screens
+  and is styled like browser tabs (bottom-aligned strip, rounded top corners,
+  connected active tab).
+- **Rename a library (0.13.8).** Each category row in Settings → Categories
+  has a pencil/**Rename** button (title "Rename library") that turns the row
+  into an inline name field; press **Enter** to save through the existing
+  `updateCategory` mutation and refresh the list. The server-side rename
+  appears on every device; the bulk edit mode is still available and hides the
+  per-row rename buttons.
 - **Migrate a manga to another source.** Open a saved manga; its top bar has a
   **Migrate** icon between Refresh and Open. Choose one of the installed
   sources in the modal; the web UI stores the existing migration context
@@ -926,7 +971,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.7-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.8-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1789,6 +1834,24 @@ Categories link is hidden. The **All** tab fetches each category and merges
 them, so it can take longer on large libraries; category tabs fetch only their
 own list.
 
+**The Library tabs are hidden under the sidebar on a desktop/tablet.**
+Fixed in 0.13.8: at widths ≥ 1024px `.library-tabs` gets a 5rem left margin
+plus a right margin to clear the fixed desktop sidebar. Update the app/embedded
+UI and reload the page if an old web UI is cached.
+
+**The All tab or category counts are missing.** Those are per-device display
+options in Settings → Categories → **Library tabs**: **All tab:
+Shown/Hidden** and **Counts: Shown/Hidden** (stored in localStorage
+`settings:library`). Hiding All also makes the Library fall back to the
+uncategorized/Default tab if All was selected. Other devices keep their own
+setting.
+
+**A category rename does not appear / how do I rename a library?** In
+Settings → Categories use the pencil/**Rename** button on the category row,
+edit the name inline and press Enter; it saves through the server's
+`updateCategory` and refreshes (visible on all devices). The bulk edit mode
+still exists and hides the per-row rename buttons while active.
+
 **Layout presets do not appear on another device.** From 0.13.6 presets are
 stored on the server in `<TANOSHI_HOME>/layout_presets.json` and served by
 `GET/PUT /api/layout-presets`; every device connected to the same server should
@@ -2038,7 +2101,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless pages, 0.13.7 migrate/change-library/library tabs |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` + library-tab options/sidebar `0011` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless pages, 0.13.7 migrate/tabs, 0.13.8 tab styling/options/rename |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
@@ -2051,7 +2114,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Reader double page | Double Display Mode uses `justify-content:center` + zero horizontal image margins so spare space stays at the sides (from 0.13.6) |
 | Manga migration | Manga-page Migrate icon → source picker → catalogue pre-filled with title → existing source-path `migrateManga` flow; saved manga only (0.13.7) |
 | Library actions | Change Library = `deleteFromLibrary` + `addToLibrary(category_ids)` category replacement (progress/trackers unchanged); Library tabs All + per-category with counts, All merged/deduped; `/library/categories` redirects (0.13.7) |
-| App version | 0.13.7 (`versionName`); `versionCode` 1307 in local builds and for the `android-v0.13.7` tag |
+| Library tab options | Per-device localStorage (`settings:library`): All tab Shown/Hidden, Counts Shown/Hidden; hidden All falls back to Default; browser-style tabs with 5rem desktop-sidebar offset (0.13.8) |
+| Category rename | Per-row inline Rename in Settings → Categories (Enter saves via server `updateCategory`, list refreshes), bulk edit unchanged (0.13.8) |
+| App version | 0.13.8 (`versionName`); `versionCode` 1308 in local builds and for the `android-v0.13.8` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -2075,7 +2140,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0010 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0011 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

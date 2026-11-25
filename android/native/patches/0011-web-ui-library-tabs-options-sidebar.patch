@@ -1,0 +1,340 @@
+--- a/crates/tanoshi-web/src/common/library_settings.rs
++++ b/crates/tanoshi-web/src/common/library_settings.rs
+@@ -61,9 +61,11 @@
+     pub default_category: Option<Category>,
+     pub sort: LibrarySort,
+     pub filter: LibraryFilter,
++    pub show_all_tab: bool,
++    pub show_category_counts: bool,
+ }
+ 
+-#[derive(Default, Deserialize, Serialize)]
++#[derive(Deserialize, Serialize)]
+ pub struct LibrarySettings {
+     #[serde(skip)]
+     use_modal: bool,
+@@ -76,6 +78,32 @@
+     pub default_category: Mutable<Option<Category>>,
+     pub sort: Mutable<LibrarySort>,
+     pub filter: Mutable<LibraryFilter>,
++    /// Show the synthetic "All" library tab.
++    #[serde(default = "default_true_mutable")]
++    pub show_all_tab: Mutable<bool>,
++    /// Append the manga count to each category tab label.
++    #[serde(default = "default_true_mutable")]
++    pub show_category_counts: Mutable<bool>,
++}
++
++fn default_true_mutable() -> Mutable<bool> {
++    Mutable::new(true)
++}
++
++impl Default for LibrarySettings {
++    fn default() -> Self {
++        Self {
++            use_modal: false,
++            first_render: Mutable::new(false),
++            show: Mutable::new(false),
++            categories: MutableVec::new(),
++            default_category: Mutable::new(None),
++            sort: Mutable::new(LibrarySort::default()),
++            filter: Mutable::new(LibraryFilter::default()),
++            show_all_tab: Mutable::new(true),
++            show_category_counts: Mutable::new(true),
++        }
++    }
+ }
+ 
+ impl LibrarySettings {
+@@ -104,7 +132,17 @@
+         self.first_render.replace_with(|_| false);
+     }
+ 
+-    fn save(&self) {
++    pub fn set_show_all_tab(&self, show: bool) {
++        self.show_all_tab.set(show);
++        self.save();
++    }
++
++    pub fn set_show_category_counts(&self, show: bool) {
++        self.show_category_counts.set(show);
++        self.save();
++    }
++
++    pub fn save(&self) {
+         let key = KEY.to_string();
+         let _ = local_storage().set_item(&key, &serde_json::to_string(self).unwrap());
+         if self.use_modal {
+@@ -295,13 +333,17 @@
+             let use_modal = signal::always(self.use_modal),
+             let default_category = self.default_category.signal_cloned(),
+             let sort = self.sort.signal_cloned(),
+-            let filter = self.filter.signal_cloned() =>
++            let filter = self.filter.signal_cloned(),
++            let show_all_tab = self.show_all_tab.signal(),
++            let show_category_counts = self.show_category_counts.signal() =>
+ 
+             LibrarySettingSignal {
+                 use_modal: *use_modal,
+                 default_category: default_category.clone(),
+                 sort: *sort,
+                 filter: *filter,
++                show_all_tab: *show_all_tab,
++                show_category_counts: *show_category_counts,
+             }
+         }
+     }
+--- a/crates/tanoshi-web/src/settings_categories.rs
++++ b/crates/tanoshi-web/src/settings_categories.rs
+@@ -1,5 +1,5 @@
+ use crate::{
+-    common::{events, snackbar, Category},
++    common::{events, snackbar, Category, LibrarySettings},
+     query,
+     utils::AsyncLoader,
+ };
+@@ -18,6 +18,8 @@
+     pub is_edit: Mutable<bool>,
+     categories: MutableVec<Category>,
+     new_category: Mutable<Option<String>>,
++    rename_id: Mutable<Option<i64>>,
++    library_settings: Rc<LibrarySettings>,
+     loader: AsyncLoader,
+ }
+ 
+@@ -26,6 +28,8 @@
+         Rc::new(Self {
+             is_edit: Mutable::new(false),
+             new_category: Mutable::new(None),
++            rename_id: Mutable::new(None),
++            library_settings: LibrarySettings::new(false, false),
+             categories: MutableVec::new(),
+             loader: AsyncLoader::new(),
+         })
+@@ -72,6 +76,7 @@
+                 match query::update_category(id, &name).await {
+                     Ok(_) => {
+                         settings.is_edit.set(false);
++                        settings.rename_id.set(None);
+                         settings.fetch_categories();
+                     }
+                     Err(err) => {
+@@ -111,6 +116,49 @@
+                     .style("display", "flex")
+                     .style("justify-content", "flex-end")
+                 }),
++                html!("div", {
++                    .class("reader-settings")
++                    .class("non-modal")
++                    .children(&mut [
++                        html!("label", {
++                            .style("margin", "0.5rem")
++                            .text("Library tabs")
++                        }),
++                        html!("div", {
++                            .class("reader-settings-row")
++                            .children(&mut [
++                                html!("button", {
++                                    .style("width", "50%")
++                                    .class_signal("active", settings.library_settings.show_all_tab.signal())
++                                    .text_signal(settings.library_settings.show_all_tab.signal().map(|show| {
++                                        if show { "All tab: Shown" } else { "All tab: Hidden" }
++                                    }))
++                                    .event(clone!(settings => move |_: events::Click| {
++                                        let show = settings.library_settings.show_all_tab.get();
++                                        settings.library_settings.set_show_all_tab(!show);
++                                    }))
++                                }),
++                                html!("button", {
++                                    .style("width", "50%")
++                                    .class_signal("active", settings.library_settings.show_category_counts.signal())
++                                    .text_signal(settings.library_settings.show_category_counts.signal().map(|show| {
++                                        if show { "Counts: Shown" } else { "Counts: Hidden" }
++                                    }))
++                                    .event(clone!(settings => move |_: events::Click| {
++                                        let show = settings.library_settings.show_category_counts.get();
++                                        settings.library_settings.set_show_category_counts(!show);
++                                    }))
++                                }),
++                            ])
++                        }),
++                        html!("div", {
++                            .style("margin", "0.5rem")
++                            .style("font-size", "smaller")
++                            .style("opacity", "0.8")
++                            .text("Use the Rename button on a library to rename it. These options change the Library tab bar.")
++                        }),
++                    ])
++                }),
+                 html!("ul", {
+                     .class("list")
+                     .children_signal_vec(settings.categories.signal_vec_cloned().enumerate().map(clone!(settings => move |(index, cat)|
+@@ -151,12 +199,33 @@
+                                         } else {
+                                             html!("div", {
+                                                 .style("padding", "0.25rem")
+-                                                .children(&mut [
+-                                                    html!("span", {
+-                                                        .style("margin", "0.25rem")
+-                                                        .text(&cat.name)
+-                                                    })
+-                                                ])
++                                                .child_signal(settings.rename_id.signal_cloned().map(clone!(settings, cat => move |rename_id| {
++                                                    if rename_id == cat.id {
++                                                        Some(html!("input" => HtmlInputElement, {
++                                                            .style("width", "100%")
++                                                            .attr("type", "text")
++                                                            .attr("value", &cat.name)
++                                                            .with_node!(input => {
++                                                                .after_inserted(clone!(input => move |_| {
++                                                                    let _ = input.focus();
++                                                                }))
++                                                                .event_with_options(&EventOptions::preventable(), clone!(settings, cat, input => move |event: events::KeyDown| {
++                                                                    if event.key() == "Enter" {
++                                                                        event.prevent_default();
++                                                                        if let Some(cat_id) = cat.id {
++                                                                            settings.update_category(cat_id, input.value());
++                                                                        }
++                                                                    }
++                                                                }))
++                                                            })
++                                                        }))
++                                                    } else {
++                                                        Some(html!("span", {
++                                                            .style("margin", "0.25rem")
++                                                            .text(&cat.name)
++                                                        }))
++                                                    }
++                                                })))
+                                             })
+                                         };
+ 
+@@ -164,6 +233,28 @@
+                                     })))
+                                 }),
+                             ])
++                            .child_signal(settings.is_edit.signal().map(clone!(settings, cat => move |is_edit| {
++                                (!is_edit).then(|| html!("button", {
++                                    .style("margin-right","0.5rem")
++                                    .attr("title", "Rename library")
++                                    .event(clone!(settings, cat => move |_: events::Click| {
++                                        settings.rename_id.set(cat.id);
++                                    }))
++                                    .children(&mut [
++                                        svg!("svg", {
++                                            .attr("xmlns", "http://www.w3.org/2000/svg")
++                                            .attr("fill", "currentColor")
++                                            .attr("viewBox", "0 0 20 20")
++                                            .class("icon-sm")
++                                            .children(&mut [
++                                                svg!("path", {
++                                                    .attr("d", "M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z")
++                                                })
++                                            ])
++                                        }),
++                                    ])
++                                }))
++                            })))
+                             .child_signal(settings.is_edit.signal().map(clone!(settings => move |is_edit| {
+                                 is_edit.then(|| html!("button", {
+                                     .style("margin-right","0.5rem")
+--- a/crates/tanoshi-web/src/library.rs
++++ b/crates/tanoshi-web/src/library.rs
+@@ -127,6 +127,9 @@
+                     count: c.count,
+                 }).collect());
+ 
++            if !library.library_settings.show_all_tab.get() && library.selected.get() == -1 {
++                library.selected.set(0);
++            }
+             let selected = library.selected.get();
+             let name = if selected == -1 {
+                 "Library".to_string()
+@@ -171,6 +174,7 @@
+                 html!("button", {
+                     .class("library-tab")
+                     .class_signal("active", library.selected.signal().map(|selected| selected == -1))
++                    .visible_signal(library.library_settings.show_all_tab.signal())
+                     .text("All")
+                     .event(clone!(library => move |_: events::Click| {
+                         Self::select_category(library.clone(), -1, "Library".to_string());
+@@ -180,11 +184,18 @@
+             .children_signal_vec(library.categories.signal_vec_cloned().map(clone!(library => move |category| {
+                 let selected = category.id.unwrap_or(0);
+                 let name = category.name.clone();
+-                let label = format!("{} ({})", category.name, category.count);
++                let name_for_label = name.clone();
++                let count = category.count;
+                 html!("button", {
+                     .class("library-tab")
+                     .class_signal("active", library.selected.signal().map(move |current| current == selected))
+-                    .text(&label)
++                    .text_signal(library.library_settings.show_category_counts.signal().map(move |show| {
++                        if show {
++                            format!("{} ({})", name_for_label, count)
++                        } else {
++                            name_for_label.clone()
++                        }
++                    }))
+                     .event(clone!(library, name => move |_: events::Click| {
+                         Self::select_category(library.clone(), selected, name.clone());
+                     }))
+--- a/crates/tanoshi-web/static/css/styles.scss
++++ b/crates/tanoshi-web/static/css/styles.scss
+@@ -1214,26 +1214,47 @@
+     background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
+ }
+ 
+-/* Library category tabs (the All tab plus one per library category). */
++/* Library category tabs, styled like desktop-browser tabs. */
+ .library-tabs {
+     display: flex;
+-    gap: 0.25rem;
++    align-items: flex-end;
++    gap: 0.15rem;
+     overflow-x: auto;
+-    padding: 0.5rem;
+-    margin: 0 0.25rem;
++    padding: 0.5rem 0.5rem 0;
++    margin: 0.5rem 0.25rem 0;
++    border-bottom: 1px solid var(--background-color-200);
+ }
+ 
+ .library-tab {
+     white-space: nowrap;
+-    padding: 0.4rem 0.75rem;
+-    border: none;
+-    border-radius: 999px;
++    padding: 0.45rem 0.9rem;
++    margin-bottom: -1px;
++    border: 1px solid var(--background-color-200);
++    border-bottom: none;
++    border-radius: 0.6rem 0.6rem 0 0;
+     background-color: var(--background-color-100);
+     color: var(--color);
++    opacity: 0.85;
+     cursor: pointer;
+ 
+     &.active {
+-        background-color: var(--primary-color);
+-        color: white;
++        background-color: var(--background-color);
++        color: var(--primary-color);
++        font-weight: 600;
++        opacity: 1;
++        box-shadow: inset 0 2px 0 var(--primary-color);
++    }
++
++    &:hover,
++    &:active {
++        opacity: 1;
++    }
++}
++
++/* The desktop navigation is a 5rem fixed sidebar; keep the tab strip clear of it. */
++@media (min-width: 1024px) {
++    .library-tabs {
++        margin-left: 5rem;
++        margin-right: 0.5rem;
+     }
+ }
