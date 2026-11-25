@@ -5,9 +5,14 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.5** — see the
+Current release: **0.13.6** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.5 makes chapter downloads work for
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.6 makes **reader Layout Preference
+presets server-shared** (stored in `layout_presets.json` next to
+`config.yml` and served over `GET/PUT /api/layout-presets`, while each device
+keeps its own selected preset) and fixes the **double-page reader gap** (spare
+space now goes to the sides, not between the pages). 0.13.5 makes chapter
+downloads work for
 **every plugin extension** (the old source-id guard dropped large hashed
 plugin ids as "Local"), saves each chapter as **individual page images in
 public storage** under
@@ -96,7 +101,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.5](#whats-new-in-0135)
+- [What's new in 0.13.6](#whats-new-in-0136)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -145,6 +150,31 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.13.6
+
+- **Layout Preference presets are stored on the server and shared.** The
+  **Settings → Layout Preference** presets used to live only in the browser,
+  so a second device only had **Default**. The server now exposes
+  **`GET/PUT /api/layout-presets`** and persists the custom presets in
+  **`layout_presets.json`** next to `config.yml` (atomic tmp+rename; returns
+  `{"presets":[]}` when absent/invalid). The web UI loads the shared list,
+  uploads this device's old local presets once if the server has none, and
+  saves each new preset via `PUT`. The **selected** preset stays per device in
+  localStorage (phone/tablet can use different layouts); if the selected name
+  vanishes from the shared list the device falls back to Default. The endpoint
+  is unauthenticated (local server; reachable on LAN if exposed).
+- **Double-page reader gap fixed.** Display Mode **Double** no longer splits
+  the spare horizontal space into the middle between the two pages: the
+  double page-list is `justify-content:center` and the images use
+  `margin-left/right:0`, so letterboxing goes to the outer sides and spreads
+  stay together. Continuous/single-page modes are unchanged.
+- **Web UI and server rebuilt** with patches **0008** (server layout-preset
+  REST module/route) and **0009** (web preset sync + double-page CSS); version
+  **0.13.6** (`versionCode` 1306, tag `android-v0.13.6`), APK filename scheme
+  unchanged.
+
+Previous release — **0.13.5** — and its features:
 
 ## What's new in 0.13.5
 
@@ -376,13 +406,19 @@ Previous release — **0.8.0** — and its features:
   another source's cached filters, and genre/tag groups now start **expanded**
   so the available choices are visible right away. Sources that expose no
   filters show a clear message instead of a blank sheet.
-- **Layout Preference presets** — Settings → **Layout Preference** stores
-  reader-option presets (Reading mode, Padding, Display mode, Direction,
-  Background, Fit) **on the device**. It ships the **default** preset (Paged,
-  Padding disabled, Single, Left to Right, White, Fit All); use
-  **Add New Preset** to snapshot your current reader options. The selected
-  preset is remembered per device and a new device starts at Default even
-  against the same server.
+- **Layout Preference presets** — Settings → **Layout Preference** bundles
+  the reader options (Reading mode, Padding, Display mode, Direction,
+  Background, Fit) into named presets. Since **0.13.6 the presets are stored on
+  the server** in `layout_presets.json` (next to `config.yml`) and shared by
+  every device connected to it: the web UI loads them through
+  **`GET/PUT /api/layout-presets`**, uploads this device's previously
+  device-local presets once if the server has none, and saves new presets via
+  `PUT`. The built-in **Default** preset is always present; **Add New Preset**
+  snapshots the current reader options. The **selected** preset remains
+  **per device** (localStorage `settings:layout_selected`) and falls back to
+  Default if the shared list no longer contains it. The endpoint is
+  unauthenticated (local server; reachable over LAN when exposed). See also
+  the double-page fix in [What's new in 0.13.6](#whats-new-in-0136).
 - **Reader Tap Area** — Settings → Reader → **Tap Area** picks
   "bottom right: NEXT, bottom left: PREV" or "bottom left: NEXT, bottom right:
   PREV"; the reader's tap zones follow the setting.
@@ -495,12 +531,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.5**,
-`versionCode` 1305) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.6**,
+`versionCode` 1306) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.5 -PappVersionCode=1305 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.6 -PappVersionCode=1306 \
   -PapkDate=2026-11-14
 ```
 
@@ -561,11 +597,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.5`. For a tag, CI derives everything from the tag and
+example `android-v0.13.6`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.5` → `1305`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.6` → `1306`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -827,7 +863,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.5-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.6-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1435,6 +1471,7 @@ manager/app.
 ```
 /data/data/<package>/files/tanoshi/      # TANOSHI_HOME
 ├── config.yml         # port, secret, absolute paths, extension timeouts
+├── layout_presets.json # shared Layout Preference presets (0.13.6+)
 ├── tanoshi.db         # SQLite: accounts, library, history
 ├── server.log         # mirrored stdout/stderr (rotates to server.log.1 at ~5 MB)
 ├── cache/             # image cache
@@ -1666,6 +1703,22 @@ start the server. Keep it ≥ 1024.
 now work for every signed-in user (admin-only queue inspection/repro controls
 stay restricted). Update the app and restart the server; if an old web UI is
 still cached, reopen the WebView.
+
+**Layout presets do not appear on another device.** From 0.13.6 presets are
+stored on the server in `<TANOSHI_HOME>/layout_presets.json` and served by
+`GET/PUT /api/layout-presets`; every device connected to the same server should
+see them after reloading the web UI (the selected preset is per device). If
+they are missing, check the server Logs, confirm the JSON file is readable
+(next to `config.yml`), and that the second device is connected to the same
+server/port. The endpoint is unauthenticated (loopback/LAN). If the server has
+no presets, the first device that loads the old UI uploads its local presets
+once; a new empty server shows only **Default** until a preset is created.
+
+**Double-page chapters have a gap / split pages.** Fixed in 0.13.6: the double
+page-list is centred with zero auto margins on the images, so spare space and
+letterboxing stay at the outer sides. Update the app/embedded UI and restart
+the server if an old web UI is cached; continuous/single-page modes are
+unchanged.
 
 **Where are downloaded chapters stored?** From 0.13.5 the server extracts
 each chapter into **public storage** at
@@ -1900,7 +1953,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + final download-progress patch `0007` (patch `0006`/reader image-save deleted in 0.13.5), embedded in `libtanoshi.so`; 0.9.1 full-palette/adaptive text, 0.9.2 themed settings cells, 0.13.5 per-chapter downloads/progress |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless double pages |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
@@ -1909,7 +1962,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
 | Chapter downloads (layout) | Public `/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/` page images (temporary CBZ extracted, archive deleted); reader reads folders; app requests All files access (Android 11+) / legacy storage (7–10) |
 | Chapter downloads | Any signed-in user can queue/remove/reorder/see the queue (AuthGuard); per-chapter Download button; progress `downloaded/total`, 4 s auto-refresh and Downloaded marker; guard rejects only Local `10000..1_000_000` so plugin extensions download (0.13.5) |
-| App version | 0.13.5 (`versionName`); `versionCode` 1305 in local builds and for the `android-v0.13.5` tag |
+| Layout presets | Server-shared custom presets in `<TANOSHI_HOME>/layout_presets.json` via `GET/PUT /api/layout-presets` (unauthenticated, atomic write); selected preset per device in localStorage (from 0.13.6) |
+| Reader double page | Double Display Mode uses `justify-content:center` + zero horizontal image margins so spare space stays at the sides (from 0.13.6) |
+| App version | 0.13.6 (`versionName`); `versionCode` 1306 in local builds and for the `android-v0.13.6` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1933,7 +1988,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0004 + theme_settings.rs, build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0009 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

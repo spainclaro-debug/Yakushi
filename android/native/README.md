@@ -45,11 +45,13 @@ management is app-only) and
 (per-device theme palettes; since 0.9.1 the palette is applied across banners,
 icons, the unread badge, page background, headers and settings panels with
 contrast-adaptive text computed per light/dark mode, the 0.9.2 Settings list
-cells get their own tinted surface + adaptive cell text, and 0.13.5 adds
+cells get their own tinted surface + adaptive cell text, 0.13.5 adds
 per-chapter download buttons/progress in the chapter list (patch 0007; the old
-reader image-save patch 0006 was deleted). Offline chapters are extracted as
-page images into public `<external storage>/yakushi/.downloaded/<manga>/<chapter>/`
-by the server worker (patch 0005 + app public `download_path`; see step 1).
+reader image-save patch 0006 was deleted) and 0.13.6 adds server-shared layout
+presets (patch 0008 + copied `layout_presets.rs`) and the gapless double-page
+reader (patch 0009). Offline chapters are extracted as page images into public
+`<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
+worker (patch 0005 + app public `download_path`; see step 1).
 
 ---
 
@@ -112,7 +114,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007), the Android app/extension-loader patches (0001 + 0002) and the downloads patch (0005), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007 + 0009), the Android app/extension-loader patches (0001 + 0002), the downloads patch (0005) and the server layout-presets patch (0008 + copied `layout_presets.rs`), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -174,11 +176,17 @@ the equivalent manual steps, which is what the scripts automate.
      30 ticks) while any `download_status` is pending, and gives the downloaded
      marker a `Downloaded` title/label. Patch 0006 (reader Save image) was
      deleted in 0.13.5 along with the bridge method and WebView listener.
+   - **`native/patches/0009-web-ui-layout-presets-double-gap.patch`** (0.13.6):
+     Layout Preference presets are fetched from the server
+     (`GET /api/layout-presets`), uploaded once from this device's legacy local
+     list when the server has none, and saved via `PUT`; only the selected
+     preset name stays in localStorage. Also fixes the double-page layout
+     (`justify-content:center`, images with zero horizontal auto margins).
    - These web patches only matter when regenerating the wasm UI: the vendored
      `native/web-dist/` already contains the patched output, so a normal server
      rebuild uses it as-is. `build_tanoshi.sh` applies them automatically
      (infinite scroll → web features → 0003 → `theme_settings.rs` +
-     0004 → 0007).
+     0004 → 0007 → 0009).
 5. **`native/patches/0005-downloads-tempchapter.patch`** (final in 0.13.5),
    applied after the app/loader patches: a new `AuthGuard` lets **any
    signed-in user** download/remove/reorder chapters and read the queue/
@@ -198,6 +206,13 @@ the equivalent manual steps, which is what the scripts automate.
    reject only `10000..1_000_000`; that hunk is present in the built source
    tree but **not in this checked-in 0005 patch file** — regenerate the
    patch from the build tree before rebuilding from the patch set.
+6. **`native/patches/0008-server-layout-presets.patch`** plus the new file
+   `native/patches/layout_presets.rs` (copied to
+   `crates/tanoshi/src/presentation/rest/layout_presets.rs`), applied after
+   0005: registers **`GET/PUT /api/layout-presets`** in the REST router; reads/
+   writes `<TANOSHI_HOME>/layout_presets.json` (next to `config.yml`) with a
+   tmp+rename atomic write, returns `{"presets":[]}` when absent/invalid and
+   validates `{"presets":[...]}` on PUT. The endpoint is unauthenticated.
 
 Manually:
 
@@ -222,6 +237,8 @@ cp ../android/native/patches/theme_settings.rs \
 git apply ../android/native/patches/0004-web-ui-themes.patch
 # Chapter download per-chapter button/progress/Downloaded marker (0.13.5)
 git apply ../android/native/patches/0007-web-ui-download-progress.patch
+# Server-backed layout presets + gapless double-page reader (0.13.6)
+git apply ../android/native/patches/0009-web-ui-layout-presets-double-gap.patch
 
 # Android app layer
 git apply ../android/native/patches/0001-android-app.patch
@@ -230,6 +247,10 @@ cp ../android/native/patches/android_loader.rs crates/tanoshi-vm/src/extension/a
 git apply ../android/native/patches/0002-android-extension-loader.patch
 # Server: signed-in users can download; offline cache in <home>/.tempchapter (0.13.0)
 git apply ../android/native/patches/0005-downloads-tempchapter.patch
+# Server: shared layout presets API/file (0.13.6)
+cp ../android/native/patches/layout_presets.rs \
+   crates/tanoshi/src/presentation/rest/layout_presets.rs
+git apply ../android/native/patches/0008-server-layout-presets.patch
 
 # Use the vendored, Android-patched compress-tools crate
 export CARGO_HOME="$PWD/cargo-home"
@@ -285,7 +306,7 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.5+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.6+:
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -300,24 +321,26 @@ default source is the **vendored dist** in this directory:
   `--theme-cell-light`/`--theme-cell-dark` + `--theme-cell-text-light/dark` for
   the Settings-page list cells) and
   `native/patches/0007-web-ui-download-progress.patch` (0.13.5: per-chapter
-  download button, queued/progress/auto-refresh and **Downloaded** marker;
-  patch 0006/reader Save image was deleted). Its wasm bundle still contains the
+  download button, queued/progress/auto-refresh and **Downloaded** marker) and
+  `native/patches/0009-web-ui-layout-presets-double-gap.patch` (0.13.6:
+  server-backed layout presets + gapless double-page reader; patch 0006/reader
+  Save image was deleted). Its wasm bundle still contains the
   `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.13.5):
-  `tanoshi-web-856c2657bb0904cc.js`, `tanoshi-web-208996c3e73ce683_bg.wasm`,
+  Current dist asset names (0.13.6):
+  `tanoshi-web-26723175908082f1.js`, `tanoshi-web-454111517ff14157_bg.wasm`,
   `styles-294196d9e0cefbee.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.5**
-  (0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0
-  used older dists). The 0.13.5 rebuild carries patch 0005 (AuthGuard, image
-  extraction into the configured/public folder, directory reading, removal) and
-  the final 0007 download UI; patch 0006 was deleted.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.6**
+  (0.13.5/0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier rebuilt dists;
+  0.2.0/0.5.0/0.6.0 used older dists). The 0.13.6 rebuild carries the 0009
+  layout-preset sync/double-page CSS plus the 0008 server route and
+  `layout_presets.rs`; patch 0006 stays deleted.
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -585,6 +608,9 @@ grep -c -a "local source can't be downloaded" libtanoshi.so # expect >= 1 (0.13.
 grep -c -a "Download queued" libtanoshi.so             # expect >= 1 (0.13.1+ feedback)
 grep -c -a "Select at least one chapter" libtanoshi.so # expect >= 1 (0.13.1+ empty selection)
 grep -c -a "Downloaded" libtanoshi.so                  # expect >= 1 (0.13.1+ marker label)
+grep -c -a "layout_presets.json" libtanoshi.so         # expect >= 1 (0.13.6 server storage)
+grep -c -a "/api/layout-presets" libtanoshi.so         # expect >= 1 (0.13.6 route)
+grep -c -a "stored on this server" libtanoshi.so       # expect >= 1 (0.13.6 UI text)
 #   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
 #   match the names in android/native/web-dist/index.html
 
@@ -628,8 +654,9 @@ output of this pipeline, built on an x86_64 Linux host with:
   `native/patches/0005-downloads-tempchapter.patch`,
 - the embedded web UI from `android/native/web-dist/` (rebuilt from source with
   the 0.8.0 web features, infinite-scroll, app-only extension-management,
-  per-device theme patches and the 0.13.5 per-chapter download UI; 0.9.1
-  reworked the theme application and 0.9.2 themed the Settings list cells),
+  per-device theme patches, the 0.13.5 per-chapter download UI and the 0.13.6
+  shared-layout/double-page changes; 0.9.1 reworked the theme application and
+  0.9.2 themed the Settings list cells),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -646,9 +673,10 @@ History/filters/layout-preset/tap-area web features, **0.9.0 rebuilt it again**
 for the per-device theme palettes, **0.9.1 rebuilt it** with the reworked
 full-UI theme application and adaptive text, and **0.9.2 rebuilt it** with the
 themed Settings list cells, and **0.13.0/0.13.1 rebuilt it** for the
-early download cache/UI, and **0.13.5 rebuilt it** for the public page-image
+early download cache/UI, **0.13.5 rebuilt it** for the public page-image
 extraction (`AuthGuard`, folder downloads, directory reading, removal) and the
-final per-chapter download UI (patch 0006 deleted). The exported extension sources
+final per-chapter download UI (patch 0006 deleted), and **0.13.6 rebuilt it**
+with the shared layout-presets route/module and the double-page reader fix. The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

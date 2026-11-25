@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.5](#whats-new-in-0135)
+- [What's new in 0.13.6](#whats-new-in-0136)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,25 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.13.6
+
+- **Layout Preference presets are server-shared.** Presets (Settings → Layout
+  Preference) are now stored on the server in `layout_presets.json` next to
+  `config.yml` and served over **`GET/PUT /api/layout-presets`**, so every
+  device connected to the same server sees the same preset list (this device's
+  old local presets are uploaded once if the server has none). Each device
+  still remembers its **own selected preset** in localStorage and falls back to
+  Default if it disappears from the shared list. The endpoint is
+  unauthenticated (local server; reachable on LAN when exposed).
+- **Gapless double-page reader.** Display Mode **Double** no longer splits
+  spare horizontal space into the middle between pages: the page list is
+  centred and the images have no auto margins, so letterboxing/spare space goes
+  to the outer sides and two-page spreads stay together.
+- **Version 0.13.6** (`android-v0.13.6`, `yakushi-server-release-<date>.apk`);
+  includes all earlier features.
+
+Previous release — **0.13.5** — and its features:
 
 ## What's new in 0.13.5
 
@@ -94,15 +113,20 @@ trackers](#downloads-and-trackers).
 ### Reader
 
 - **Reading modes:** paged and continuous.
-- **Display:** single, double and auto (landscape-aware) pages.
+- **Display:** single, double and auto (landscape-aware) pages; double-page
+  spreads are gapless (spare space at the sides, not in the middle, from
+  0.13.6).
 - **Direction:** left-to-right and right-to-left.
 - **Fit:** fit all, fit width, fit height; zoom; page padding.
 - **Backgrounds:** white and black.
 - **Layout Preference presets** — bundle the reader options (mode, padding,
   display, direction, background, fit) under names, with a built-in
   **Default** preset (Paged, padding off, Single, Left to Right, White, Fit
-  All) and **Add New Preset**. Presets and the selected preset are stored
-  **per device**; a new device starts at Default.
+  All) and **Add New Preset**. Since **0.13.6 presets are stored on the
+  server** (`layout_presets.json` next to `config.yml`, served via
+  `GET/PUT /api/layout-presets`) and shared across devices, while the
+  **selected** preset stays per device; a new device starts at Default if the
+  shared list lacks that name.
 - **Tap Area** — choose whether the right or the left screen edge belongs to
   the next page ("bottom right: NEXT, bottom left: PREV" or the mirrored
   layout).
@@ -340,7 +364,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.5** (`android-v0.13.5`), published as
+- The current Android release is **0.13.6** (`android-v0.13.6`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

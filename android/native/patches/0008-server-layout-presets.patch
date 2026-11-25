@@ -1,0 +1,20 @@
+--- a/crates/tanoshi/src/presentation/rest/mod.rs
++++ b/crates/tanoshi/src/presentation/rest/mod.rs
+@@ -1,2 +1,3 @@
+ pub mod health;
+ pub mod image;
++pub mod layout_presets;
+--- a/crates/tanoshi/src/presentation/mod.rs
++++ b/crates/tanoshi/src/presentation/mod.rs
+@@ -261,6 +261,11 @@
+         router = router
+             .route("/health", get(health_check))
+             .route("/image/{url}", get(fetch_image))
++            .route(
++                "/api/layout-presets",
++                get(rest::layout_presets::get_layout_presets)
++                    .put(rest::layout_presets::put_layout_presets),
++            )
+             .layer(Extension(image_svc));
+ 
+         let svc = if self.enable_playground {

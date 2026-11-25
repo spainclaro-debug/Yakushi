@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.5`). The Termux package in the repository root has
+(for example `android-v0.13.6`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,58 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.6
+
+### Added
+
+- **Layout Preference presets are shared by the server.** The web UI used to
+  keep the Layout Preference presets only in browser localStorage, so a new
+  device showed only the **Default** preset. The server now has a new REST
+  endpoint **`GET/PUT /api/layout-presets`** backed by
+  `crates/tanoshi/src/presentation/rest/layout_presets.rs`, storing
+  **`layout_presets.json` next to `config.yml`** (atomic tmp+rename; returns
+  `{"presets":[]}` when the file is missing or invalid). The web UI fetches
+  the shared list on load, **uploads this device's existing local presets once
+  when the server has none** (migration for existing users), and saves every
+  newly created preset with `PUT`. Presets created on one device therefore
+  appear on every device connected to the same server.
+  - The **selected** preset name stays **per device** in localStorage
+    (`settings:layout_selected`), so a phone and tablet can use different
+    layouts from the same shared list; if the selected name disappears from the
+    shared list the device falls back to Default.
+  - The endpoint is **unauthenticated**, like the server's image endpoint
+    (loopback by default; LAN clients can reach it when Expose on LAN is on).
+  - Creating presets is unchanged (no rename/delete feature); the layout UI
+    text now says presets are stored on the server and shared.
+
+### Fixed
+
+- **Double-page reader gap.** In Display Mode **Double** the two page images
+  used `margin-left:auto; margin-right:auto`, dividing spare horizontal space
+  into the middle between the pages. The double page-list is now
+  `justify-content: center` and the images use `margin-left/right: 0`, so any
+  spare space/letterboxing goes to the **outer sides** and two-page spreads are
+  no longer pushed apart/cropped in the middle. Continuous and single-page
+  modes are unchanged.
+
+### Changed
+
+- **Web UI and `libtanoshi.so` rebuilt** with patches **0008** (server REST
+  module + route + copied `layout_presets.rs`) and **0009** (layout-preset
+  server sync + double-page CSS); version **0.13.6** (versionCode 1306, tag
+  `android-v0.13.6`). APK filename scheme unchanged
+  (`yakushi-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- `layout_presets.json` lives in the server data directory next to
+  `config.yml`; it contains the custom presets only (Default is implicit) and
+  is uploaded to all devices by the web UI. It is included in the app's private
+  data, so uninstalling deletes it unless exported.
+- The API accepts/returns a JSON object with a `presets` array; malformed GET
+  payloads are treated as an empty list and writes are rejected with
+  `400`/`500` rather than corrupting the file.
 
 ## 0.13.5
 

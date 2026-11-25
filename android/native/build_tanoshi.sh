@@ -117,6 +117,8 @@ cp "$HERE/patches/theme_settings.rs" crates/tanoshi-web/src/common/theme_setting
 apply_patch "$HERE/patches/0004-web-ui-themes.patch"
 # Web UI: chapter download feedback/progress + downloaded marker refresh.
 apply_patch "$HERE/patches/0007-web-ui-download-progress.patch"
+# Web UI: server-backed layout presets and the gapless double-page layout.
+apply_patch "$HERE/patches/0009-web-ui-layout-presets-double-gap.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the
@@ -126,6 +128,10 @@ apply_patch "$HERE/patches/0002-android-extension-loader.patch"
 # Server: chapter downloads are allowed for any signed-in user and are stored
 # in <home>/.tempchapter (created on first install/start) for offline reading.
 apply_patch "$HERE/patches/0005-downloads-tempchapter.patch"
+# Server: shared reader layout presets persisted next to config.yml and served
+# over /api/layout-presets so every device sees the same list.
+cp "$HERE/patches/layout_presets.rs" crates/tanoshi/src/presentation/rest/layout_presets.rs
+apply_patch "$HERE/patches/0008-server-layout-presets.patch"
 
 # compress-tools is patched for Android/bionic and linked dynamically against
 # libarchive (see patches/README-patches.txt in the repo root).

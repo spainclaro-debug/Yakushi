@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.5 / 1305, local date).
+three to Gradle; local builds use the Gradle defaults (0.13.6 / 1306, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.5 / versionCode
-1305 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.5`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.6 / versionCode
+1306 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.6`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -683,6 +683,62 @@ From 0.13.5 offline chapters are **page images in public storage**:
 All-files permission; the app migrates the config, creates the directory, asks
 for the permission on launch and the docs explain where the files are and how
 to grant it.
+
+### A36 — Layout Preference presets are server-shared; the selected preset is per device
+
+From 0.13.6 reader Layout Preference presets are stored **on the server** so
+every device connected to it sees the same preset list:
+
+- New REST module `crates/tanoshi/src/presentation/rest/layout_presets.rs`
+  (copied file) with routes **`GET /api/layout-presets`** and
+  **`PUT /api/layout-presets`**, registered next to `/health` and
+  `/image/{url}` in the server router. The JSON body/response is
+  `{ "presets": [ ... ] }` (custom presets only; the built-in **Default**
+  preset is implicit).
+- Storage is **`<TANOSHI_HOME>/layout_presets.json`**, next to `config.yml`
+  (server data directory), written with a tmp file + rename. GET returns the
+  file contents, `{"presets":[]}` when the file is missing or invalid, and
+  500 + empty list on an unreadable file; PUT validates an object whose
+  `presets` is an array (400 on invalid JSON/body) and returns the stored
+  JSON; write failures are 500. The endpoint is **unauthenticated**, like the
+  existing image endpoint (loopback by default; reachable over LAN when
+  Expose on LAN is on).
+- Web UI (`common/layout_preference.rs`, patch 0009): on construction it keeps
+  its local list/selected value, then `GET`s the shared list. If the server
+  list is empty (excluding Default) and this device has custom presets, it
+  **PUTs the local presets once** (migration for existing users) and keeps
+  them. Otherwise it replaces the in-memory+local-cache list with Default +
+  the server presets (local cache key `settings:layout_presets` still exists)
+  and resets the selected preset to Default if the previously selected name is
+  gone. Creating a preset pushes it locally and **PUTs all custom presets**.
+  The **selected preset name remains per device** in localStorage
+  (`settings:layout_selected`), so a phone/tablet can use different layouts
+  from the same shared list. There is no preset delete/rename feature
+  (unchanged). The UI text says presets are stored on the server/shared and
+  selection is per device.
+- Known limitation: because the server list replaces the local list when
+  non-empty, presets created while the server was unreachable are not merged
+  if the server later returns a non-empty list; the next successful fetch/put
+  rewrites the local cache from the server.
+
+*If wrong:* existing local presets could be lost or conflicts between devices
+silently overwrite each other; the one-time upload migration covers existing
+installs, the Default preset is implicit, and PUT replaces the shared list as
+the single source of truth. The API is local/low-risk but unauthenticated.
+
+### A37 — Double-page reader layout keeps spare space at the sides
+
+From 0.13.6 the reader's **Double** display mode page-list uses
+`justify-content: center` and page images set `margin-left: 0` /
+`margin-right: 0` (previously `auto`/`auto`, which distributed spare space
+into the middle between the two pages and could make spreads look split or
+cropped). Spare space/letterboxing now stays on the outer sides; continuous
+and single-page modes are unchanged. This is a CSS/layout change in the
+embedded web UI, not a server or reader-mode setting.
+
+*If wrong:* double-page spreads could still be visually split on unusual
+aspect ratios; the fix is documented as a CSS change and reverting it is
+localised to `reader.rs`/`styles.scss`.
 
 ## Open questions for the repository owner
 

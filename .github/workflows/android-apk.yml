@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.13.5 (default)}' code '${CODE:-1305 (default)}'"
+          echo "Building version '${NAME:-0.13.6 (default)}' code '${CODE:-1306 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.13.5}"
-          CODE="${APP_VERSION_CODE:-1305}"
+          NAME="${APP_VERSION_NAME:-0.13.6}"
+          CODE="${APP_VERSION_CODE:-1306}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi Server 0.13.5 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). New: chapter downloads now save every page image into public local storage at /storage/emulated/0/yakushi/.downloaded/<manga-title>/<chapter-title>/ (the app asks for All files access on first run; offline reading reads those image folders); downloads work for all catalogue/external plugin extensions (the old source-id guard wrongly treated large extension ids as the Local source); per-chapter Download buttons with queue progress, auto-refresh and a Downloaded marker; signed-in users can see the Download Queue. The reader Save-image feature from 0.13.0 was removed. The built-in Local source remains non-downloadable because its pages are already local. Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
+          NOTES="Yakushi Server 0.13.6 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). New: reader layout presets are now stored on the server (layout_presets.json next to config.yml, served via /api/layout-presets) so every device connected to the same server sees the same preset list, while each device remembers its own selected preset; and the double-page reader layout has no middle gap - spare space now goes to the sides so two-page spreads are not cropped in the middle. Includes all 0.13.5 features: page-image chapter downloads to /storage/emulated/0/yakushi/.downloaded/<manga>/<chapter>/, per-chapter download buttons/progress, all-plugin-extension downloads, and the reader Save-image feature removed. Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
           APK_DIR=android/app/build/outputs/apk/debug
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \

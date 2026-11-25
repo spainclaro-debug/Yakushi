@@ -1,0 +1,179 @@
+--- a/crates/tanoshi-web/src/common/layout_preference.rs
++++ b/crates/tanoshi-web/src/common/layout_preference.rs
+@@ -4,22 +4,29 @@
+ use futures_signals::signal::{Mutable, SignalExt};
+ use futures_signals::signal_vec::{MutableVec, SignalVecExt};
+ use serde::{Deserialize, Serialize};
++use wasm_bindgen_futures::spawn_local;
+ use web_sys::HtmlInputElement;
+ 
+ use crate::common::reader_settings::{
+     Background, Direction, DisplayMode, Fit, ReaderMode, ReaderSettings, KEY as READER_KEY,
+ };
+ use crate::common::snackbar;
+-use crate::utils::local_storage;
++use crate::utils::{local_storage, window};
+ 
+ const PRESETS_KEY: &str = "settings:layout_presets";
+ const SELECTED_KEY: &str = "settings:layout_selected";
+ 
+ pub const DEFAULT_PRESET_NAME: &str = "default";
+ 
+-/// A named snapshot of the reader options. Presets and the current selection
+-/// live in `localStorage`, so they follow the device, not the server account:
+-/// a device that has never picked a preset starts from the Default preset.
++#[derive(Debug, Clone, Serialize, Deserialize)]
++struct LayoutPresetsFile {
++    presets: Vec<LayoutPreset>,
++}
++
++/// A named snapshot of the reader options. Presets are stored on the server
++/// (shared by every device connected to it); only the currently selected
++/// preset name is kept in `localStorage`, so each device can use a different
++/// layout from the shared list.
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ pub struct LayoutPreset {
+     pub name: String,
+@@ -87,12 +94,98 @@
+         let presets = Self::load_presets();
+         let selected = Self::load_selected(&presets);
+ 
+-        Rc::new(Self {
++        let this = Rc::new(Self {
+             presets: Rc::new(MutableVec::new_with_values(presets)),
+             selected: Mutable::new(selected),
+             adding: Mutable::new(false),
+             new_name: Mutable::new(String::new()),
+-        })
++        });
++        Self::fetch_server_presets(this.clone());
++        this
++    }
++
++    fn api_url() -> String {
++        format!(
++            "{}/api/layout-presets",
++            window().location().origin().unwrap_or_default()
++        )
++    }
++
++    /// Loads the shared preset list from the server. When the server has no
++    /// presets yet, the presets this device already had are uploaded once so
++    /// existing users keep them.
++    fn fetch_server_presets(this: Rc<Self>) {
++        spawn_local(async move {
++            let client = reqwest::Client::new();
++            let Ok(response) = client.get(Self::api_url()).send().await else {
++                return;
++            };
++            if !response.status().is_success() {
++                return;
++            }
++            let Ok(file) = response.json::<LayoutPresetsFile>().await else {
++                return;
++            };
++
++            let server_presets: Vec<LayoutPreset> = file
++                .presets
++                .into_iter()
++                .filter(|preset| preset.name != DEFAULT_PRESET_NAME)
++                .collect();
++            let local_presets: Vec<LayoutPreset> = this
++                .presets
++                .lock_ref()
++                .iter()
++                .filter(|preset| preset.name != DEFAULT_PRESET_NAME)
++                .cloned()
++                .collect();
++
++            if server_presets.is_empty() && !local_presets.is_empty() {
++                Self::persist_server(&local_presets);
++                return;
++            }
++
++            {
++                let mut presets = this.presets.lock_mut();
++                presets.clear();
++                presets.push_cloned(LayoutPreset::default_preset());
++                for preset in server_presets {
++                    presets.push_cloned(preset);
++                }
++            }
++            Self::persist_presets(&this.presets.lock_ref());
++
++            let selected = this.selected.get_cloned();
++            if !this
++                .presets
++                .lock_ref()
++                .iter()
++                .any(|preset| preset.name == selected)
++            {
++                this.selected.set(DEFAULT_PRESET_NAME.to_string());
++                let _ = local_storage().set_item(SELECTED_KEY, DEFAULT_PRESET_NAME);
++            }
++        });
++    }
++
++    /// Saves the custom presets on the server so other devices see them.
++    fn persist_server(presets: &[LayoutPreset]) {
++        let custom: Vec<LayoutPreset> = presets
++            .iter()
++            .filter(|preset| preset.name != DEFAULT_PRESET_NAME)
++            .cloned()
++            .collect();
++        if custom.is_empty() {
++            return;
++        }
++        spawn_local(async move {
++            let body = LayoutPresetsFile { presets: custom };
++            let _ = reqwest::Client::new()
++                .put(Self::api_url())
++                .json(&body)
++                .send()
++                .await;
++        });
+     }
+ 
+     fn load_presets() -> Vec<LayoutPreset> {
+@@ -194,6 +287,7 @@
+ 
+         self.presets.lock_mut().push_cloned(preset.clone());
+         Self::persist_presets(&self.presets.lock_ref());
++        Self::persist_server(&self.presets.lock_ref());
+ 
+         self.new_name.set(String::new());
+         self.adding.set(false);
+@@ -210,7 +304,7 @@
+                 html!("p", {
+                     .style("margin", "0.5rem 0")
+                     .style("opacity", "0.8")
+-                    .text("Presets bundle the reader options below. They are stored on this device only, so a new device starts from the Default preset.")
++                    .text("Presets bundle the reader options below. They are stored on this server and shared by all your devices; the selected preset is remembered per device.")
+                 }),
+                 html!("ul", {
+                     .class(["list", "group"])
+--- a/crates/tanoshi-web/src/reader.rs
++++ b/crates/tanoshi-web/src/reader.rs
+@@ -1352,6 +1352,7 @@
+             .style_signal("width", this.zoom.signal().map(|zoom| format!("{}vw", 100.0 * zoom)))
+             .style_signal("height", this.zoom.signal().map(|zoom| format!("{}vh", 100.0 * zoom)))
+             .style("align-items", "center")
++            .style("justify-content", "center")
+             .future(this.current_page.signal().for_each(clone!(this => move |_| {
+                 Self::update_double_page_layout(this.clone());
+                 async {}
+@@ -1363,8 +1364,12 @@
+             .children_signal_vec(this.pages_signal().map(clone!(this => move |(index, page, status)|
+                 if !matches!(status, PageStatus::Error) {
+                     html!("img" => HtmlImageElement, {
+-                        .style("margin-left", "auto")
+-                        .style("margin-right", "auto")
++                        // No auto margins: with two pages they split the free
++                        // space into the middle. The pair is centered instead,
++                        // so any spare space (or letterboxing) is on the sides
++                        // and two-page spreads stay gap-free in the middle.
++                        .style("margin-left", "0")
++                        .style("margin-right", "0")
+                         .attr("id", format!("{index}").as_str())
+                         .style_signal("max-width", this.reader_settings.fit.signal().map(|x| match x {
+                             crate::common::Fit::Height => "none",
