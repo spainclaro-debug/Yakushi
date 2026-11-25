@@ -33,6 +33,33 @@
  use crate::{
      domain::services::download::DownloadService,
      infrastructure::{config::Config, domain::repositories::download::DownloadRepositoryImpl},
+@@ -58,7 +58,7 @@
+ 
+ #[Subscription]
+ impl DownloadSubscriptionRoot {
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn download_queue_updates(
+         &self,
+         ctx: &Context<'_>,
+@@ -111,7 +111,7 @@
+         Ok(status)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn download_queue(&self, ctx: &Context<'_>) -> Result<Vec<DownloadQueueEntry>> {
+         let queue = ctx
+             .data::<DownloadService<DownloadRepositoryImpl>>()?
+@@ -124,7 +124,7 @@
+         Ok(queue)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn get_downloaded_chapters(
+         &self,
+         ctx: &Context<'_>,
 @@ -265,7 +265,7 @@
          Ok(true)
      }
@@ -97,3 +124,86 @@
      info!("connecting to database at {}", config.database_path);
      let pool =
          database::establish_connection(&config.database_path, config.create_database).await?;
+--- a/crates/tanoshi/src/application/worker/downloads.rs
++++ b/crates/tanoshi/src/application/worker/downloads.rs
+@@ -119,8 +119,11 @@
+     }
+ 
+     async fn insert_to_queue(&mut self, chapter: &Chapter) -> Result<(), anyhow::Error> {
+-        // source ids 10000 and greater are reserved for the local source
+-        if chapter.source_id >= 10000 {
++        // The built-in Local source uses ids starting at 10000 (small, compact
++        // values), but plugin extensions have huge hashed ids (>= 1e15). Only
++        // reject the actual Local range; the previous `>= 10000` check blocked
++        // every catalogue/external extension download.
++        if (10000..1_000_000).contains(&chapter.source_id) {
+             anyhow::bail!("local source can't be downloaded");
+         }
+ 
+--- a/crates/tanoshi/src/domain/services/chapter.rs
++++ b/crates/tanoshi/src/domain/services/chapter.rs
+@@ -102,7 +102,11 @@
+             downloaded_path.as_ref().map(|p| PathBuf::new().join(p))
+         {
+             tokio::task::spawn_blocking(move || {
+-                local::get_pages_from_archive(downloaded_path.as_path())
++                if downloaded_path.is_dir() {
++                    local::get_pages_from_dir(downloaded_path.as_path())
++                } else {
++                    local::get_pages_from_archive(downloaded_path.as_path())
++                }
+             })
+             .await??
+         } else {
+--- a/crates/tanoshi/src/infrastructure/local.rs
++++ b/crates/tanoshi/src/infrastructure/local.rs
+@@ -189,12 +189,22 @@
+     }
+ }
+ 
+-fn get_pages_from_dir(path: &Path) -> Result<Vec<String>, anyhow::Error> {
+-    let pages = path
++pub fn get_pages_from_dir(path: &Path) -> Result<Vec<String>, anyhow::Error> {
++    let mut pages = path
+         .read_dir()?
+         .filter_map(Result::ok)
+-        .filter_map(|f| (f.path().is_file()).then(|| f.path().display().to_string()))
+-        .collect();
++        .filter_map(|entry| {
++            let path = entry.path();
++            if !path.is_file() {
++                return None;
++            }
++            let is_image = mime_guess::from_path(&path)
++                .first()
++                .is_some_and(|mime| mime.type_() == mime::IMAGE);
++            is_image.then(|| path.display().to_string())
++        })
++        .collect::<Vec<_>>();
++    pages.sort_by(|a, b| human_sort::compare(a, b));
+     Ok(pages)
+ }
+ 
+--- a/crates/tanoshi/src/domain/services/download.rs
++++ b/crates/tanoshi/src/domain/services/download.rs
+@@ -168,10 +168,16 @@
+         chapter_ids: Vec<i64>,
+     ) -> Result<(), DownloadError> {
+         for chapter_id in chapter_ids {
+-            if let Ok(downloaded_path) = self.repo.get_chapter_downloaded_path(chapter_id).await
+-                && let Err(e) = tokio::fs::remove_file(&downloaded_path).await
+-            {
+-                error!("error removing downloaded file {}: {e}", downloaded_path);
++            if let Ok(downloaded_path) = self.repo.get_chapter_downloaded_path(chapter_id).await {
++                let path = Path::new(&downloaded_path);
++                let result = if path.is_dir() {
++                    tokio::fs::remove_dir_all(path).await
++                } else {
++                    tokio::fs::remove_file(path).await
++                };
++                if let Err(e) = result {
++                    error!("error removing downloaded path {}: {e}", downloaded_path);
++                }
+             }
+ 
+             self.repo

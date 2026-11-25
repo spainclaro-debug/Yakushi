@@ -1,6 +1,7 @@
 package dev.spainclaro.tanoshi.server
 
 import android.content.Context
+import android.os.Environment
 import dev.spainclaro.tanoshi.settings.AppSettings
 import java.io.File
 import java.security.SecureRandom
@@ -40,7 +41,7 @@ object ConfigManager {
             AppSettings.port = port
         } else {
             repairSecretIfNeeded(config)
-            ensureTempChapterDownloadPath(context, config)
+            ensurePublicDownloadPath(context, config)
         }
         return config
     }
@@ -51,7 +52,7 @@ object ConfigManager {
         val database = q(AppPaths.database(context).absolutePath)
         val plugins = q(AppPaths.plugins(context).absolutePath)
         val manga = q(AppPaths.manga(context).absolutePath)
-        val tempChapters = q(AppPaths.tempChapters(context).absolutePath)
+        val publicDownloads = q(publicDownloadDirectory().absolutePath)
         val cache = q(AppPaths.cache(context).absolutePath)
         val secret = generateSecret()
         return """
@@ -72,7 +73,7 @@ object ConfigManager {
               metadata_timeout_secs: 30
               image_timeout_secs: 120
             local_path: $manga
-            download_path: $tempChapters
+            download_path: $publicDownloads
             cache_path: $cache
             enable_playground: false
             telegram: null
@@ -85,14 +86,19 @@ object ConfigManager {
 
     private val DOWNLOAD_PATH_REGEX = Regex("""(?m)^(\s*['"]?download_path['"]?\s*:\s*).*$""")
 
+    /** Public folder the user asked for: /storage/emulated/0/yakushi/.downloaded */
+    fun publicDownloadDirectory(): File =
+        File(Environment.getExternalStorageDirectory(), "yakushi/.downloaded")
+
     /**
-     * Existing installs were seeded with `download_path: <home>/downloads`.
-     * Offline chapters now live in the hidden `<home>/.tempchapter` directory,
-     * so rewrite the path in place (keeping everything else) and make sure the
-     * directory exists before the server starts.
+     * Existing installs were seeded with `download_path: <home>/downloads` or
+     * `<home>/.tempchapter`. Offline chapters now live in public storage under
+     * /storage/emulated/0/yakushi/.downloaded, so rewrite the path in place
+     * (keeping everything else) and make sure the directory exists before the
+     * server starts. Requires All files access on Android 11+.
      */
-    private fun ensureTempChapterDownloadPath(context: Context, config: File) {
-        val directory = AppPaths.tempChapters(context)
+    private fun ensurePublicDownloadPath(context: Context, config: File) {
+        val directory = publicDownloadDirectory()
         directory.mkdirs()
         val wanted = "download_path: ${q(directory.absolutePath)}"
         val current = runCatching { config.readText() }.getOrNull() ?: return

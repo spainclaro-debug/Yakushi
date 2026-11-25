@@ -1,9 +1,7 @@
 package dev.spainclaro.tanoshi.ui
 
-import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -50,40 +48,6 @@ class WebAppBridge(
             "OK|$location"
         } catch (t: Throwable) {
             Log.w(TAG, "Could not save the backup", t)
-            "ERROR|${t.message ?: "unknown error"}"
-        }
-    }
-
-    /**
-     * Queues a reader image (the already-proxied absolute URL) in the system
-     * DownloadManager, which writes it to the public Downloads folder. This
-     * works on every supported Android version without storage permissions and
-     * shows a download notification. Returns `OK|<location>` or `ERROR|<message>`.
-     */
-    @JavascriptInterface
-    fun saveImage(url: String, fileName: String): String {
-        val safeName = sanitizeFileName(fileName)
-        return try {
-            val mime = when (safeName.substringAfterLast('.', "").lowercase(Locale.US)) {
-                "png" -> "image/png"
-                "webp" -> "image/webp"
-                "gif" -> "image/gif"
-                else -> "image/jpeg"
-            }
-            val request = DownloadManager.Request(Uri.parse(url))
-                .setTitle(safeName)
-                .setDescription("Yakushi reader image")
-                .setMimeType(mime)
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
-                .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(true)
-            val manager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            manager.enqueue(request)
-            Log.i(TAG, "Queued image download for $safeName")
-            "OK|${Environment.DIRECTORY_DOWNLOADS}/$safeName"
-        } catch (t: Throwable) {
-            Log.w(TAG, "Could not queue the image download", t)
             "ERROR|${t.message ?: "unknown error"}"
         }
     }

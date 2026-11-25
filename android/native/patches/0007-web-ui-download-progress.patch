@@ -18,13 +18,27 @@
                  Err(err) => {
                      snackbar::show(format!("{err}"));
                  }
-@@ -281,8 +288,35 @@
+@@ -281,8 +288,49 @@
              } else if manga.source_id.get() != 0 && manga.path.get_cloned() != "" {
                  Self::fetch_detail_by_source_path(manga.clone());
              }
 +            Self::schedule_download_refresh(manga.clone(), 30);
          }))
      }
++
++    fn download_chapter(manga: Rc<Self>, chapter_id: i64) {
++        manga.selected_chapters.lock_mut().insert(chapter_id, ());
++        Self::download_chapters(manga);
++    }
++
++    /// True when the event came from the per-chapter download button so the
++    /// row's tap/long-press navigation handlers can ignore it.
++    fn is_row_action(target: Option<web_sys::EventTarget>) -> bool {
++        target
++            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
++            .map(|element| element.tag_name().eq_ignore_ascii_case("BUTTON"))
++            .unwrap_or(false)
++    }
 +
 +    /// Refresh the chapter list while a download is queued so downloaded icons
 +    /// and progress appear without a manual reload; stops once no chapter has a
@@ -54,7 +68,73 @@
      
      fn remove_download_chapters(manga: Rc<Self>) {
          let selected_chapter_id: Vec<i64> = manga.selected_chapters.lock_ref().keys().cloned().collect();
-@@ -900,15 +934,24 @@
+@@ -826,17 +874,30 @@
+                             None
+                         })))
+                         .event_with_options(&EventOptions::preventable(), clone!(manga => move |e: events::MouseDown| {
++                            if Self::is_row_action(e.target()) {
++                                return;
++                            }
+                             e.prevent_default();
+                             Self::handle_mouse_down(manga.clone());
+                         }))
+                         .event_with_options(&EventOptions::preventable(), clone!(manga, chapter => move |e: events::MouseUp| {
++                            if Self::is_row_action(e.target()) {
++                                return;
++                            }
+                             e.prevent_default();
+                             Self::handle_mouse_up(manga.clone(), chapter.clone());
+                         }))
+-                        .event_with_options(&EventOptions::preventable(), clone!(manga => move |_: events::TouchStart| {
++                        .event_with_options(&EventOptions::preventable(), clone!(manga => move |e: events::TouchStart| {
++                            if Self::is_row_action(e.target()) {
++                                return;
++                            }
+                             Self::handle_mouse_down(manga.clone());
+                         }))
+                         .event_with_options(&EventOptions::preventable(), clone!(manga, chapter, touchmoved => move |e: events::TouchEnd| {
++                            if Self::is_row_action(e.target()) {
++                                touchmoved.set(false);
++                                return;
++                            }
+                             e.prevent_default();
+                             let prev = touchmoved.replace(false);
+                             if !prev {
+@@ -848,6 +909,33 @@
+                             manga.timeout.set(None);
+                         }))
+                         .children(&mut [
++                            html!("button", {
++                                .attr("title", "Download chapter")
++                                .style("background-color", "transparent")
++                                .style("border", "none")
++                                .style("padding", "0.25rem")
++                                .style("align-self", "center")
++                                .style("cursor", "pointer")
++                                .children(&mut [
++                                    svg!("svg", {
++                                        .attr("xmlns", "http://www.w3.org/2000/svg")
++                                        .attr("fill", "currentColor")
++                                        .attr("viewBox", "0 0 20 20")
++                                        .class("icon-sm")
++                                        .children(&mut [
++                                            svg!("path", {
++                                                .attr("fill-rule", "evenodd")
++                                                .attr("d", "M2 9.5A3.5 3.5 0 005.5 13H9v2.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 15.586V13h2.5a4.5 4.5 0 10-.616-8.958 4.002 4.002 0 10-7.753 1.977A3.5 3.5 0 002 9.5zm9 3.5H9V8a1 1 0 012 0v5z")
++                                                .attr("clip-rule", "evenodd")
++                                            })
++                                        ])
++                                    }),
++                                ])
++                                .event(clone!(manga, chapter => move |e: events::Click| {
++                                    e.stop_propagation();
++                                    Self::download_chapter(manga.clone(), chapter.id);
++                                }))
++                            }),
+                             html!("div", {
+                                 .style("display", "inline-flex")
+                                 .style("padding", "0.5rem")
+@@ -900,15 +988,24 @@
                                  ])
                              }),
                          ])
@@ -80,7 +160,7 @@
                                      .children(&mut [
                                          svg!("path", {
                                              .attr("fill-rule", "evenodd")
-@@ -916,6 +959,11 @@
+@@ -916,6 +1013,11 @@
                                              .attr("d", "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z")
                                          })
                                      ])

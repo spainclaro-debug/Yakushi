@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.1`). The Termux package in the repository root has
+(for example `android-v0.13.5`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,69 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.5
+
+### Added
+
+- **Per-chapter Download button.** Every chapter row now has its own download
+  icon that queues just that chapter (the row's tap/long-press navigation
+  ignores the button). The **Download Queue** and downloaded-chapters list are
+  visible to any signed-in user (the queue queries/subscriptions now use
+  `AuthGuard` instead of `AdminGuard`), with per-chapter `downloaded/total`
+  progress, automatic detail refresh every 4 seconds while a download is
+  pending (up to 30 ticks) and a check icon + **Downloaded** label/title.
+- **Downloads from every plugin extension.** The download worker's guard used
+  to treat every `source_id >= 10000` as the built-in Local source and silently
+  dropped the queue entry. It now rejects only `10000..1_000_000` (the actual
+  Local range), so hashed plugin ids (e.g. QiScans `5806040666300479660`)
+  download normally; verified end-to-end (external chapter → complete extracted
+  chapter folder → page images served). The built-in **Local** source is still
+  not downloadable (its pages are already local files).
+
+### Fixed
+
+- **Downloaded chapters are extracted to public storage as image files.**
+  The server still downloads a temporary CBZ into the manga folder, but now
+  extracts every page into
+  **`/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/`**
+  (no source-name level anymore), deletes the archive on success, and stores
+  the **folder path** as the chapter's downloaded path. The reader reads image
+  folders (`ChapterService` selects `get_pages_from_dir`, which returns
+  image-only files in natural order), so offline reading works directly from
+  the folder; removal/re-download handles both folders and legacy archives
+  (`remove_dir_all`/`remove_file`).
+- **Public download path + storage permission.** The Android app seeds
+  `download_path` as
+  `<Environment.getExternalStorageDirectory()>/yakushi/.downloaded`, creates
+  it, and migrates existing configs from `<home>/downloads` /
+  `<home>/.tempchapter` (quoted keys included). The manifest declares
+  **`MANAGE_EXTERNAL_STORAGE`** (All files access) and legacy
+  `WRITE_EXTERNAL_STORAGE` for SDK 29, with
+  `requestLegacyExternalStorage="true"`; `MainActivity` asks for All files
+  access on Android 11+ (or the legacy storage permission on 7–10) at launch.
+- **Web UI and `libtanoshi.so` rebuilt** with patches 0005/0007; version
+  **0.13.5** (versionCode 1305, tag `android-v0.13.5`). APK filename scheme
+  unchanged.
+
+### Removed
+
+- **Reader Save image feature removed.** The long-press/right-click save
+  popup, `TanoshiApp.saveImage` bridge, the image-save CSS/JS and the WebView
+  `setDownloadListener` were removed; the reader suppresses the context menu as
+  before (patch 0006 deleted). Downloading a chapter now saves its page images
+  to the public folder above, and individual images can be copied from there.
+
+### Notes
+
+- The server's own default `download_path` remains `.tempchapter` for
+  non-app runs, but the app always writes the public
+  `.../yakushi/.downloaded` path into `config.yml` and migrates existing
+  installs. Downloaded chapters are now intentionally in user-visible public
+  storage.
+- All 0.13.0–0.13.4 behaviour not listed here is unchanged; patch 0006
+  (Save image) is deleted, patches 0005 and 0007 are the final download/UI
+  patches.
 
 ## 0.13.1
 

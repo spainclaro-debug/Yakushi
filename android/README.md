@@ -5,22 +5,36 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.1** — see the
+Current release: **0.13.5** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.1 fixes the 0.13.0 reader/download
-features: **Save image** now works in paged reading mode too and saves through
-the system **DownloadManager** into the public Downloads folder (with a
-completion notification and a WebView download fallback); chapter downloads
-show a queued message, per-chapter progress and a **Downloaded** marker and
-refresh the chapter list while downloading. 0.13.0 added **Save image** to the
-reader
-(long-press/right-click an image to save the page you are viewing to the
-phone's Downloads folder), fixes the chapter-list **Download** button
-returning **Forbidden** for non-admin users, and moves offline chapter
-downloads to the server data directory under **`.tempchapter`** (created
-automatically on install/start; older installs are migrated from the old
-`downloads` path). See [Saving reader images](#saving-reader-images) and
-[Chapter downloads](#chapter-downloads). 0.12.1 names the Android app
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.5 makes chapter downloads work for
+**every plugin extension** (the old source-id guard dropped large hashed
+plugin ids as "Local"), saves each chapter as **individual page images in
+public storage** under
+`/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/`
+(with All files access on Android 11+), adds a **per-chapter Download button**,
+visible download queue for signed-in users, `downloaded/total` progress,
+live chapter-list refresh and a **Downloaded** marker, and **removes the
+previous reader Save-image feature**. 0.13.0 added the initial download cache
+and `.tempchapter` work, 0.13.1 fixed its UI/DownloadManager details (now
+superseded by the public-folder layout), and 0.12.1 names the Android app
+**Yakushi Server** (launcher, notifications and in-app labels); the web
+frontend/PWA keeps the short name **Yakushi**. Releases publish a single APK
+(`yakushi-server-release-<date>.apk`). 0.12.0 completed the Yakushi branding
+(tab title, favicon, PWA icons/splash, launcher icon and launch screen, Local
+source icon, frontend version = server version) and pointed the
+Settings Changelog / Github links at the Yakushi repository. 0.11.0 added a
+**Register** button so additional users can create their own accounts
+(registration can be disabled in the server config; admins keep the Users
+settings). The application id, data directories and signing key are unchanged,
+so existing Yakushi/Tanoshi installs update in place. 0.10.0 added **Backup
+and Restore** in Settings: **Backup Library** saves your library titles,
+reading history, the sources they use and your current chapter as a portable
+`.json` file in the phone's Downloads folder, and **Restore Library** picks
+that file, restores your library, categories and reading progress, and reports
+any sources that are not installed — with a one-tap **Install Missing
+Sources** action that installs them through the app and restarts the server.
+0.12.1 names the Android app
 **Yakushi Server** (launcher, notifications and in-app labels); the web frontend/PWA
 keeps the short name **Yakushi**. Releases now publish a single APK
 (`yakushi-server-release-<date>.apk`) instead of the duplicate
@@ -82,7 +96,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.1](#whats-new-in-0131)
+- [What's new in 0.13.5](#whats-new-in-0135)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -132,74 +146,59 @@ and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
 
-## What's new in 0.13.1
+## What's new in 0.13.5
 
-- **Reader Save image now works in paged mode too.** Paged reading draws the
-  navigation/tap overlays above the page images, so the long-press/right-click
-  previously hit the overlay rather than an `<img>` (only continuous mode
-  worked). The reader now falls back to the currently visible image in the
-  `#page-list` container when the target is not an image (fallback limited to
-  paged mode), and the browser-side fallback starts the normal download link
-  when the app bridge returns a non-OK result.
-- **Saving an image actually downloads it.** The app bridge no longer fetches
-  the bytes itself; it enqueues the proxied image URL with the system
-  **DownloadManager**, which writes it to the public **Downloads** folder on
-  every supported Android version (no storage permission) and shows a
-  completion notification. `BrowserScreen` also queues in-WebView anchor
-  downloads through DownloadManager, so the browser fallback works inside the
-  app too.
-- **Chapter downloads: feedback, progress and Downloaded marker.** The
-  chapter-list download action now says **"Download queued — chapters are
-  saved on the server"**, refuses an empty selection ("Select at least one
-  chapter to download"), shows per-chapter **`downloaded/total`** progress while
-  queued, refreshes the manga detail every 4 seconds while a download is
-  pending (so the marker appears without a manual reload), and the downloaded
-  marker now has a **Downloaded** title and visible label next to the check
-  icon. The server-side worker writes complete CBZ files into
-  `<TANOSHI_HOME>/.tempchapter` (verified end-to-end).
-- **Quoted-key config migration.** Existing configs with quoted YAML keys
-  (`'download_path':`) are now migrated to `.tempchapter` as well.
-- **Web UI and server rebuilt** — the updated reader patch and the new
-  `0007-web-ui-download-progress.patch` are embedded in the rebuilt
-  `libtanoshi.so` and vendored dist.
-- **Version 0.13.1** — `versionCode` 1301; the `android-v0.13.1` tag produces
-  `versionCode` 1301. APK filename scheme unchanged.
+- **Chapter downloads work for every plugin extension.** The worker used to
+  reject every `source_id >= 10000` as the built-in Local source, silently
+  dropping downloads from hashed plugin extensions (QiScans etc.). It now
+  rejects only `10000..1_000_000` (the real Local range); external extensions
+  download normally. The built-in **Local** source is still not downloadable
+  (its pages are already local files).
+- **Downloaded chapters are extracted page images in public storage.**
+  `<external storage>/yakushi/.downloaded/<Manga Title>/<Chapter Title>/`
+  (no source-name level): the server downloads a temporary CBZ, extracts every
+  page into the chapter folder, deletes the archive, stores the folder as the
+  downloaded path and the reader reads image folders directly. Removal and
+  re-download handle folders (and legacy archives).
+- **Public storage permission.** The app seeds/migrates `download_path` to
+  `<external storage>/yakushi/.downloaded`, creates the directory, and asks for
+  **All files access** (`MANAGE_EXTERNAL_STORAGE`) on Android 11+ (legacy
+  `WRITE_EXTERNAL_STORAGE` on 7–10, `requestLegacyExternalStorage` for
+  API 29). Android may show the system "Allow access to manage all files"
+  screen on first launch; grant it or downloads cannot be written.
+- **Per-chapter Download button, queue visibility and progress.** Each chapter
+  row has its own download icon; signed-in users (not just admins) can see the
+  Download Queue/downloaded list; per-chapter `downloaded/total` progress shows
+  while queued, the chapter list refreshes every 4 seconds (up to 30 ticks) so
+  the **Downloaded** check icon/label appears without a reload, and the marker
+  has a `Downloaded` title.
+- **Reader Save image removed.** The 0.13.0–0.13.4 long-press/right-click
+  save popup, `TanoshiApp.saveImage` bridge, save CSS/JS and the WebView
+  download listener were removed (patch 0006 deleted); the reader suppresses
+  the context menu as before. Individual page images are now available in the
+  downloaded chapter folder above.
+- **Web UI and server rebuilt** with the final patches `0005`/`0007`; version
+  **0.13.5** (`versionCode` 1305, tag `android-v0.13.5`), APK filename scheme
+  unchanged.
 
-Previous release — **0.13.0** — and its features:
+Previous release — **0.13.1** (superseded; its reader-save/download-manager
+behaviour was replaced in 0.13.5) — and its features:
 
-## What's new in 0.13.0
+## What's new in 0.13.1 (superseded)
 
-- **Save image from the reader.** Long-press an image (or right-click it in a
-  browser) while reading to open a **Save image** / **Cancel** popup.
-  **Save image** writes the image currently on screen (the proxied page URL)
-  to the phone's **Downloads** folder through the app bridge:
-  `window.TanoshiApp.saveImage(url, name)` → `WebAppBridge` → MediaStore
-  Downloads on Android 10+, or the app's external Downloads folder on Android
-  7–9. In a normal browser the same action uses a standard download link.
-  The file is named `yakushi-chapter-<chapter>-<timestamp>.jpg`; a snackbar
-  reports where it was saved (or the error). No storage permission is needed.
-  See [Saving reader images](#saving-reader-images).
-- **Chapter downloads no longer return "Forbidden".** The chapter-list
-  **Download** button now works for every signed-in user: the download
-  mutations use a new `AuthGuard` that only requires an account. The
-  admin-only queue inspection/repro controls stay admin-only. See
-  [Chapter downloads](#chapter-downloads).
-- **Offline chapters are cached by the server.** Downloaded chapters are stored
-  in the server data directory under **`.tempchapter`**
-  (`<TANOSHI_HOME>/.tempchapter`) instead of `<home>/downloads`; the server
-  creates it on every start and the app seeds/migrates `download_path` for new
-  and existing installs. Downloaded chapters are readable offline without
-  copying anything into the phone's local/shared storage, and removing a
-  download frees the space. See [Chapter downloads](#chapter-downloads).
-- **Web UI and server rebuilt** — the wasm dist (new patches
-  `0005-downloads-tempchapter.patch` + `0006-web-ui-reader-image-save.patch`)
-  is vendored in `android/native/web-dist/` and the embedded `libtanoshi.so`
-  was rebuilt with it.
-- **Version 0.13.0** — `versionCode` 1300; the `android-v0.13.0` tag produces
-  `versionCode` 1300. The APK filename scheme is unchanged
-  (`yakushi-server-release-<yyyy-MM-dd>.apk`).
+0.13.1 was a UI/bridge fix release for the 0.13.0 chapter-download work: it
+improved download feedback, per-chapter progress and the Downloaded marker and
+added a now-removed reader image-save helper. Its download-UI improvements are
+included in 0.13.5; the reader Save-image feature and the private
+`.tempchapter` cache were replaced by 0.13.5's public-folder chapter downloads.
 
-Previous release — **0.12.1** — and its features:
+## What's new in 0.13.0 (superseded)
+
+0.13.0 made chapter downloads work for signed-in users, added the initial
+chapter-download cache and per-chapter feedback, and renamed the repository to
+Yakushi. Its private `.tempchapter` download cache and reader image-save helper
+were replaced in 0.13.5 by public-folder page-image downloads and the
+per-chapter Download button; see [Chapter downloads](#chapter-downloads).
 
 ## What's new in 0.12.1
 
@@ -496,12 +495,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.1**,
-`versionCode` 1301) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.5**,
+`versionCode` 1305) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.1 -PappVersionCode=1301 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.5 -PappVersionCode=1305 \
   -PapkDate=2026-11-14
 ```
 
@@ -562,11 +561,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.1`. For a tag, CI derives everything from the tag and
+example `android-v0.13.5`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.1` → `1301`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.5` → `1305`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -745,36 +744,6 @@ automatically, so normally you never have to press anything. The **Load
 More** button stays as a manual fallback and changes to *No more results* once
 a source runs out of pages.
 
-### Saving reader images
-
-While reading, **long-press an image** (or **right-click** it in a browser) to
-open a small popup asking *"Save this image to your Downloads folder?"* with
-**Save image** and **Cancel** buttons. Choosing **Save image** downloads the
-image currently displayed — the same proxied page URL the reader loaded, not
-the source site's original URL — to the phone's **Downloads** folder. This
-works in **both continuous and paged reading modes** (0.13.1: paged mode's
-navigation/tap overlays no longer swallow the gesture; the reader falls back to
-the visible page image).
-
-- In the Android app the web UI calls
-  `window.TanoshiApp.saveImage(url, name)`; the app bridge
-  (`WebAppBridge.saveImage`) **enqueues the URL with the system
-  DownloadManager**, which writes the file to the public **Downloads** folder
-  on every supported Android version, needs **no storage permission** and shows
-  a download/completion notification. MIME type is chosen from the file
-  extension.
-- If the bridge is missing or returns a non-OK result (0.13.1), the web UI
-  falls back to a normal `<a download>` link. Inside the app `BrowserScreen`
-  intercepts that link with a `setDownloadListener` and queues it through
-  DownloadManager too, so the fallback also lands in public Downloads.
-- In a normal browser the same action uses the browser's own download flow.
-- Files are named `yakushi-chapter-<chapter>-<timestamp>.jpg`. A snackbar says
-  the download was queued (or reports the error); the DownloadManager
-  notification confirms completion. The popup can be dismissed with
-  **Cancel** or by tapping outside it.
-- Saving an image is separate from **chapter downloads**, which the server
-  caches in `.tempchapter` for offline reading ([below](#chapter-downloads)).
-
 Because the UI lives inside the server binary, **changing web-UI behaviour
 means rebuilding `libtanoshi.so`** (see [`native/README.md`](native/README.md))
 and shipping a new APK — rebuilding the Android app alone is not enough. The
@@ -858,7 +827,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.1-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.5-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1457,20 +1426,25 @@ settings and keep the app exempted from battery optimisation.
 
 ## Storage layout
 
-Everything lives in the app's private files directory. For the debug build
-the package is `dev.spainclaro.tanoshi.debug`; the release build uses
-`dev.spainclaro.tanoshi`.
+The server's data lives in the app's private files directory (for the debug
+build the package is `dev.spainclaro.tanoshi.debug`; the release build uses
+`dev.spainclaro.tanoshi`). Offline chapter downloads are the exception: they
+are written to **public storage** so you can browse them with any file
+manager/app.
 
 ```
 /data/data/<package>/files/tanoshi/      # TANOSHI_HOME
 ├── config.yml         # port, secret, absolute paths, extension timeouts
 ├── tanoshi.db         # SQLite: accounts, library, history
 ├── server.log         # mirrored stdout/stderr (rotates to server.log.1 at ~5 MB)
-├── .tempchapter/      # offline chapter downloads (server-created)
 ├── cache/             # image cache
 ├── manga/             # local ("Local source") folder
 └── plugins/           # user extensions (<name>.so), .tanoshi-disabled marker, preferences
 ```
+
+/storage/emulated/0/yakushi/.downloaded/   # public download folder
+└── <Manga Title>/                    # details.json + downloaded chapters
+    └── <Chapter Title>/              # extracted page images (0.webp, 1.webp, ...)
 
 The bundled native libraries live in `nativeLibraryDir`
 (`/data/app/.../lib/arm64/libtanoshi.so`, …), managed by the package
@@ -1480,52 +1454,72 @@ bundled one with the same name.
 
 Notes:
 
-- The app has `android:allowBackup="false"`, so Android does not back this
-  data up. **Uninstalling deletes it** (library, accounts, downloads).
+- The app has `android:allowBackup="false"`, so Android does not back the
+  private data up. **Uninstalling deletes it** (library, accounts, settings).
+  Public downloads under `/storage/emulated/0/yakushi/.downloaded` are shared
+  storage and are **not** removed by uninstalling; delete them in a file
+  manager if you no longer want them.
 - Downloaded update APKs are kept in the app cache (`cacheDir/updates/`),
   outside `files/tanoshi/`; Android may clear them at any time.
 - To move data, copy the `tanoshi/` directory out of a debug build with
   `adb exec-out run-as dev.spainclaro.tanoshi.debug tar -C files -cf - tanoshi > tanoshi-data.tar`
   and push it back into a new install the same way.
-- The **server's** data stays in app-private storage. The only things written
-  to shared storage are files you explicitly export — reader images you
-  **Save image** and **Backup Library** JSON files — which go to the phone's
-  Downloads folder through the app bridge.
+- The **server's** database/config/plugins stay in app-private storage.
+  **Downloaded chapters** and **Backup Library** JSON exports are written to
+  shared storage: downloads under `yakushi/.downloaded` (needs All files
+  access on Android 11+), backups in the phone's Downloads folder.
 
 ### Chapter downloads
 
-The web UI's chapter-list **Download** button asks the server to download the
-chapter's pages for offline reading. From 0.13.0 this works for **any signed-in
-user** (previously non-admin users got **Forbidden**); only the admin-only
-queue inspection and download-queue repro controls remain restricted.
+The web UI's chapter list has a **per-chapter download icon** in every row
+(it queues just that chapter) plus the selection-based download action; any
+**signed-in user** can use them (admin-only queue-repro controls are gone from
+the normal flow). From 0.13.5 downloads work for **all plugin extensions** —
+the old worker guard rejected every source id above 10000, which is the Local
+source's range but also matched hashed plugin ids; it now rejects only
+`10000..1_000_000`, so catalogue extensions (QiScans etc.) download normally.
+The built-in **Local** source is still not downloadable because its pages are
+already local files.
 
-- Downloaded chapters are stored **by the server** in
-  `<TANOSHI_HOME>/.tempchapter` (default `download_path` in `config.yml`). The
-  directory is created on every server start, so first runs and upgrades always
-  have it; the app also seeds it for new installs and rewrites an existing
-  `download_path: <home>/downloads` to the new path on startup.
-- The pages are therefore readable offline inside Yakushi without copying
-  anything into the phone's shared/local storage. Removing a chapter from the
-  download queue (or deleting the downloaded chapter in the web UI) frees the
-  space; uninstalling the app removes `.tempchapter` with the rest of the data.
-- The **Downloads** page in the web UI (queue, progress, pause/resume) is
-  served by the server. There is no per-image phone download for chapters —
-  use the reader's **Save image** action if you want individual images in the
-  phone's Downloads folder.
-- **Feedback and progress (0.13.1).** Tapping Download confirms with
-  **"Download queued — chapters are saved on the server"**; an empty
-  selection shows **"Select at least one chapter to download"** instead of
-  doing nothing. While a download is queued the chapter list shows per-chapter
-  **`downloaded/total`** progress, and the manga detail is refreshed every
-  4 seconds while any chapter still has a pending download status (up to 30
-  refreshes, ~2 minutes) — so the **Downloaded** check icon (now with a
-  `Downloaded` title and label) appears without a manual reload, and polling
-  stops once nothing is pending. The
-  server worker was verified end-to-end: a real Guya chapter produced a
-  complete CBZ file in `.tempchapter`.
-- **Existing configs migrate even with quoted keys (0.13.1).** The
-  `download_path` rewrite now also matches `'download_path':` / `"download_path":`,
-  so configs written with quoted YAML keys are moved to `.tempchapter` too.
+**Where downloaded chapters go.** The server downloads a temporary CBZ, then
+extracts every page as an image file into **public storage**:
+
+```
+/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/
+    0000_00.webp, 0000_01.webp, ...
+```
+
+`<Manga Title>/details.json` is also written there, and there is **no
+source-name folder level** anymore. The temporary archive is deleted after a
+successful extraction (if extraction fails, the archive is kept and used as a
+fallback downloaded path), the chapter's `downloaded_path` is the **folder**,
+and the reader reads image folders directly (image files only, in natural
+order). Removing or re-downloading a chapter deletes/clears the folder (and
+handles legacy archive files).
+
+**Permission.** The app seeds/migrates `download_path` to
+`<external storage>/yakushi/.downloaded` and creates the directory. The
+manifest declares **`MANAGE_EXTERNAL_STORAGE`** (All files access) plus legacy
+`WRITE_EXTERNAL_STORAGE` for SDK ≤29, with
+`requestLegacyExternalStorage="true"` for API 29. On Android 11+ `MainActivity`
+opens the system **All files access** screen on first launch (Android 7–10
+asks for the legacy storage permission). Grant it; without it the server cannot
+write the public folder.
+
+**Progress and markers.** Tapping Download confirms with **"Download queued —
+chapters are saved on the server"**; an empty selection shows **"Select at least
+one chapter to download"**. While a chapter is queued the row shows
+`downloaded/total` progress; the manga detail refreshes every 4 seconds while
+anything is pending (up to 30 refreshes, ~2 minutes), so the **Downloaded**
+check icon with a `Downloaded` title/label appears without a manual reload. The
+**Download Queue** and downloaded list are visible to signed-in users (not just
+admins). The server worker was verified end-to-end with an external QiScans
+chapter: CBZ download → extracted image folder → page images served.
+
+**Migrating older installs.** Configs with `download_path` pointing at
+`<home>/downloads` or `<home>/.tempchapter` (unquoted or quoted YAML keys) are
+rewritten to the public folder before the server starts; the public folder is
+created automatically. Old private folders can be deleted after migration.
 
 ## Settings and `config.yml`
 
@@ -1673,37 +1667,36 @@ now work for every signed-in user (admin-only queue inspection/repro controls
 stay restricted). Update the app and restart the server; if an old web UI is
 still cached, reopen the WebView.
 
-**A downloaded chapter cannot be read offline / where are downloads stored?**
-From 0.13.0 the server downloads chapters into
-`<TANOSHI_HOME>/.tempchapter` (inside app-private storage), not the phone's
-Downloads folder. The directory is created on every server start; existing
-installs are migrated automatically from the old `<home>/downloads` path. Open
-the chapter in the web UI's **Downloads** page (or from the library) while
-offline; removing the download frees the space.
+**Where are downloaded chapters stored?** From 0.13.5 the server extracts
+each chapter into **public storage** at
+`/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/` as
+individual page images (`<Manga Title>/details.json` sits next to the chapter
+folders). The temporary CBZ is deleted after extraction. Open the folder from
+any file manager to view/copy the pages; remove a download in the web UI to
+free the space. Older private downloads in `<home>/.tempchapter` are migrated
+(and can be deleted).
 
-**Save image did nothing in paged reading mode.** Fixed in 0.13.1: paged mode
-draws navigation/tap overlays over the page images, so the original gesture hit
-the overlay; the reader now falls back to the visible page image (in paged
-mode). Update the app and restart the server so the new web UI is served.
+**Downloads fail / no files appear under `yakushi/.downloaded`.** Android 11+
+needs **All files access** for that public folder. On first launch the app
+opens the system screen (or open Settings → Apps → Yakushi Server →
+All files access); Android 7–10 asks for the legacy storage permission.
+Without it the server cannot write the folder. After granting, download the
+chapter again (or restart the server) and check the Logs/Downloads page.
 
-**A saved reader image does not appear in Downloads.** From 0.13.1 the app
-enqueues the image with the system **DownloadManager**, which writes to the
-public **Downloads** folder on every supported Android version and shows a
-download/completion notification. If the snackbar said the download was
-queued, check the notification shade and the public Downloads folder (or
-**Downloads** in a file manager); large/first downloads can take a moment. If
-the bridge fails, the web UI falls back to a normal download link, and inside
-the app `BrowserScreen` queues that through DownloadManager too. For a browser
-tab use the browser's own download. If nothing happens, check the Logs tab for
-`saveImage`/`BrowserScreen` messages.
+**A plugin extension's chapters will not download / Local source.** Fixed in
+0.13.5: the worker guard now rejects only the Local source's id range
+(`10000..1_000_000`); hashed plugin ids (QiScans etc.) download normally. The
+built-in **Local** source is intentionally not downloadable because its pages
+are already local files.
 
 **The chapter Download button seems to do nothing / no Downloaded marker.**
-0.13.1 added clear feedback: a queued snackbar, **`downloaded/total`** progress
-per chapter, and the manga detail refreshes every 4 seconds while a download is
-pending, so the **Downloaded** check icon/label appears without reloading. If
-you selected no chapters it now says "Select at least one chapter to
-download". If a chapter stays queued, check the Logs/Downloads page and the
-`.tempchapter` directory (see [Chapter downloads](#chapter-downloads)).
+0.13.5 shows a queued snackbar (**"Download queued — chapters are saved on the
+server"**), **`downloaded/total`** progress per chapter, and refreshes the manga
+detail every 4 seconds while a download is pending (so the **Downloaded**
+check icon/label appears without reloading); an empty selection says "Select at
+least one chapter to download". If a chapter stays queued, check the
+Logs/Downloads page and whether All files access is granted
+([Chapter downloads](#chapter-downloads)).
 
 **Saving the port or `config.yml` fails with `config.yml.tmp: open failed:
 ENOENT`.** This was a 0.2.0 and earlier bug when the server had never been
@@ -1907,16 +1900,16 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + 0.13.0 reader image-save patch + 0.13.1 download progress/refresh patch (`native/patches/0006`/`0007`), embedded in `libtanoshi.so`; 0.9.1 full-palette/adaptive text, 0.9.2 themed settings cells, 0.13.0 reader image saves, 0.13.1 paged-mode save + download progress |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + final download-progress patch `0007` (patch `0006`/reader image-save deleted in 0.13.5), embedded in `libtanoshi.so`; 0.9.1 full-palette/adaptive text, 0.9.2 themed settings cells, 0.13.5 per-chapter downloads/progress |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| Reader image save | Long-press/right-click popup in continuous **and paged** mode (0.13.1); app bridge enqueues the URL with system DownloadManager → public Downloads (all versions, no storage permission, completion notification), browser/WebView fallback; files `yakushi-chapter-<chapter>-<timestamp>.jpg` (0.13.0, paged/DownloadManager 0.13.1) |
-| Chapter downloads | Any signed-in user can queue/remove/reorder (AuthGuard); server-side cache in `<TANOSHI_HOME>/.tempchapter`, created on start and migrated by the app (0.13.0); queued message, `downloaded/total` progress, live refresh and Downloaded marker (0.13.1) |
-| App version | 0.13.1 (`versionName`); `versionCode` 1301 in local builds and for the `android-v0.13.1` tag |
+| Chapter downloads (layout) | Public `/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/` page images (temporary CBZ extracted, archive deleted); reader reads folders; app requests All files access (Android 11+) / legacy storage (7–10) |
+| Chapter downloads | Any signed-in user can queue/remove/reorder/see the queue (AuthGuard); per-chapter Download button; progress `downloaded/total`, 4 s auto-refresh and Downloaded marker; guard rejects only Local `10000..1_000_000` so plugin extensions download (0.13.5) |
+| App version | 0.13.5 (`versionName`); `versionCode` 1305 in local builds and for the `android-v0.13.5` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

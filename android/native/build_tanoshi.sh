@@ -115,9 +115,6 @@ apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"
 # Web UI: per-device theme palettes (Settings -> Appearance -> Themes).
 cp "$HERE/patches/theme_settings.rs" crates/tanoshi-web/src/common/theme_settings.rs
 apply_patch "$HERE/patches/0004-web-ui-themes.patch"
-# Web UI: long-press/right-click an image in the reader to save it to the
-# phone's Downloads folder (via the app bridge) or download it in a browser.
-apply_patch "$HERE/patches/0006-web-ui-reader-image-save.patch"
 # Web UI: chapter download feedback/progress + downloaded marker refresh.
 apply_patch "$HERE/patches/0007-web-ui-download-progress.patch"
 say "applying Android app patches"

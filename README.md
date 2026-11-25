@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.1](#whats-new-in-0131)
+- [What's new in 0.13.5](#whats-new-in-0135)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -52,50 +52,42 @@ terminal install.
 
 ---
 
-## What's new in 0.13.1
+## What's new in 0.13.5
 
-- **Reader Save image fixed in paged mode** — paged reading's navigation/tap
-  overlays no longer swallow the long-press/right-click; the reader falls back
-  to the visible page image, and the browser fallback runs when the app bridge
-  is unavailable or returns an error.
-- **Save image really downloads** — the app bridge now queues the image with
-  the system **DownloadManager** into the public Downloads folder on every
-  supported Android version (no storage permission, completion notification);
-  the in-app `BrowserScreen` also queues fallback anchor downloads.
-- **Chapter downloads show progress and a Downloaded marker** — a "Download
-  queued — chapters are saved on the server" confirmation, an empty-selection
-  message, per-chapter `downloaded/total` progress, automatic chapter-list
-  refresh every 4 s while downloading, and a clearer **Downloaded** label/title
-  next to the check icon. Quoted-key `download_path` configs now migrate to
-  `.tempchapter` too.
-- **Version 0.13.1** (`android-v0.13.1`, `yakushi-server-release-<date>.apk`);
-  includes all 0.13.0/0.12.x/earlier features.
+- **Chapter downloads work for every plugin extension.** The worker now rejects
+  only the built-in Local source's id range (`10000..1_000_000`) instead of
+  every id above 10000, so hashed plugin extensions (QiScans etc.) download
+  normally. The Local source itself stays non-downloadable (already local).
+- **Downloaded chapters are page images in public storage.** Each chapter is
+  extracted to
+  `/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/`
+  (temporary CBZ removed afterwards; reader reads the folder). The app
+  migrates `download_path` there and requests **All files access** on Android
+  11+ (legacy storage permission on 7–10).
+- **Per-chapter Download button, queue visibility and progress.** Every
+  chapter row has its own download icon; signed-in users can see the download
+  queue/downloaded list; rows show `downloaded/total` progress, the chapter
+  list refreshes every 4 s while downloading (up to ~2 minutes), and the
+  **Downloaded** check icon/label appears without a reload.
+- **Reader Save image was removed** (the 0.13.0–0.13.4 popup/bridge); the
+  page images are now available directly in the downloaded chapter folders.
+- **Version 0.13.5** (`android-v0.13.5`, `yakushi-server-release-<date>.apk`);
+  includes all earlier features.
 
-## What's new in 0.13.0
+## What's new in 0.13.1 (superseded)
 
-- **Save image from the reader.** Long-press an image (or right-click it in a
-  browser) while reading, then choose **Save image** in the popup to save the
-  page you are viewing to the phone's **Downloads** folder. In the Android app
-  this goes through the app bridge (MediaStore Downloads on Android 10+, the
-  app-specific Downloads folder on Android 7–9, no storage permission); in
-  a browser it is a normal download. Files are named
-  `yakushi-chapter-<chapter>-<timestamp>.jpg`.
-- **Chapter downloads fixed.** The chapter-list **Download** button no longer
-  returns **Forbidden** for non-admin users: any signed-in user can queue,
-  remove or reorder chapter downloads (admin-only queue inspection/repro
-  controls remain admin-only).
-- **Server-side offline chapter cache.** Downloaded chapters are stored under
-  the server data directory in **`.tempchapter`** (created automatically on
-  install/first start; existing installs migrate from the old `downloads`
-  path), so offline reading needs no phone-local copies. Removing a download
-  frees the space.
-- **Version 0.13.0** (tag `android-v0.13.0`, APK
-  `yakushi-server-release-<date>.apk`). The repository is now
-  [`spainclaro-debug/Yakushi`](https://github.com/spainclaro-debug/Yakushi)
-  (the old `tanoshi-mobile`/`tanoshi-termux` URLs redirect).
-- Includes all earlier features (Yakushi branding and single-APK releases,
-  backup/restore, self-service registration, per-device web-UI themes,
-  extension management and the reader improvements from 0.8.0).
+0.13.1 was a UI/bridge fix release for the 0.13.0 download work, including a
+now-removed reader image-save helper. Its download feedback/progress work is
+included in 0.13.5 and the save feature was replaced by the public-folder
+chapter downloads.
+
+## What's new in 0.13.0 (superseded)
+
+0.13.0 made chapter downloads work for signed-in users, added the initial
+download cache/feedback and renamed the repository to Yakushi. Its private
+`.tempchapter` cache and reader image-save helper were replaced in 0.13.5 by
+the public-folder page-image downloads; see [Downloads and
+trackers](#downloads-and-trackers).
 
 ## Features
 
@@ -114,11 +106,6 @@ terminal install.
 - **Tap Area** — choose whether the right or the left screen edge belongs to
   the next page ("bottom right: NEXT, bottom left: PREV" or the mirrored
   layout).
-- **Save image** — long-press an image (right-click in a browser) and choose
-  **Save image** to save the displayed page to the phone's Downloads folder.
-  Works in continuous **and paged** mode (0.13.1); the app queues it with the
-  system DownloadManager into public Downloads (or uses the browser download
-  fallback).
 - Page counter, chapter navigation, keyboard shortcuts and progress saving.
 
 ### Library and catalogue
@@ -203,17 +190,22 @@ terminal install.
 
 ### Downloads and trackers
 
-- Download queue and chapter downloads managed by the server (Downloads in
-  settings), including pause/resume and queue management. Any signed-in user
-  can queue/remove/reorder downloads (fixed in 0.13.0 — previously
-  non-admins got **Forbidden**); admin-only queue inspection/repro controls
-  stay restricted.
-- Downloaded chapters are cached **server-side** in the data directory under
-  `.tempchapter` (created on every start; existing configs, including quoted
-  YAML keys, migrate from the old `downloads` path), so they are readable
-  offline without copying pages into the phone's local storage. 0.13.1 adds a
-  queued confirmation, per-chapter `downloaded/total` progress, live chapter
-  list refresh while downloading and a **Downloaded** check/label.
+- **Per-chapter Download button** in every chapter row (plus the selection-based
+  download) queues chapters for offline reading; any signed-in user can use it
+  and see the Download Queue/downloaded list (fixed/expanded by 0.13.5).
+- Downloaded chapters are extracted **page images in public storage** under
+  `/storage/emulated/0/yakushi/.downloaded/<Manga Title>/<Chapter Title>/`
+  (temporary CBZ deleted after extraction; the reader reads the folder). The
+  app asks for **All files access** on Android 11+ and the legacy storage
+  permission on Android 7–10; without it the download cannot be written.
+- Rows show `downloaded/total` progress while queued, the manga detail
+  refreshes every 4 seconds (up to ~2 minutes) so the **Downloaded** check
+  icon/label appears without reloading, and a check + "Downloaded" marker is
+  shown for completed chapters.
+- The old source-id guard that blocked hashed plugin extensions (QiScans etc.)
+  as "Local" is fixed: only ids `10000..1_000_000` (the actual Local range) are
+  rejected. The built-in Local source itself is still not downloadable because
+  its pages are already local files.
 - MyAnimeList/AniList tracker support from the web UI.
 
 ---
@@ -348,7 +340,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.1** (`android-v0.13.1`), published as
+- The current Android release is **0.13.5** (`android-v0.13.5`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

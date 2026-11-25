@@ -45,11 +45,11 @@ management is app-only) and
 (per-device theme palettes; since 0.9.1 the palette is applied across banners,
 icons, the unread badge, page background, headers and settings panels with
 contrast-adaptive text computed per light/dark mode, the 0.9.2 Settings list
-cells get their own tinted surface + adaptive cell text, 0.13.0 adds the
-reader's long-press/right-click image-save menu (0.13.1: paged-mode fallback +
-DownloadManager save) and 0.13.1 adds download progress/refresh in the chapter
-list — see step 3). The server also stores offline chapter downloads in
-`<TANOSHI_HOME>/.tempchapter` (patch 0005; see step 1).
+cells get their own tinted surface + adaptive cell text, and 0.13.5 adds
+per-chapter download buttons/progress in the chapter list (patch 0007; the old
+reader image-save patch 0006 was deleted). Offline chapters are extracted as
+page images into public `<external storage>/yakushi/.downloaded/<manga>/<chapter>/`
+by the server worker (patch 0005 + app public `download_path`; see step 1).
 
 ---
 
@@ -112,7 +112,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0006 + 0007), the Android app/extension-loader patches (0001 + 0002) and the downloads patch (0005), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007), the Android app/extension-loader patches (0001 + 0002) and the downloads patch (0005), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -166,37 +166,38 @@ the equivalent manual steps, which is what the scripts automate.
      `crates/tanoshi-web/src/common/theme_settings.rs`): per-device theme
      palettes (12 presets + custom Primary/Secondary/Accent picker) in
      Settings → Appearance → Themes, stored in `localStorage` only.
-   - **`native/patches/0006-web-ui-reader-image-save.patch`** (0.13.0, paged
-     fallback 0.13.1): the reader opens a **Save image** / **Cancel** popup on
-     long-press (550 ms) or right-click of an image. In paged mode the
-     navigation/tap overlays cover the images, so when the event target is not
-     an `<img>` the patch falls back to the visible `#page-list img` (paged
-     only). **Save image** calls `window.TanoshiApp.saveImage(url, name)` in
-     the app (0.13.1: DownloadManager → public Downloads) and 0.13.1 falls
-     back to an anchor download when the bridge is missing **or returns a
-     non-OK result**; filenames are
-     `yakushi-chapter-<chapter>-<timestamp>.jpg` and a snackbar reports the
-     result. Adds the `.image-save-*` CSS classes.
-   - **`native/patches/0007-web-ui-download-progress.patch`** (0.13.1, applied
-     right after 0006): refuses an empty chapter-download selection, shows
-     **"Download queued — chapters are saved on the server"**, renders
-     per-chapter `downloaded/total` progress, refreshes the manga detail every
-     4 s (up to 30 ticks) while any `download_status` is pending, and gives the
-     downloaded marker a `Downloaded` title/label.
+   - **`native/patches/0007-web-ui-download-progress.patch`** (0.13.1, final
+     in 0.13.5): refuses an empty chapter-download selection, shows
+     **"Download queued — chapters are saved on the server"**, adds a
+     per-chapter download icon in every chapter row, renders per-chapter
+     `downloaded/total` progress, refreshes the manga detail every 4 s (up to
+     30 ticks) while any `download_status` is pending, and gives the downloaded
+     marker a `Downloaded` title/label. Patch 0006 (reader Save image) was
+     deleted in 0.13.5 along with the bridge method and WebView listener.
    - These web patches only matter when regenerating the wasm UI: the vendored
      `native/web-dist/` already contains the patched output, so a normal server
      rebuild uses it as-is. `build_tanoshi.sh` applies them automatically
      (infinite scroll → web features → 0003 → `theme_settings.rs` +
-     0004 → 0006 → 0007).
-5. **`native/patches/0005-downloads-tempchapter.patch`** (0.13.0), applied
-   after the app/loader patches: a new `AuthGuard` allows **any signed-in
-   user** to download/remove/reorder chapters (the admin-only queue
-   inspection and download-queue repro endpoints stay `AdminGuard`); the
-   default `download_path` changes from `<home>/downloads` to
-   `<home>/.tempchapter`, the server creates the directory in
-   `default_download_path()` and on every `bootstrap()` start, and the app
-   seeds/migrates its `config.yml` (`AppPaths.tempChapters`,
-   `ConfigManager.ensureTempChapterDownloadPath`).
+     0004 → 0007).
+5. **`native/patches/0005-downloads-tempchapter.patch`** (final in 0.13.5),
+   applied after the app/loader patches: a new `AuthGuard` lets **any
+   signed-in user** download/remove/reorder chapters and read the queue/
+   downloaded list (the admin-only queue-repro endpoints stay `AdminGuard`);
+   the worker now stores downloads as **extracted page-image folders** under
+   the configured `download_path` (no source-name level): it downloads a
+   temporary CBZ, `spawn_blocking` extracts every ZIP entry into
+   `<download_path>/<manga title>/<chapter title>/`, deletes the archive and
+   stores the folder path; the reader reads directories
+   (`get_pages_from_dir`, image files, natural sort); removal/re-download
+   handles folders (`remove_dir_all`) and legacy archives. The server creates
+   the configured directory in `default_download_path()`/`bootstrap()`; the
+   app writes the public `<external storage>/yakushi/.downloaded` path and
+   migrates old configs (`ConfigManager.ensurePublicDownloadPath`; manifest
+   `MANAGE_EXTERNAL_STORAGE` + legacy `WRITE_EXTERNAL_STORAGE`).
+   *Note:* the 0.13.5 release also fixes the worker's Local-source guard to
+   reject only `10000..1_000_000`; that hunk is present in the built source
+   tree but **not in this checked-in 0005 patch file** — regenerate the
+   patch from the build tree before rebuilding from the patch set.
 
 Manually:
 
@@ -219,9 +220,7 @@ git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
 cp ../android/native/patches/theme_settings.rs \
    crates/tanoshi-web/src/common/theme_settings.rs
 git apply ../android/native/patches/0004-web-ui-themes.patch
-# Reader long-press/right-click Save image (0.13.0, reworked in 0.13.1)
-git apply ../android/native/patches/0006-web-ui-reader-image-save.patch
-# Chapter download feedback/progress/Downloaded marker (0.13.1)
+# Chapter download per-chapter button/progress/Downloaded marker (0.13.5)
 git apply ../android/native/patches/0007-web-ui-download-progress.patch
 
 # Android app layer
@@ -286,7 +285,7 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.1+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.5+:
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -300,29 +299,25 @@ default source is the **vendored dist** in this directory:
   per-mode adaptive text in a `body.themed` class; 0.9.2 adds
   `--theme-cell-light`/`--theme-cell-dark` + `--theme-cell-text-light/dark` for
   the Settings-page list cells) and
-  `native/patches/0006-web-ui-reader-image-save.patch` (0.13.0: reader
-  long-press/right-click **Save image** menu, paged-mode visible-image fallback
-  + non-OK browser fallback from 0.13.1; the bridge call lives in the app, see
-  step 4/`WebAppBridge`) + `native/patches/0007-web-ui-download-progress.patch`
-  (0.13.1: chapter download queued/progress/auto-refresh/**Downloaded**
-  marker). Its wasm bundle still contains the
+  `native/patches/0007-web-ui-download-progress.patch` (0.13.5: per-chapter
+  download button, queued/progress/auto-refresh and **Downloaded** marker;
+  patch 0006/reader Save image was deleted). Its wasm bundle still contains the
   `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.13.1):
-  `tanoshi-web-5eea48833fff3bca.js`, `tanoshi-web-21b5c52839b04fa6_bg.wasm`,
-  `styles-588cf0d9d00fcf51.css`.
+  Current dist asset names (0.13.5):
+  `tanoshi-web-856c2657bb0904cc.js`, `tanoshi-web-208996c3e73ce683_bg.wasm`,
+  `styles-294196d9e0cefbee.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.1**
-  (0.13.0/0.9.2/0.9.1/0.9.0/0.7.0/0.8.0 used earlier rebuilt dists;
-  0.2.0/0.5.0/0.6.0 used older dists). The 0.13.x rebuilds also carry patch
-  0005 (signed-in chapter downloads + `.tempchapter` default/create), which is
-  server-side and does not change the web UI; 0.13.1 adds the 0007 download
-  progress/refresh patch to the dist.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.5**
+  (0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0
+  used older dists). The 0.13.5 rebuild carries patch 0005 (AuthGuard, image
+  extraction into the configured/public folder, directory reading, removal) and
+  the final 0007 download UI; patch 0006 was deleted.
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -344,7 +339,6 @@ git apply ../android/native/patches/0003-web-ui-hide-source-management.patch
 cp ../android/native/patches/theme_settings.rs \
    crates/tanoshi-web/src/common/theme_settings.rs
 git apply ../android/native/patches/0004-web-ui-themes.patch
-git apply ../android/native/patches/0006-web-ui-reader-image-save.patch
 
 cd crates/tanoshi-web
 CARGO_TARGET_DIR="$PWD/../../target-wasm" trunk build --release
@@ -585,9 +579,9 @@ grep -c -a "settings:theme-palette" libtanoshi.so      # expect 1 (0.9.0+)
 grep -c -a "Monochromatic Blue" libtanoshi.so          # expect 1 (0.9.0+ preset)
 grep -c -a "body.themed" libtanoshi.so                 # expect >= 1 (0.9.1+)
 grep -c -a -e "--theme-cell-light" libtanoshi.so       # expect >= 1 (0.9.2+)
-grep -c -a "Save this image" libtanoshi.so             # expect >= 1 (0.13.0+ reader menu)
-grep -c -a ".tempchapter" libtanoshi.so                # expect >= 1 (0.13.0+ default download dir)
 grep -c -a "chapter downloads directory" libtanoshi.so # expect 1 (0.13.0+ bootstrap log)
+grep -c -a "could not extract chapter" libtanoshi.so   # expect >= 1 (0.13.5 extraction fallback)
+grep -c -a "local source can't be downloaded" libtanoshi.so # expect >= 1 (0.13.5 Local guard)
 grep -c -a "Download queued" libtanoshi.so             # expect >= 1 (0.13.1+ feedback)
 grep -c -a "Select at least one chapter" libtanoshi.so # expect >= 1 (0.13.1+ empty selection)
 grep -c -a "Downloaded" libtanoshi.so                  # expect >= 1 (0.13.1+ marker label)
@@ -628,16 +622,14 @@ output of this pipeline, built on an x86_64 Linux host with:
   (`patches/tanoshi-web-ui.patch`, `patches/tanoshi-web-ui-settings.patch`,
   `native/patches/0003-web-ui-hide-source-management.patch`,
   `native/patches/0004-web-ui-themes.patch` + copied `theme_settings.rs`,
-  `native/patches/0006-web-ui-reader-image-save.patch`,
   `native/patches/0007-web-ui-download-progress.patch`) +
   `native/patches/0001-android-app.patch` +
   `native/patches/0002-android-extension-loader.patch` (+ `android_loader.rs`) +
   `native/patches/0005-downloads-tempchapter.patch`,
 - the embedded web UI from `android/native/web-dist/` (rebuilt from source with
   the 0.8.0 web features, infinite-scroll, app-only extension-management,
-  per-device theme patches, the 0.13.0 reader image-save menu and the 0.13.1
-  paged-mode/download-progress changes; 0.9.1 reworked the theme application and
-  0.9.2 themed the Settings list cells),
+  per-device theme patches and the 0.13.5 per-chapter download UI; 0.9.1
+  reworked the theme application and 0.9.2 themed the Settings list cells),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -653,10 +645,10 @@ backend-only extension-management patch, **0.8.0 rebuilt it** for the Delete
 History/filters/layout-preset/tap-area web features, **0.9.0 rebuilt it again**
 for the per-device theme palettes, **0.9.1 rebuilt it** with the reworked
 full-UI theme application and adaptive text, and **0.9.2 rebuilt it** with the
-themed Settings list cells, and **0.13.0 rebuilt it** for the reader image-save
-menu and the `.tempchapter` download changes (`AuthGuard` + default download
-path + create-on-start), and **0.13.1 rebuilt it** with the paged-mode image
-save, DownloadManager path and chapter-download progress/refresh patches. The exported extension sources
+themed Settings list cells, and **0.13.0/0.13.1 rebuilt it** for the
+early download cache/UI, and **0.13.5 rebuilt it** for the public page-image
+extraction (`AuthGuard`, folder downloads, directory reading, removal) and the
+final per-chapter download UI (patch 0006 deleted). The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

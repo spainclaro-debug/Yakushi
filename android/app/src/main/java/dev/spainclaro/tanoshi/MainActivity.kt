@@ -1,8 +1,15 @@
 package dev.spainclaro.tanoshi
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -38,6 +45,7 @@ class MainActivity : ComponentActivity() {
         val initialMode = ThemeMode.fromId(AppSettings.themeId)
         applySystemBars(initialMode)
         super.onCreate(savedInstanceState)
+        requestStorageAccess()
         // Match the window background to the theme so the pre-Compose frame
         // (light theme especially) does not flash the native dark colour.
         window.setBackgroundDrawable(
@@ -60,6 +68,32 @@ class MainActivity : ComponentActivity() {
                     },
                 )
             }
+        }
+    }
+
+    /**
+     * Offline chapters are written to public storage under
+     * /storage/emulated/0/yakushi/.downloaded. Android 11+ requires the
+     * "All files access" special permission for that folder; Android 7-10 uses
+     * the legacy storage permission.
+     */
+    private fun requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                runCatching {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1001)
         }
     }
 
