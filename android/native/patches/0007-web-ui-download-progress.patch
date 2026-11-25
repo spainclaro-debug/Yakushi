@@ -1,0 +1,94 @@
+--- a/crates/tanoshi-web/src/manga.rs
++++ b/crates/tanoshi-web/src/manga.rs
+@@ -266,9 +266,16 @@
+         // Reverse sort the chapters so that the oldest chapter is downloaded first
+         selected_chapter_id.sort_by(|a, b| b.cmp(a));
+ 
++        if selected_chapter_id.is_empty() {
++            snackbar::show("Select at least one chapter to download".to_string());
++            return;
++        }
++
+         manga.loader.load(clone!(manga => async move {
+             match query::download_chapters(&selected_chapter_id).await {
+-                Ok(_) => {},
++                Ok(_) => {
++                    snackbar::show("Download queued — chapters are saved on the server".to_string());
++                }
+                 Err(err) => {
+                     snackbar::show(format!("{err}"));
+                 }
+@@ -281,8 +288,35 @@
+             } else if manga.source_id.get() != 0 && manga.path.get_cloned() != "" {
+                 Self::fetch_detail_by_source_path(manga.clone());
+             }
++            Self::schedule_download_refresh(manga.clone(), 30);
+         }))
+     }
++
++    /// Refresh the chapter list while a download is queued so downloaded icons
++    /// and progress appear without a manual reload; stops once no chapter has a
++    /// pending download status.
++    fn schedule_download_refresh(manga: Rc<Self>, remaining: u32) {
++        if remaining == 0 {
++            return;
++        }
++        Timeout::new(4_000, clone!(manga => move || {
++            if manga.id.get() != 0 {
++                Self::fetch_detail(manga.clone(), false);
++            } else if manga.source_id.get() != 0 && manga.path.get_cloned() != "" {
++                Self::fetch_detail_by_source_path(manga.clone());
++            }
++
++            let pending = manga
++                .chapters
++                .lock_ref()
++                .iter()
++                .any(|chapter| chapter.download_status.is_some());
++            if pending {
++                Self::schedule_download_refresh(manga.clone(), remaining.saturating_sub(1));
++            }
++        }))
++        .forget();
++    }
+     
+     fn remove_download_chapters(manga: Rc<Self>) {
+         let selected_chapter_id: Vec<i64> = manga.selected_chapters.lock_ref().keys().cloned().collect();
+@@ -900,15 +934,24 @@
+                                 ])
+                             }),
+                         ])
++                        .child_signal(signal::always(chapter.download_status.clone()).map(|status| status.map(|(downloaded, total)| html!("span", {
++                            .style("align-self", "center")
++                            .style("font-size", "smaller")
++                            .style("padding", "0.25rem")
++                            .text(&format!("{downloaded}/{total}"))
++                        }))))
+                         .child_signal(signal::always(chapter.downloaded_path.clone()).map(|downloaded_path| downloaded_path.is_some().then(|| html!("div", {
+                             .style("align-self", "center")
++                            .style("display", "flex")
++                            .style("align-items", "center")
+                             .style("padding", "0.25rem")
++                            .attr("title", "Downloaded")
+                             .children(&mut [
+                                 svg!("svg", {
+                                     .attr("xmlns", "http://www.w3.org/2000/svg")
+                                     .attr("viewBox", "0 0 20 20")
+                                     .attr("fill", "currentColor")
+-                                    .class("icon")
++                                    .class("icon-sm")
+                                     .children(&mut [
+                                         svg!("path", {
+                                             .attr("fill-rule", "evenodd")
+@@ -916,6 +959,11 @@
+                                             .attr("d", "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z")
+                                         })
+                                     ])
++                                }),
++                                html!("span", {
++                                    .style("font-size", "smaller")
++                                    .style("margin-left", "0.2rem")
++                                    .text("Downloaded")
+                                 })
+                             ])
+                         }))))

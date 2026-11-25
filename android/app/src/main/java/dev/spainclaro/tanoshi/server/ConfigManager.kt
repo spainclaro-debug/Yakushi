@@ -83,7 +83,7 @@ object ConfigManager {
         """.trimIndent() + "\n"
     }
 
-    private val DOWNLOAD_PATH_REGEX = Regex("""(?m)^(\s*download_path\s*:\s*).*$""")
+    private val DOWNLOAD_PATH_REGEX = Regex("""(?m)^(\s*['"]?download_path['"]?\s*:\s*).*$""")
 
     /**
      * Existing installs were seeded with `download_path: <home>/downloads`.

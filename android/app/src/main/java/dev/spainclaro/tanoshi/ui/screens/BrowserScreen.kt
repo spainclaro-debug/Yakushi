@@ -7,6 +7,10 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.app.DownloadManager
+import android.content.Context
+import android.os.Environment
+import android.webkit.URLUtil
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -207,6 +211,32 @@ fun BrowserScreen(
                                         fileChooserCallback = null
                                         false
                                     }
+                                }
+                            }
+                            setDownloadListener { downloadUrl, _, contentDisposition, mimeType, _ ->
+                                runCatching {
+                                    val name = URLUtil.guessFileName(
+                                        downloadUrl,
+                                        contentDisposition,
+                                        mimeType,
+                                    )
+                                    val request = DownloadManager.Request(Uri.parse(downloadUrl))
+                                        .setTitle(name)
+                                        .setMimeType(mimeType)
+                                        .setNotificationVisibility(
+                                            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED,
+                                        )
+                                        .setDestinationInExternalPublicDir(
+                                            Environment.DIRECTORY_DOWNLOADS,
+                                            name,
+                                        )
+                                    val manager = viewContext.getSystemService(
+                                        Context.DOWNLOAD_SERVICE,
+                                    ) as DownloadManager
+                                    manager.enqueue(request)
+                                    onShowMessage("Downloading $name…")
+                                }.onFailure { error ->
+                                    android.util.Log.w("BrowserScreen", "Could not start download", error)
                                 }
                             }
                             webViewClient = object : WebViewClient() {

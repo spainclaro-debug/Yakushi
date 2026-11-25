@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.0](#whats-new-in-0130)
+- [What's new in 0.13.1](#whats-new-in-0131)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,25 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.13.1
+
+- **Reader Save image fixed in paged mode** — paged reading's navigation/tap
+  overlays no longer swallow the long-press/right-click; the reader falls back
+  to the visible page image, and the browser fallback runs when the app bridge
+  is unavailable or returns an error.
+- **Save image really downloads** — the app bridge now queues the image with
+  the system **DownloadManager** into the public Downloads folder on every
+  supported Android version (no storage permission, completion notification);
+  the in-app `BrowserScreen` also queues fallback anchor downloads.
+- **Chapter downloads show progress and a Downloaded marker** — a "Download
+  queued — chapters are saved on the server" confirmation, an empty-selection
+  message, per-chapter `downloaded/total` progress, automatic chapter-list
+  refresh every 4 s while downloading, and a clearer **Downloaded** label/title
+  next to the check icon. Quoted-key `download_path` configs now migrate to
+  `.tempchapter` too.
+- **Version 0.13.1** (`android-v0.13.1`, `yakushi-server-release-<date>.apk`);
+  includes all 0.13.0/0.12.x/earlier features.
 
 ## What's new in 0.13.0
 
@@ -96,8 +115,10 @@ terminal install.
   the next page ("bottom right: NEXT, bottom left: PREV" or the mirrored
   layout).
 - **Save image** — long-press an image (right-click in a browser) and choose
-  **Save image** to save the displayed page to the phone's Downloads folder
-  through the app bridge (or download it normally in a browser).
+  **Save image** to save the displayed page to the phone's Downloads folder.
+  Works in continuous **and paged** mode (0.13.1); the app queues it with the
+  system DownloadManager into public Downloads (or uses the browser download
+  fallback).
 - Page counter, chapter navigation, keyboard shortcuts and progress saving.
 
 ### Library and catalogue
@@ -188,9 +209,11 @@ terminal install.
   non-admins got **Forbidden**); admin-only queue inspection/repro controls
   stay restricted.
 - Downloaded chapters are cached **server-side** in the data directory under
-  `.tempchapter` (created on every start; existing configs migrate from the
-  old `downloads` path), so they are readable offline without copying pages
-  into the phone's local storage.
+  `.tempchapter` (created on every start; existing configs, including quoted
+  YAML keys, migrate from the old `downloads` path), so they are readable
+  offline without copying pages into the phone's local storage. 0.13.1 adds a
+  queued confirmation, per-chapter `downloaded/total` progress, live chapter
+  list refresh while downloading and a **Downloaded** check/label.
 - MyAnimeList/AniList tracker support from the web UI.
 
 ---
@@ -325,7 +348,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.0** (`android-v0.13.0`), published as
+- The current Android release is **0.13.1** (`android-v0.13.1`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

@@ -5,9 +5,15 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.0** — see the
+Current release: **0.13.1** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.0 adds **Save image** to the reader
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.1 fixes the 0.13.0 reader/download
+features: **Save image** now works in paged reading mode too and saves through
+the system **DownloadManager** into the public Downloads folder (with a
+completion notification and a WebView download fallback); chapter downloads
+show a queued message, per-chapter progress and a **Downloaded** marker and
+refresh the chapter list while downloading. 0.13.0 added **Save image** to the
+reader
 (long-press/right-click an image to save the page you are viewing to the
 phone's Downloads folder), fixes the chapter-list **Download** button
 returning **Forbidden** for non-admin users, and moves offline chapter
@@ -76,7 +82,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.0](#whats-new-in-0130)
+- [What's new in 0.13.1](#whats-new-in-0131)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -125,6 +131,41 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.13.1
+
+- **Reader Save image now works in paged mode too.** Paged reading draws the
+  navigation/tap overlays above the page images, so the long-press/right-click
+  previously hit the overlay rather than an `<img>` (only continuous mode
+  worked). The reader now falls back to the currently visible image in the
+  `#page-list` container when the target is not an image (fallback limited to
+  paged mode), and the browser-side fallback starts the normal download link
+  when the app bridge returns a non-OK result.
+- **Saving an image actually downloads it.** The app bridge no longer fetches
+  the bytes itself; it enqueues the proxied image URL with the system
+  **DownloadManager**, which writes it to the public **Downloads** folder on
+  every supported Android version (no storage permission) and shows a
+  completion notification. `BrowserScreen` also queues in-WebView anchor
+  downloads through DownloadManager, so the browser fallback works inside the
+  app too.
+- **Chapter downloads: feedback, progress and Downloaded marker.** The
+  chapter-list download action now says **"Download queued — chapters are
+  saved on the server"**, refuses an empty selection ("Select at least one
+  chapter to download"), shows per-chapter **`downloaded/total`** progress while
+  queued, refreshes the manga detail every 4 seconds while a download is
+  pending (so the marker appears without a manual reload), and the downloaded
+  marker now has a **Downloaded** title and visible label next to the check
+  icon. The server-side worker writes complete CBZ files into
+  `<TANOSHI_HOME>/.tempchapter` (verified end-to-end).
+- **Quoted-key config migration.** Existing configs with quoted YAML keys
+  (`'download_path':`) are now migrated to `.tempchapter` as well.
+- **Web UI and server rebuilt** — the updated reader patch and the new
+  `0007-web-ui-download-progress.patch` are embedded in the rebuilt
+  `libtanoshi.so` and vendored dist.
+- **Version 0.13.1** — `versionCode` 1301; the `android-v0.13.1` tag produces
+  `versionCode` 1301. APK filename scheme unchanged.
+
+Previous release — **0.13.0** — and its features:
 
 ## What's new in 0.13.0
 
@@ -455,12 +496,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.0**,
-`versionCode` 1300) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.1**,
+`versionCode` 1301) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.0 -PappVersionCode=1300 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.1 -PappVersionCode=1301 \
   -PapkDate=2026-11-14
 ```
 
@@ -521,11 +562,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.0`. For a tag, CI derives everything from the tag and
+example `android-v0.13.1`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.0` → `1300`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.1` → `1301`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -710,19 +751,29 @@ While reading, **long-press an image** (or **right-click** it in a browser) to
 open a small popup asking *"Save this image to your Downloads folder?"* with
 **Save image** and **Cancel** buttons. Choosing **Save image** downloads the
 image currently displayed — the same proxied page URL the reader loaded, not
-the source site's original URL — and saves it to the phone's **Downloads**
-folder:
+the source site's original URL — to the phone's **Downloads** folder. This
+works in **both continuous and paged reading modes** (0.13.1: paged mode's
+navigation/tap overlays no longer swallow the gesture; the reader falls back to
+the visible page image).
 
 - In the Android app the web UI calls
   `window.TanoshiApp.saveImage(url, name)`; the app bridge
-  (`WebAppBridge.saveImage`) downloads the bytes and writes them through
-  **MediaStore Downloads** on Android 10+ (so no storage permission is
-  needed), or to the app's external Downloads folder on Android 7–9.
-- In a normal desktop/mobile browser the same action falls back to a standard
-  download link (the browser's normal download flow).
-- Files are named `yakushi-chapter-<chapter>-<timestamp>.jpg`. A snackbar
-  reports the saved location (or the error). The popup can be dismissed with
+  (`WebAppBridge.saveImage`) **enqueues the URL with the system
+  DownloadManager**, which writes the file to the public **Downloads** folder
+  on every supported Android version, needs **no storage permission** and shows
+  a download/completion notification. MIME type is chosen from the file
+  extension.
+- If the bridge is missing or returns a non-OK result (0.13.1), the web UI
+  falls back to a normal `<a download>` link. Inside the app `BrowserScreen`
+  intercepts that link with a `setDownloadListener` and queues it through
+  DownloadManager too, so the fallback also lands in public Downloads.
+- In a normal browser the same action uses the browser's own download flow.
+- Files are named `yakushi-chapter-<chapter>-<timestamp>.jpg`. A snackbar says
+  the download was queued (or reports the error); the DownloadManager
+  notification confirms completion. The popup can be dismissed with
   **Cancel** or by tapping outside it.
+- Saving an image is separate from **chapter downloads**, which the server
+  caches in `.tempchapter` for offline reading ([below](#chapter-downloads)).
 
 Because the UI lives inside the server binary, **changing web-UI behaviour
 means rebuilding `libtanoshi.so`** (see [`native/README.md`](native/README.md))
@@ -807,7 +858,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.1-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1461,10 +1512,20 @@ queue inspection and download-queue repro controls remain restricted.
   served by the server. There is no per-image phone download for chapters —
   use the reader's **Save image** action if you want individual images in the
   phone's Downloads folder.
-
-## Settings and `config.yml`
-
----
+- **Feedback and progress (0.13.1).** Tapping Download confirms with
+  **"Download queued — chapters are saved on the server"**; an empty
+  selection shows **"Select at least one chapter to download"** instead of
+  doing nothing. While a download is queued the chapter list shows per-chapter
+  **`downloaded/total`** progress, and the manga detail is refreshed every
+  4 seconds while any chapter still has a pending download status (up to 30
+  refreshes, ~2 minutes) — so the **Downloaded** check icon (now with a
+  `Downloaded` title and label) appears without a manual reload, and polling
+  stops once nothing is pending. The
+  server worker was verified end-to-end: a real Guya chapter produced a
+  complete CBZ file in `.tempchapter`.
+- **Existing configs migrate even with quoted keys (0.13.1).** The
+  `download_path` rewrite now also matches `'download_path':` / `"download_path":`,
+  so configs written with quoted YAML keys are moved to `.tempchapter` too.
 
 ## Settings and `config.yml`
 
@@ -1620,14 +1681,29 @@ installs are migrated automatically from the old `<home>/downloads` path. Open
 the chapter in the web UI's **Downloads** page (or from the library) while
 offline; removing the download frees the space.
 
-**A saved reader image does not appear in Downloads.** The snackbar shows the
-location returned by the app: on Android 10+ it is the shared **Downloads**
-folder (MediaStore); on Android 7–9 it is the app-specific
-`Android/data/dev.spainclaro.tanoshi*/files/Download` folder, visible from a
-file manager. MediaStore may take a moment to index the new file — recheck
-Downloads, or use **Save image** again; for a browser tab use the browser's
-normal download instead (the app bridge is only present inside the app). If
-the snackbar shows an error, check the Logs tab for the bridge message.
+**Save image did nothing in paged reading mode.** Fixed in 0.13.1: paged mode
+draws navigation/tap overlays over the page images, so the original gesture hit
+the overlay; the reader now falls back to the visible page image (in paged
+mode). Update the app and restart the server so the new web UI is served.
+
+**A saved reader image does not appear in Downloads.** From 0.13.1 the app
+enqueues the image with the system **DownloadManager**, which writes to the
+public **Downloads** folder on every supported Android version and shows a
+download/completion notification. If the snackbar said the download was
+queued, check the notification shade and the public Downloads folder (or
+**Downloads** in a file manager); large/first downloads can take a moment. If
+the bridge fails, the web UI falls back to a normal download link, and inside
+the app `BrowserScreen` queues that through DownloadManager too. For a browser
+tab use the browser's own download. If nothing happens, check the Logs tab for
+`saveImage`/`BrowserScreen` messages.
+
+**The chapter Download button seems to do nothing / no Downloaded marker.**
+0.13.1 added clear feedback: a queued snackbar, **`downloaded/total`** progress
+per chapter, and the manga detail refreshes every 4 seconds while a download is
+pending, so the **Downloaded** check icon/label appears without reloading. If
+you selected no chapters it now says "Select at least one chapter to
+download". If a chapter stays queued, check the Logs/Downloads page and the
+`.tempchapter` directory (see [Chapter downloads](#chapter-downloads)).
 
 **Saving the port or `config.yml` fails with `config.yml.tmp: open failed:
 ENOENT`.** This was a 0.2.0 and earlier bug when the server had never been
@@ -1831,16 +1907,16 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + 0.13.0 reader image-save patch (`native/patches/0006-web-ui-reader-image-save.patch`), embedded in `libtanoshi.so`; 0.9.1 added full-palette application/adaptive text, 0.9.2 themed settings cells and 0.13.0 reader image saves |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + 0.13.0 reader image-save patch + 0.13.1 download progress/refresh patch (`native/patches/0006`/`0007`), embedded in `libtanoshi.so`; 0.9.1 full-palette/adaptive text, 0.9.2 themed settings cells, 0.13.0 reader image saves, 0.13.1 paged-mode save + download progress |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
 | Extension catalogs | Built-in **`tanoshi-extension`** repository (raw `main/android/extensions/index.json`, label `tanoshi-extension (default)`, from 0.7.0) + up to 10 custom HTTPS catalog repositories; the local `android/extensions/index.json` is kept for tooling/back-compat |
 | Plugin loading | Dual directory (`files/tanoshi/plugins` first, then `nativeLibraryDir`); in-memory memfd + `android_dlopen_ext` loader for user plugins (from 0.5.0); `.tanoshi-disabled` marker + host-library filtering (from 0.6.0) |
 | Extension sources/tooling | Canonical `tanoshi-extension` repo (`android/extensions/plugins/`, catalog, `sources/`, `patches/`, `tools/build_extension.sh`); local copies `android/extensions/sources/`, `repo-template/` and `native/build_extension.sh` |
-| Reader image save | Long-press/right-click popup; app bridge → MediaStore Downloads (Android 10+) / app external Downloads (7–9), browser fallback; files `yakushi-chapter-<chapter>-<timestamp>.jpg` (from 0.13.0) |
-| Chapter downloads | Any signed-in user can queue/remove/reorder (AuthGuard); server-side cache in `<TANOSHI_HOME>/.tempchapter`, created on start and migrated by the app (from 0.13.0) |
-| App version | 0.13.0 (`versionName`); `versionCode` 1300 in local builds and for the `android-v0.13.0` tag |
+| Reader image save | Long-press/right-click popup in continuous **and paged** mode (0.13.1); app bridge enqueues the URL with system DownloadManager → public Downloads (all versions, no storage permission, completion notification), browser/WebView fallback; files `yakushi-chapter-<chapter>-<timestamp>.jpg` (0.13.0, paged/DownloadManager 0.13.1) |
+| Chapter downloads | Any signed-in user can queue/remove/reorder (AuthGuard); server-side cache in `<TANOSHI_HOME>/.tempchapter`, created on start and migrated by the app (0.13.0); queued message, `downloaded/total` progress, live refresh and Downloaded marker (0.13.1) |
+| App version | 0.13.1 (`versionName`); `versionCode` 1301 in local builds and for the `android-v0.13.1` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

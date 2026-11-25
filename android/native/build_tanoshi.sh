@@ -118,6 +118,8 @@ apply_patch "$HERE/patches/0004-web-ui-themes.patch"
 # Web UI: long-press/right-click an image in the reader to save it to the
 # phone's Downloads folder (via the app bridge) or download it in a browser.
 apply_patch "$HERE/patches/0006-web-ui-reader-image-save.patch"
+# Web UI: chapter download feedback/progress + downloaded marker refresh.
+apply_patch "$HERE/patches/0007-web-ui-download-progress.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the

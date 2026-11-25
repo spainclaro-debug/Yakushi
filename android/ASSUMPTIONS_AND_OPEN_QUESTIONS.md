@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.0 / 1300, local date).
+three to Gradle; local builds use the Gradle defaults (0.13.1 / 1301, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.0 / versionCode
-1300 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.0`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.1 / versionCode
+1301 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.1`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -622,25 +622,37 @@ new devices default to Auto.
 ### A34 — Reader image saving goes through the app bridge (no storage permission)
 
 From 0.13.0 the web-UI reader offers **Save image** for an image under the
-cursor/finger (right-click or a 550 ms long-press). The browser side
+cursor/finger (right-click or a 550 ms long-press); 0.13.1 makes it work in
+**paged** reading mode as well. The browser side
 (`native/patches/0006-web-ui-reader-image-save.patch`) builds the menu from the
-image's `currentSrc` (the proxied reader URL, not the source site's URL) and
-calls `window.TanoshiApp.saveImage(url, name)` when the app bridge is present;
-otherwise it falls back to a normal anchor download. In the app,
-`WebAppBridge.saveImage` is a `@JavascriptInterface` method that downloads the
-URL with `HttpURLConnection` (15 s connect/30 s read, redirects,
-`User-Agent: Yakushi-App`), checks for 2xx, detects JPEG/PNG/WebP from magic
-bytes, and writes **`yakushi-chapter-<chapter>-<timestamp>.jpg`** via
-`writeBytesToDownloads`: **MediaStore Downloads** on Android 10+ (no storage
-permission), or the app-specific external Downloads directory
-(`Android/data/<package>/files/Download`) on Android 7–9. Filenames are
-sanitized; the method returns `OK|<location>` or `ERROR|<message>` and the web
-UI shows a snackbar. There is **no** general file access: only the reader calls
-this bridge method.
+image's `currentSrc` (the proxied reader URL, not the source site's URL). Paged
+mode renders navigation/tap overlays above the images, so when the event target
+is not an `<img>` the reader falls back to the currently visible
+`#page-list img` (the fallback is restricted to paged mode). It then calls
+`window.TanoshiApp.saveImage(url, name)` when the app bridge is present;
+0.13.1 additionally falls back to a normal anchor download when the bridge is
+missing **or returns a non-OK result**.
+
+In the app, `WebAppBridge.saveImage` is a `@JavascriptInterface` method that
+**enqueues the URL with the system `DownloadManager`**:
+`setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)`,
+MIME type chosen from the filename extension (png/webp/gif, else jpeg),
+`VISIBILITY_VISIBLE_NOTIFY_COMPLETED`, allowed over metered/roaming networks.
+DownloadManager writes the file to the **public Downloads** folder on every
+supported Android version, needs **no storage permission**, and shows a
+download/completion notification. The bridge returns `OK|Download/<name>` or
+`ERROR|<message>`, and the web UI shows a snackbar. Filenames are sanitized
+`yakushi-chapter-<chapter>-<timestamp>.jpg`. `BrowserScreen` also installs a
+`setDownloadListener` that queues the in-WebView anchor fallback through
+DownloadManager. There is **no** general file access: only the reader calls
+this bridge method (and the normal browser download flow goes through the
+WebView listener).
 
 *If wrong:* saving an image could fail silently or write to a location the user
-cannot find; the bridge returns the path/error, the snackbar shows it and the
-docs name the Downloads folder per Android version.
+cannot find; the bridge returns the path/error, the snackbar shows it,
+DownloadManager shows a notification and the docs point at the public
+Downloads folder. On failure the anchor fallback / WebView listener still
+attempts a normal download.
 
 ### A35 — Chapter downloads use a server-side `.tempchapter` cache
 
@@ -662,6 +674,19 @@ From 0.13.0 offline chapter downloads are managed entirely by the server:
 - Downloaded pages are read offline through the server from that directory;
   they are not copied into the phone's shared/local storage. Removing the
   download frees the space; uninstalling the app removes it with the app data.
+- **UI feedback (0.13.1).** Downloading requires a non-empty selection
+  (`"Select at least one chapter to download"`); a successful queue shows
+  `"Download queued — chapters are saved on the server"`. While any chapter
+  has a pending `download_status`, the chapter list shows `downloaded/total`
+  progress and the manga detail is refreshed every 4 s (up to 30 ticks) so the
+  **Downloaded** marker (check icon + `Downloaded` title/label) appears without
+  a manual reload; polling stops once nothing is pending. The server worker was
+  verified end-to-end (a real Guya chapter produced a complete CBZ in
+  `.tempchapter`).
+- **Quoted keys (0.13.1).** `ConfigManager`'s `download_path` regex now accepts
+  quoted YAML keys (`'download_path':` / `"download_path":`) in addition to the
+  unquoted form, so existing configs are migrated regardless of the YAML
+  style.
 
 *If wrong:* old configs could keep writing to the legacy `downloads` directory
 or the server could fail when the directory is missing; the app migrates the

@@ -1,7 +1,9 @@
 package dev.spainclaro.tanoshi.ui
 
+import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -17,8 +19,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
 
 /**
@@ -55,43 +55,37 @@ class WebAppBridge(
     }
 
     /**
-     * Downloads a reader image (the already-proxied absolute URL) into the
-     * shared Downloads folder. Returns `OK|<location>` or `ERROR|<message>`.
+     * Queues a reader image (the already-proxied absolute URL) in the system
+     * DownloadManager, which writes it to the public Downloads folder. This
+     * works on every supported Android version without storage permissions and
+     * shows a download notification. Returns `OK|<location>` or `ERROR|<message>`.
      */
     @JavascriptInterface
     fun saveImage(url: String, fileName: String): String {
         val safeName = sanitizeFileName(fileName)
         return try {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 30_000
-            connection.instanceFollowRedirects = true
-            connection.setRequestProperty("User-Agent", "Yakushi-App")
-            try {
-                if (connection.responseCode !in 200..299) {
-                    error("server returned HTTP ${connection.responseCode}")
-                }
-                val bytes = connection.inputStream.use { it.readBytes() }
-                val mime = detectImageMime(bytes)
-                val location = writeBytesToDownloads(safeName, mime, bytes)
-                Log.i(TAG, "Saved image to $location")
-                "OK|$location"
-            } finally {
-                connection.disconnect()
+            val mime = when (safeName.substringAfterLast('.', "").lowercase(Locale.US)) {
+                "png" -> "image/png"
+                "webp" -> "image/webp"
+                "gif" -> "image/gif"
+                else -> "image/jpeg"
             }
+            val request = DownloadManager.Request(Uri.parse(url))
+                .setTitle(safeName)
+                .setDescription("Yakushi reader image")
+                .setMimeType(mime)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+            val manager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            manager.enqueue(request)
+            Log.i(TAG, "Queued image download for $safeName")
+            "OK|${Environment.DIRECTORY_DOWNLOADS}/$safeName"
         } catch (t: Throwable) {
-            Log.w(TAG, "Could not save the image", t)
+            Log.w(TAG, "Could not queue the image download", t)
             "ERROR|${t.message ?: "unknown error"}"
         }
-    }
-
-    private fun detectImageMime(bytes: ByteArray): String = when {
-        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
-        bytes.size >= 8 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() -> "image/png"
-        bytes.size >= 12 &&
-            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
-            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() -> "image/webp"
-        else -> "image/jpeg"
     }
 
     /**

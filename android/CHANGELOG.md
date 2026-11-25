@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.0`). The Termux package in the repository root has
+(for example `android-v0.13.1`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,56 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.1
+
+### Fixed
+
+- **Reader Save image works in paged mode too.** Paged reading renders the
+  navigation/tap overlays above the page images, so the long-press/right-click
+  event target was the overlay rather than an `<img>` and no menu appeared.
+  `image_menu_for` now falls back to the currently visible image in the
+  `#page-list` container when the target is not an image (the fallback is
+  restricted to **Paged** mode); continuous mode is unchanged. The browser
+  fallback also now starts the normal download link when the app bridge
+  returns a non-OK result, not only when the bridge is absent.
+- **Saving an image actually downloads it to Downloads.** `WebAppBridge.saveImage`
+  no longer fetches the image itself into MediaStore; it enqueues the proxied
+  image URL with the system **DownloadManager**
+  (`setDestinationInExternalPublicDir(Downloads, name)`, MIME chosen from the
+  file extension, `VISIBILITY_VISIBLE_NOTIFY_COMPLETED`), which writes the
+  image to the phone's public **Downloads** folder on every supported Android
+  version without storage permissions and shows a completion notification.
+  `BrowserScreen` also installed a `setDownloadListener` fallback so the
+  in-WebView anchor download is queued through DownloadManager too.
+- **Chapter download feedback, progress and the Downloaded marker.** The
+  chapter download action now refuses an empty selection ("Select at least one
+  chapter to download") and confirms a queued download ("Download queued —
+  chapters are saved on the server"); the chapter list shows per-chapter
+  progress (`downloaded/total`) while a download is queued, refreshes the manga
+  detail every 4 seconds while any chapter has a pending download status, up to
+  30 refreshes (~2 minutes) (so the marker appears without a manual reload), and the downloaded marker now
+  has a `title="Downloaded"` plus a visible **Downloaded** label next to the
+  check icon. The actual server-side worker was verified end-to-end (a real
+  Guya chapter produced a complete CBZ under `.tempchapter`).
+- **Quoted-key `download_path` migration.** `ConfigManager`'s migration regex
+  now also matches quoted YAML keys (`'download_path':` / `"download_path":`),
+  so existing configs written with quoted keys are migrated to
+  `<TANOSHI_HOME>/.tempchapter` as intended.
+- **Web UI and `libtanoshi.so` rebuilt** with the updated reader patch and the
+  new `0007-web-ui-download-progress.patch`; version **0.13.1** (versionCode
+  1301, tag `android-v0.13.1`). The APK filename scheme is unchanged
+  (`yakushi-server-release-<yyyy-MM-dd>.apk`).
+
+### Notes
+
+- The reader menu now works in both continuous and paged modes; saved images
+  are queued through DownloadManager into the public Downloads folder on all
+  supported Android versions (the 0.13.0 app-specific external Downloads path
+  for Android 7–9 is no longer used for image saves).
+- All 0.13.0 behaviour is unchanged: any signed-in user can download chapters,
+  offline chapters are cached server-side in `.tempchapter`, and the app
+  migrates old configs.
 
 ## 0.13.0
 

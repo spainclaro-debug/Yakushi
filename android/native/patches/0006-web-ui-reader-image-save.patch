@@ -32,7 +32,7 @@
          })
      }
  
-@@ -1444,14 +1455,135 @@
+@@ -1444,14 +1455,162 @@
          })
      }
  
@@ -40,8 +40,35 @@
 +    /// Builds the save-image menu entry from a DOM image target. Uses the
 +    /// image's current (already proxied) absolute URL so the Android bridge or
 +    /// the browser can download exactly the bytes being displayed.
++    fn visible_page_image() -> Option<HtmlImageElement> {
++        let page_list = document().get_element_by_id("page-list")?;
++        let children = page_list.children();
++        for index in 0..children.length() {
++            let Some(node) = children.item(index) else {
++                continue;
++            };
++            let Ok(image) = node.dyn_into::<HtmlImageElement>() else {
++                continue;
++            };
++            if image.offset_width() > 0 && image.offset_height() > 0 {
++                return Some(image);
++            }
++        }
++        None
++    }
++
 +    fn image_menu_for(this: &Rc<Self>, target: Option<web_sys::EventTarget>) -> Option<ImageMenu> {
-+        let image = target?.dyn_into::<HtmlImageElement>().ok()?;
++        // Paged mode renders navigation/tap overlays above the page images, so
++        // the event target is usually the overlay rather than the <img>. Fall
++        // back to the currently visible paged image so long-press/right-click
++        // works in both continuous and paged reading modes.
++        let image = match target.and_then(|target| target.dyn_into::<HtmlImageElement>().ok()) {
++            Some(image) => image,
++            None if matches!(this.reader_settings.reader_mode.get(), ReaderMode::Paged) => {
++                Self::visible_page_image()?
++            }
++            None => return None,
++        };
 +        let url = image.current_src();
 +        if url.is_empty() {
 +            return None;
@@ -80,7 +107,7 @@
 +        // phone's Downloads folder through MediaStore. In a normal browser the
 +        // same script falls back to a download link.
 +        let js = format!(
-+            r#"(function(){{try{{var url={url};var name={name};var app=window.TanoshiApp;if(app&&typeof app.saveImage==='function'){{return app.saveImage(url,name);}}var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();return 'OK|Downloads/'+name;}}catch(e){{return 'ERROR|'+(e&&e.message?e.message:String(e));}}}})()"#,
++            r#"(function(){{try{{var url={url};var name={name};var app=window.TanoshiApp;if(app&&typeof app.saveImage==='function'){{try{{var r=app.saveImage(url,name);if(r&&String(r).indexOf('OK|')===0)return r;}}catch(e){{}}}}var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();return 'OK|Downloads/'+name;}}catch(e){{return 'ERROR|'+(e&&e.message?e.message:String(e));}}}})()"#,
 +            url = serde_json::to_string(&menu.url).unwrap_or_default(),
 +            name = serde_json::to_string(&menu.file_name)
 +                .unwrap_or_else(|_| "\"image.jpg\"".to_string()),
@@ -171,7 +198,7 @@
              .future(this.current_page.signal().for_each(clone!(this => move |page| {
                  Self::update_page_read(this.clone(), page);
  
-@@ -1505,6 +1637,7 @@
+@@ -1505,6 +1664,7 @@
                  Self::render_page_indicator(this.clone()),
                  Self::render_bottombar(this.clone()),
                  ReaderSettings::render(this.reader_settings.clone()),
