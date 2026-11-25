@@ -1,0 +1,99 @@
+--- a/crates/tanoshi/src/presentation/graphql/guard.rs
++++ b/crates/tanoshi/src/presentation/graphql/guard.rs
+@@ -24,3 +24,24 @@
+         Err("Forbidden".into())
+     }
+ }
++
++/// Allows any authenticated user (not just admins). Chapter downloads are
++/// shared by the instance, but self-service registered users should be able to
++/// use the reader's download button instead of getting "Forbidden".
++#[derive(Debug, Default)]
++pub struct AuthGuard;
++
++impl AuthGuard {
++    pub fn new() -> Self {
++        Self {}
++    }
++}
++
++impl Guard for AuthGuard {
++    async fn check(&self, ctx: &Context<'_>) -> Result<()> {
++        ctx.data::<Claims>()
++            .map_err(|_| "token not exists, please login")?;
++
++        Ok(())
++    }
++}
+--- a/crates/tanoshi/src/presentation/graphql/downloads.rs
++++ b/crates/tanoshi/src/presentation/graphql/downloads.rs
+@@ -1,4 +1,4 @@
+-use super::{chapter::Chapter, common::Cursor, guard::AdminGuard};
++use super::{chapter::Chapter, common::Cursor, guard::{AdminGuard, AuthGuard}};
+ use crate::{
+     domain::services::download::DownloadService,
+     infrastructure::{config::Config, domain::repositories::download::DownloadRepositoryImpl},
+@@ -265,7 +265,7 @@
+         Ok(true)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn download_chapters(&self, ctx: &Context<'_>, ids: Vec<i64>) -> Result<i64> {
+         let len = ids.len() as i64;
+         ctx.data::<DownloadService<DownloadRepositoryImpl>>()?
+@@ -275,7 +275,7 @@
+         Ok(len)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn remove_chapters_from_queue(&self, ctx: &Context<'_>, ids: Vec<i64>) -> Result<i64> {
+         let len = ids.len() as i64;
+         ctx.data::<DownloadService<DownloadRepositoryImpl>>()?
+@@ -285,7 +285,7 @@
+         Ok(len)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn remove_downloaded_chapters(&self, ctx: &Context<'_>, ids: Vec<i64>) -> Result<i64> {
+         let len = ids.len() as i64;
+         ctx.data::<DownloadService<DownloadRepositoryImpl>>()?
+@@ -295,7 +295,7 @@
+         Ok(len)
+     }
+ 
+-    #[graphql(guard = "AdminGuard::new()")]
++    #[graphql(guard = "AuthGuard::new()")]
+     async fn move_chapter_in_queue(&self, ctx: &Context<'_>, id: i64, up: bool) -> Result<bool> {
+         ctx.data::<DownloadService<DownloadRepositoryImpl>>()?
+             .move_chapter_in_queue(id, up)
+--- a/crates/tanoshi/src/infrastructure/config.rs
++++ b/crates/tanoshi/src/infrastructure/config.rs
+@@ -236,7 +236,10 @@
+ }
+ 
+ fn default_download_path() -> String {
+-    let path = tanoshi_home().join("downloads");
++    // Offline chapters are cached inside the server data directory so they
++    // never touch the user's shared storage; the directory is created here so
++    // first runs and upgrades always have it.
++    let path = tanoshi_home().join(".tempchapter");
+     if !path.exists() {
+         let _ = std::fs::create_dir_all(&path);
+     }
+--- a/crates/tanoshi/src/application/bootstrap.rs
++++ b/crates/tanoshi/src/application/bootstrap.rs
+@@ -52,6 +52,11 @@
+ }
+ 
+ pub async fn bootstrap(config: Config) -> Result<App> {
++    // Offline chapter downloads live under the server data directory
++    // (<home>/.tempchapter); create it on first install and on every start so a
++    // deleted/moved directory never breaks the download button.
++    std::fs::create_dir_all(&config.download_path)?;
++    info!("chapter downloads directory: {}", config.download_path);
+     info!("connecting to database at {}", config.database_path);
+     let pool =
+         database::establish_connection(&config.database_path, config.create_database).await?;

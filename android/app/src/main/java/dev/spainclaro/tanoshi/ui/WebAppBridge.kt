@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 
 /**
@@ -50,6 +52,46 @@ class WebAppBridge(
             Log.w(TAG, "Could not save the backup", t)
             "ERROR|${t.message ?: "unknown error"}"
         }
+    }
+
+    /**
+     * Downloads a reader image (the already-proxied absolute URL) into the
+     * shared Downloads folder. Returns `OK|<location>` or `ERROR|<message>`.
+     */
+    @JavascriptInterface
+    fun saveImage(url: String, fileName: String): String {
+        val safeName = sanitizeFileName(fileName)
+        return try {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("User-Agent", "Yakushi-App")
+            try {
+                if (connection.responseCode !in 200..299) {
+                    error("server returned HTTP ${connection.responseCode}")
+                }
+                val bytes = connection.inputStream.use { it.readBytes() }
+                val mime = detectImageMime(bytes)
+                val location = writeBytesToDownloads(safeName, mime, bytes)
+                Log.i(TAG, "Saved image to $location")
+                "OK|$location"
+            } finally {
+                connection.disconnect()
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not save the image", t)
+            "ERROR|${t.message ?: "unknown error"}"
+        }
+    }
+
+    private fun detectImageMime(bytes: ByteArray): String = when {
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+        bytes.size >= 8 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() -> "image/png"
+        bytes.size >= 12 &&
+            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
+            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() -> "image/webp"
+        else -> "image/jpeg"
     }
 
     /**
@@ -120,12 +162,15 @@ class WebAppBridge(
         }
     }
 
-    private fun writeToDownloads(name: String, json: String): String {
+    private fun writeToDownloads(name: String, json: String): String =
+        writeBytesToDownloads(name, MIME_TYPE, json.toByteArray(Charsets.UTF_8))
+
+    private fun writeBytesToDownloads(name: String, mimeType: String, bytes: ByteArray): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = appContext.contentResolver
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-                put(MediaStore.MediaColumns.MIME_TYPE, MIME_TYPE)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
@@ -134,7 +179,7 @@ class WebAppBridge(
                 ?: error("could not create the download entry")
             try {
                 resolver.openOutputStream(uri)?.use { stream ->
-                    stream.write(json.toByteArray(Charsets.UTF_8))
+                    stream.write(bytes)
                 } ?: error("could not open the download file")
                 values.clear()
                 values.put(MediaStore.MediaColumns.IS_PENDING, 0)
@@ -155,7 +200,7 @@ class WebAppBridge(
             error("could not create the download folder")
         }
         val file = File(directory, name)
-        file.writeText(json, Charsets.UTF_8)
+        file.writeBytes(bytes)
         return file.absolutePath
     }
 

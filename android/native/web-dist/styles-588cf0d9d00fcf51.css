@@ -1062,3 +1062,34 @@ body.themed .settings-page .content :where(span, label, p, div, a, button, input
 .list-item:hover {
   background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
 }
+
+/* Reader image long-press save menu. */
+.image-save-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.55);
+  z-index: 120;
+}
+
+.image-save-dialog {
+  min-width: 16rem;
+  max-width: 20rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background-color: var(--background-color-100);
+  color: var(--color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.image-save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

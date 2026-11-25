@@ -115,12 +115,18 @@ apply_patch "$HERE/patches/0003-web-ui-hide-source-management.patch"
 # Web UI: per-device theme palettes (Settings -> Appearance -> Themes).
 cp "$HERE/patches/theme_settings.rs" crates/tanoshi-web/src/common/theme_settings.rs
 apply_patch "$HERE/patches/0004-web-ui-themes.patch"
+# Web UI: long-press/right-click an image in the reader to save it to the
+# phone's Downloads folder (via the app bridge) or download it in a browser.
+apply_patch "$HERE/patches/0006-web-ui-reader-image-save.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the
 # patch set ships the file and the build script copies it into place.
 cp "$HERE/patches/android_loader.rs" crates/tanoshi-vm/src/extension/android_loader.rs
 apply_patch "$HERE/patches/0002-android-extension-loader.patch"
+# Server: chapter downloads are allowed for any signed-in user and are stored
+# in <home>/.tempchapter (created on first install/start) for offline reading.
+apply_patch "$HERE/patches/0005-downloads-tempchapter.patch"
 
 # compress-tools is patched for Android/bionic and linked dynamically against
 # libarchive (see patches/README-patches.txt in the repo root).

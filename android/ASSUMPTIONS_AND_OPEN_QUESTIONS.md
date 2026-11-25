@@ -141,8 +141,8 @@ The documented and CI-built artifact is the **debug** APK
 shared sideload key `android/keystore/tanoshi-signing.jks` (A18). Distribution
 is GitHub releases tagged `android-v*` plus sideloading only — there is no Play
 Store channel. The project repository is now
-`spainclaro-debug/Yakushi` (the old `tanoshi-termux` URL redirects; the
-in-app updater already targets `Yakushi`). The Termux package tarball
+`spainclaro-debug/Yakushi` (the old `tanoshi-mobile`/`tanoshi-termux` URLs
+redirect; the in-app updater already targets `Yakushi`). The Termux package tarball
 name (`tanoshi-termux-aarch64.tar.gz`) is an artifact name and is unchanged.
 
 *If wrong:* Play distribution would need a Play-compliant signing setup (Play
@@ -225,8 +225,8 @@ GitHub release (with the debug APK) only for **`android-v*`** tags; plain `v*`
 Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
-`tanoshi-mobile-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.9.2 / 902, local date).
+`yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
+three to Gradle; local builds use the Gradle defaults (0.13.0 / 1300, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.9.2 / versionCode
-902 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.9.2`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.0 / versionCode
+1300 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.0`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -619,6 +619,54 @@ contents inherit the adaptive cell text. No other theme behaviour changed from
 devices; the docs/UI state that themes apply to this browser/device only and
 new devices default to Auto.
 
+### A34 — Reader image saving goes through the app bridge (no storage permission)
+
+From 0.13.0 the web-UI reader offers **Save image** for an image under the
+cursor/finger (right-click or a 550 ms long-press). The browser side
+(`native/patches/0006-web-ui-reader-image-save.patch`) builds the menu from the
+image's `currentSrc` (the proxied reader URL, not the source site's URL) and
+calls `window.TanoshiApp.saveImage(url, name)` when the app bridge is present;
+otherwise it falls back to a normal anchor download. In the app,
+`WebAppBridge.saveImage` is a `@JavascriptInterface` method that downloads the
+URL with `HttpURLConnection` (15 s connect/30 s read, redirects,
+`User-Agent: Yakushi-App`), checks for 2xx, detects JPEG/PNG/WebP from magic
+bytes, and writes **`yakushi-chapter-<chapter>-<timestamp>.jpg`** via
+`writeBytesToDownloads`: **MediaStore Downloads** on Android 10+ (no storage
+permission), or the app-specific external Downloads directory
+(`Android/data/<package>/files/Download`) on Android 7–9. Filenames are
+sanitized; the method returns `OK|<location>` or `ERROR|<message>` and the web
+UI shows a snackbar. There is **no** general file access: only the reader calls
+this bridge method.
+
+*If wrong:* saving an image could fail silently or write to a location the user
+cannot find; the bridge returns the path/error, the snackbar shows it and the
+docs name the Downloads folder per Android version.
+
+### A35 — Chapter downloads use a server-side `.tempchapter` cache
+
+From 0.13.0 offline chapter downloads are managed entirely by the server:
+
+- The chapter-list download mutations (`download_chapters`,
+  `remove_chapters_from_queue`, `remove_downloaded_chapters`,
+  `move_chapter_in_queue`) use a new **`AuthGuard`** that only requires a
+  signed-in account, so non-admin users no longer get **Forbidden**; the
+  remaining queue inspection/configuration and download-queue **repro**
+  endpoints stay `AdminGuard`.
+- The default `download_path` is **`<TANOSHI_HOME>/.tempchapter`** (was
+  `<home>/downloads`). `default_download_path()` creates it and
+  `bootstrap()` calls `std::fs::create_dir_all(&config.download_path)` on
+  every start; the Android app exposes `AppPaths.tempChapters`, seeds
+  `download_path` for new `config.yml` files, and
+  `ConfigManager.ensureTempChapterDownloadPath` rewrites an existing
+  `download_path:` line (or appends one) atomically before starting the server.
+- Downloaded pages are read offline through the server from that directory;
+  they are not copied into the phone's shared/local storage. Removing the
+  download frees the space; uninstalling the app removes it with the app data.
+
+*If wrong:* old configs could keep writing to the legacy `downloads` directory
+or the server could fail when the directory is missing; the app migrates the
+config before start and the server re-creates the directory on every start.
+
 ---
 
 ## Open questions for the repository owner
@@ -790,3 +838,12 @@ browser's `localStorage` (`settings:theme-palette`), so each device/browser
 keeps its own theme and a new device defaults to Auto. Making them
 server-side would need a settings schema/API change and would surprise users
 who expect appearance to be local; this is documented as per-device (A33).
+
+### Q20 — Should downloaded chapters live in the phone's shared storage?
+
+**Resolved (owner, 0.13.0):** no. Offline chapters are a server-side cache in
+`<TANOSHI_HOME>/.tempchapter`, created automatically and migrated from the old
+`downloads` path; they are read through the server and never copied into
+shared/local storage. Only explicit user exports (reader **Save image**,
+**Backup Library**) write to the phone's Downloads folder via the app bridge
+(A34/A35).

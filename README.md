@@ -17,6 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
+- [What's new in 0.13.0](#whats-new-in-0130)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +52,32 @@ terminal install.
 
 ---
 
+## What's new in 0.13.0
+
+- **Save image from the reader.** Long-press an image (or right-click it in a
+  browser) while reading, then choose **Save image** in the popup to save the
+  page you are viewing to the phone's **Downloads** folder. In the Android app
+  this goes through the app bridge (MediaStore Downloads on Android 10+, the
+  app-specific Downloads folder on Android 7–9, no storage permission); in
+  a browser it is a normal download. Files are named
+  `yakushi-chapter-<chapter>-<timestamp>.jpg`.
+- **Chapter downloads fixed.** The chapter-list **Download** button no longer
+  returns **Forbidden** for non-admin users: any signed-in user can queue,
+  remove or reorder chapter downloads (admin-only queue inspection/repro
+  controls remain admin-only).
+- **Server-side offline chapter cache.** Downloaded chapters are stored under
+  the server data directory in **`.tempchapter`** (created automatically on
+  install/first start; existing installs migrate from the old `downloads`
+  path), so offline reading needs no phone-local copies. Removing a download
+  frees the space.
+- **Version 0.13.0** (tag `android-v0.13.0`, APK
+  `yakushi-server-release-<date>.apk`). The repository is now
+  [`spainclaro-debug/Yakushi`](https://github.com/spainclaro-debug/Yakushi)
+  (the old `tanoshi-mobile`/`tanoshi-termux` URLs redirect).
+- Includes all earlier features (Yakushi branding and single-APK releases,
+  backup/restore, self-service registration, per-device web-UI themes,
+  extension management and the reader improvements from 0.8.0).
+
 ## Features
 
 ### Reader
@@ -68,6 +95,9 @@ terminal install.
 - **Tap Area** — choose whether the right or the left screen edge belongs to
   the next page ("bottom right: NEXT, bottom left: PREV" or the mirrored
   layout).
+- **Save image** — long-press an image (right-click in a browser) and choose
+  **Save image** to save the displayed page to the phone's Downloads folder
+  through the app bridge (or download it normally in a browser).
 - Page counter, chapter navigation, keyboard shortcuts and progress saving.
 
 ### Library and catalogue
@@ -153,7 +183,14 @@ terminal install.
 ### Downloads and trackers
 
 - Download queue and chapter downloads managed by the server (Downloads in
-  settings), including pause/resume and queue management.
+  settings), including pause/resume and queue management. Any signed-in user
+  can queue/remove/reorder downloads (fixed in 0.13.0 — previously
+  non-admins got **Forbidden**); admin-only queue inspection/repro controls
+  stay restricted.
+- Downloaded chapters are cached **server-side** in the data directory under
+  `.tempchapter` (created on every start; existing configs migrate from the
+  old `downloads` path), so they are readable offline without copying pages
+  into the phone's local storage.
 - MyAnimeList/AniList tracker support from the web UI.
 
 ---
@@ -169,7 +206,7 @@ terminal install.
 │  └─────────────┘   HTTP/WS   │  ├─ libarchive.so                          │  │
 │        │                    │  └─ extensions: lib*.so (bundled + user)    │  │
 │        │ window.TanoshiApp  └───────────────────────────────────────────┘  │
-│        ▼ (save backup, install extensions)                                  │
+│        ▼ (save backup/images, install extensions)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -288,8 +325,10 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
+- The current Android release is **0.13.0** (`android-v0.13.0`), published as
+  `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
-  `android-v0.11.0`). CI builds the APK and publishes it on a GitHub release
+  `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release
   with the app changelog.
 - Termux package releases use `v*` tags (`PACKAGE_TAG`), independent of the
   app's version.

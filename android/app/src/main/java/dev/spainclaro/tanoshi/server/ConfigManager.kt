@@ -40,6 +40,7 @@ object ConfigManager {
             AppSettings.port = port
         } else {
             repairSecretIfNeeded(config)
+            ensureTempChapterDownloadPath(context, config)
         }
         return config
     }
@@ -50,7 +51,7 @@ object ConfigManager {
         val database = q(AppPaths.database(context).absolutePath)
         val plugins = q(AppPaths.plugins(context).absolutePath)
         val manga = q(AppPaths.manga(context).absolutePath)
-        val downloads = q(AppPaths.downloads(context).absolutePath)
+        val tempChapters = q(AppPaths.tempChapters(context).absolutePath)
         val cache = q(AppPaths.cache(context).absolutePath)
         val secret = generateSecret()
         return """
@@ -71,7 +72,7 @@ object ConfigManager {
               metadata_timeout_secs: 30
               image_timeout_secs: 120
             local_path: $manga
-            download_path: $downloads
+            download_path: $tempChapters
             cache_path: $cache
             enable_playground: false
             telegram: null
@@ -80,6 +81,29 @@ object ConfigManager {
             myanimelist: null
             anilist: null
         """.trimIndent() + "\n"
+    }
+
+    private val DOWNLOAD_PATH_REGEX = Regex("""(?m)^(\s*download_path\s*:\s*).*$""")
+
+    /**
+     * Existing installs were seeded with `download_path: <home>/downloads`.
+     * Offline chapters now live in the hidden `<home>/.tempchapter` directory,
+     * so rewrite the path in place (keeping everything else) and make sure the
+     * directory exists before the server starts.
+     */
+    private fun ensureTempChapterDownloadPath(context: Context, config: File) {
+        val directory = AppPaths.tempChapters(context)
+        directory.mkdirs()
+        val wanted = "download_path: ${q(directory.absolutePath)}"
+        val current = runCatching { config.readText() }.getOrNull() ?: return
+        val updated = if (DOWNLOAD_PATH_REGEX.containsMatchIn(current)) {
+            DOWNLOAD_PATH_REGEX.replace(current, wanted)
+        } else {
+            current.trimEnd() + "\n" + wanted + "\n"
+        }
+        if (updated != current) {
+            writeAtomically(config, updated)
+        }
     }
 
     fun readConfig(context: Context): String? {

@@ -24,7 +24,8 @@ object AppPaths {
      */
     fun plugins(context: Context): File = File(home(context), "plugins")
 
-    fun downloads(context: Context): File = File(home(context), "downloads")
+    /** Offline chapter cache: chapter pages are downloaded here by the server. */
+    fun tempChapters(context: Context): File = File(home(context), ".tempchapter")
     fun cache(context: Context): File = File(home(context), "cache")
     fun manga(context: Context): File = File(home(context), "manga")
 
@@ -47,7 +48,7 @@ object AppPaths {
         listOf(
             home(context),
             plugins(context),
-            downloads(context),
+            tempChapters(context),
             cache(context),
             manga(context),
         ).forEach { it.mkdirs() }

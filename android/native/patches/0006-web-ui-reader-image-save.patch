@@ -1,0 +1,218 @@
+--- a/crates/tanoshi-web/src/reader.rs
++++ b/crates/tanoshi-web/src/reader.rs
+@@ -32,6 +32,13 @@
+     Error,
+ }
+ 
++/// Image currently selected by the reader's long-press/right-click menu.
++#[derive(Clone, Debug)]
++struct ImageMenu {
++    url: String,
++    file_name: String,
++}
++
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ enum ContinousLoaded {
+     Initial,
+@@ -88,6 +95,8 @@
+     viewport_update_pending: Mutable<bool>,
+     visible_pages: Mutable<Option<(usize, usize)>>,
+     source_id: Mutable<i64>,
++    image_menu: Mutable<Option<ImageMenu>>,
++    long_press: RefCell<Option<Timeout>>,
+ }
+ 
+ impl Reader {
+@@ -124,6 +133,8 @@
+             viewport_update_pending: Mutable::new(false),
+             visible_pages: Mutable::new(None),
+             source_id: Mutable::new(0),
++            image_menu: Mutable::new(None),
++            long_press: RefCell::new(None),
+         })
+     }
+ 
+@@ -1444,14 +1455,135 @@
+         })
+     }
+ 
++
++    /// Builds the save-image menu entry from a DOM image target. Uses the
++    /// image's current (already proxied) absolute URL so the Android bridge or
++    /// the browser can download exactly the bytes being displayed.
++    fn image_menu_for(this: &Rc<Self>, target: Option<web_sys::EventTarget>) -> Option<ImageMenu> {
++        let image = target?.dyn_into::<HtmlImageElement>().ok()?;
++        let url = image.current_src();
++        if url.is_empty() {
++            return None;
++        }
++        let file_name = format!(
++            "yakushi-chapter-{}-{}.jpg",
++            this.chapter_id.get(),
++            js_sys::Date::now() as i64
++        );
++        Some(ImageMenu { url, file_name })
++    }
++
++    fn show_image_menu(this: Rc<Self>, target: Option<web_sys::EventTarget>) {
++        if let Some(menu) = Self::image_menu_for(&this, target) {
++            this.image_menu.set(Some(menu));
++        }
++    }
++
++    fn start_long_press(this: Rc<Self>, target: Option<web_sys::EventTarget>) {
++        Self::cancel_long_press(&this);
++        if let Some(menu) = Self::image_menu_for(&this, target) {
++            let timeout = Timeout::new(550, clone!(this, menu => move || {
++                this.image_menu.set(Some(menu.clone()));
++            }));
++            this.long_press.borrow_mut().replace(timeout);
++        }
++    }
++
++    fn cancel_long_press(this: &Rc<Self>) {
++        // Dropping the Timeout cancels it.
++        this.long_press.borrow_mut().take();
++    }
++
++    fn save_image(menu: &ImageMenu) {
++        // In the Android app `TanoshiApp.saveImage` writes the bytes to the
++        // phone's Downloads folder through MediaStore. In a normal browser the
++        // same script falls back to a download link.
++        let js = format!(
++            r#"(function(){{try{{var url={url};var name={name};var app=window.TanoshiApp;if(app&&typeof app.saveImage==='function'){{return app.saveImage(url,name);}}var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();return 'OK|Downloads/'+name;}}catch(e){{return 'ERROR|'+(e&&e.message?e.message:String(e));}}}})()"#,
++            url = serde_json::to_string(&menu.url).unwrap_or_default(),
++            name = serde_json::to_string(&menu.file_name)
++                .unwrap_or_else(|_| "\"image.jpg\"".to_string()),
++        );
++        match js_sys::eval(&js) {
++            Ok(value) => {
++                let result = value.as_string().unwrap_or_default();
++                if let Some(location) = result.strip_prefix("OK|") {
++                    snackbar::show(format!("Image saved to {location}"));
++                } else if let Some(message) = result.strip_prefix("ERROR|") {
++                    snackbar::show(format!("Could not save image: {message}"));
++                } else {
++                    snackbar::show("Downloading image…".to_string());
++                }
++            }
++            Err(_) => snackbar::show("Could not save the image".to_string()),
++        }
++    }
++
++    fn render_image_menu(this: Rc<Self>) -> Dom {
++        html!("div", {
++            .child_signal(this.image_menu.signal_cloned().map(clone!(this => move |menu| menu.map(|menu| {
++                let save_this = this.clone();
++                let menu_for_save = menu.clone();
++                html!("div", {
++                    .class("image-save-backdrop")
++                    .event(clone!(this => move |_: events::Click| this.image_menu.set(None)))
++                    .children(&mut [
++                        html!("div", {
++                            .class("image-save-dialog")
++                            .event_with_options(&EventOptions::preventable(), |e: events::Click| {
++                                e.stop_propagation();
++                            })
++                            .children(&mut [
++                                html!("p", {
++                                    .text("Save this image to your Downloads folder?")
++                                }),
++                                html!("div", {
++                                    .class("image-save-actions")
++                                    .children(&mut [
++                                        html!("button", {
++                                            .class("action-button")
++                                            .text("Save image")
++                                            .event(clone!(save_this, menu_for_save => move |_: events::Click| {
++                                                Self::save_image(&menu_for_save);
++                                                save_this.image_menu.set(None);
++                                            }))
++                                        }),
++                                        html!("button", {
++                                            .class("action-button")
++                                            .text("Cancel")
++                                            .event(clone!(this => move |_: events::Click| {
++                                                this.image_menu.set(None);
++                                            }))
++                                        }),
++                                    ])
++                                }),
++                            ])
++                        }),
++                    ])
++                })
++            }))))
++        })
++    }
++
+     pub fn render(this: Rc<Self>) -> Dom {
+         html!("div", {
+             .attr("id", "this")
+-            // Prevent context menu so mobile users dont get a popup asking to save the image
++            // Long-press (context menu) on an image offers to save it; elsewhere
++            // the context menu stays suppressed as before.
+             .class("block-long-press")
+-            .event_with_options(&EventOptions::preventable(), |e: events::ContextMenu| {
++            .event_with_options(&EventOptions::preventable(), clone!(this => move |e: events::ContextMenu| {
+                 e.prevent_default();
+-            })
++                Self::show_image_menu(this.clone(), e.target());
++            }))
++            .event(clone!(this => move |e: events::TouchStart| {
++                Self::start_long_press(this.clone(), e.target());
++            }))
++            .event(clone!(this => move |_: events::TouchEnd| {
++                Self::cancel_long_press(&this);
++            }))
++            .event(clone!(this => move |_: events::TouchMove| {
++                Self::cancel_long_press(&this);
++            }))
+             .future(this.current_page.signal().for_each(clone!(this => move |page| {
+                 Self::update_page_read(this.clone(), page);
+ 
+@@ -1505,6 +1637,7 @@
+                 Self::render_page_indicator(this.clone()),
+                 Self::render_bottombar(this.clone()),
+                 ReaderSettings::render(this.reader_settings.clone()),
++                Self::render_image_menu(this.clone()),
+                 Spinner::render(this.spinner.clone())
+             ])
+         })
+--- a/crates/tanoshi-web/static/css/styles.scss
++++ b/crates/tanoshi-web/static/css/styles.scss
+@@ -1213,3 +1213,34 @@
+ .list-item:hover {
+     background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
+ }
++
++/* Reader image long-press save menu. */
++.image-save-backdrop {
++    position: fixed;
++    top: 0;
++    left: 0;
++    right: 0;
++    bottom: 0;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    background-color: rgba(0, 0, 0, 0.55);
++    z-index: 120;
++}
++
++.image-save-dialog {
++    min-width: 16rem;
++    max-width: 20rem;
++    padding: 1rem;
++    border-radius: 0.75rem;
++    background-color: var(--background-color-100);
++    color: var(--color);
++    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
++}
++
++.image-save-actions {
++    display: flex;
++    justify-content: flex-end;
++    gap: 0.5rem;
++    margin-top: 0.75rem;
++}

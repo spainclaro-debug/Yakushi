@@ -1,20 +1,72 @@
-# Changelog — Tanoshi for Android
+# Changelog — Yakushi Server for Android
 
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.9.2`). The Termux package in the repository root has
+(for example `android-v0.13.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
 `android/app/build.gradle.kts`. CI derives `versionName` from the
 `android-vX.Y.Z` tag and sets
 `versionCode = major * 10000 + minor * 100 + patch`, passing both to Gradle
-with `-PappVersionName` / `-PappVersionCode`. Since 0.3.0 the sideload APK is
-named `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`, where the date is the
-UTC build date in CI (via `-PapkDate`) and the local date otherwise.
+with `-PappVersionName` / `-PappVersionCode`. The sideload APK is named
+`yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1 renamed the asset; earlier
+0.3.0–0.12.0 builds used `tanoshi-mobile-server-release-<yyyy-MM-dd>.apk`),
+where the date is the UTC build date in CI (via `-PapkDate`) and the local
+date otherwise.
 
 ---
+
+## 0.13.0
+
+### Added
+
+- **Save images from the reader.** Long-press (or right-click) an image while
+  reading to open a popup with **Save image** / **Cancel**. **Save image**
+  writes the image you are viewing (the already-proxied page URL) to the
+  phone's **Downloads** folder: the web UI calls
+  `window.TanoshiApp.saveImage(url, name)` through the app bridge, which
+  fetches the bytes and saves them via **MediaStore Downloads** on Android 10+
+  or the app's external Downloads folder on Android 7–9. In a normal browser
+  the same action falls back to a standard download link. Files are named
+  `yakushi-chapter-<chapter>-<timestamp>.jpg`, and a snackbar reports the
+  saved location or the error. No storage permission is requested. Implemented
+  in `android/native/patches/0006-web-ui-reader-image-save.patch` (reader menu
+  + CSS) and `WebAppBridge.saveImage` / `writeBytesToDownloads`.
+- **Chapter downloads work for every signed-in user.** The chapter-list
+  **Download** button no longer returns **Forbidden**: the download mutations
+  now use a new `AuthGuard` that only requires a signed-in account (the
+  admin-only queue inspection and download-queue repro controls stay
+  admin-only). Implemented in
+  `android/native/patches/0005-downloads-tempchapter.patch`.
+
+### Fixed
+
+- **Offline chapter downloads are cached server-side.** Downloaded chapters
+  now live in the server data directory under **`.tempchapter`**
+  (`<TANOSHI_HOME>/.tempchapter`) instead of `<home>/downloads`. The server
+  creates the directory on every start (and the default `download_path` in
+  `config.yml` now points there); the Android app seeds
+  `download_path: <home>/.tempchapter` for new installs and migrates existing
+  configs from the old `<home>/downloads` path before starting the server.
+  Downloaded chapters are readable offline without copying anything into the
+  phone's shared/local storage, and removing a download frees the space. The
+  app exposes the directory as `AppPaths.tempChapters`.
+- **Web UI and `libtanoshi.so` rebuilt** with the reader image-save and
+  downloads patches; the vendored dist in `android/native/web-dist/` and the
+  embedded server binary were rebuilt.
+- **Version 0.13.0:** `versionCode` 1300 in the Gradle default; the
+  `android-v0.13.0` tag produces `versionCode` 1300. The APK filename scheme
+  is unchanged (`yakushi-server-release-<yyyy-MM-dd>.apk`, a single asset per
+  release since 0.12.1).
+
+### Notes
+
+- The repository is now `spainclaro-debug/Yakushi` (the old `tanoshi-mobile`
+  and `tanoshi-termux` URLs redirect); the app id, data directories and
+  signing key are unchanged, so existing installs update in place.
+- The reader menu works in both the embedded app WebView and a normal browser.
 
 ## 0.12.1
 
