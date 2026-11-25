@@ -5,9 +5,14 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.6** — see the
+Current release: **0.13.7** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.6 makes **reader Layout Preference
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.7 adds a **Migrate** action on the
+manga page (pick an installed source, land in its catalogue pre-filled with the
+title, then confirm the existing source-path migration), a **Change Library**
+action that replaces the manga's categories, and a **tabbed Library** page
+(**All** + one tab per category, with counts and merged All). 0.13.6 makes
+**reader Layout Preference
 presets server-shared** (stored in `layout_presets.json` next to
 `config.yml` and served over `GET/PUT /api/layout-presets`, while each device
 keeps its own selected preset) and fixes the **double-page reader gap** (spare
@@ -101,7 +106,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.6](#whats-new-in-0136)
+- [What's new in 0.13.7](#whats-new-in-0137)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -150,6 +155,34 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.13.7
+
+- **Migrate from the manga page.** For saved manga a **Migrate** icon appears
+  in the manga top bar next to Refresh/Open; it opens a source-picker modal
+  (installed sources) and routes to the chosen source's catalogue with the
+  manga title pre-filled. The catalogue's existing migration banner/confirm
+  performs the source-path migration and opens the migrated manga (the
+  Suwayomi/Mihon-style flow). Hidden for unsaved manga; a snackbar explains if
+  there is no saved id.
+- **Change Library action.** Manga in the library get a **Change Library**
+  action (folder icon) in the action row; it opens the category selector and
+  **replaces** the manga's categories via `deleteFromLibrary` +
+  `addToLibrary` (no selection = uncategorized/Default). Read progress,
+  chapters and trackers are unchanged; a **"Library updated"** snackbar
+  confirms.
+- **Tabbed Library page.** `/library` now has **All** plus a tab per category
+  (with counts); **All** merges uncategorized manga with every category
+  (fetched per category and deduplicated by manga id), while selecting a tab
+  loads that category. Sort/filter/search are retained. The old
+  `/library/categories` page redirects to `/library` and the topbar Categories
+  link is gone. New `.library-tabs`/`.library-tab` styling (active tab uses the
+  primary colour).
+- **Web UI and server rebuilt** with patch **0010** (after 0009; no server
+  API/schema changes); version **0.13.7** (`versionCode` 1307, tag
+  `android-v0.13.7`), APK filename scheme unchanged.
+
+Previous release — **0.13.6** — and its features:
 
 ## What's new in 0.13.6
 
@@ -531,12 +564,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.6**,
-`versionCode` 1306) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.7**,
+`versionCode` 1307) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.6 -PappVersionCode=1306 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.7 -PappVersionCode=1307 \
   -PapkDate=2026-11-14
 ```
 
@@ -597,11 +630,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.6`. For a tag, CI derives everything from the tag and
+example `android-v0.13.7`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.6` → `1306`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.7` → `1307`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -786,6 +819,36 @@ and shipping a new APK — rebuilding the Android app alone is not enough. The
 web UI keeps its own Yakushi theme/palette; the app's [themes](#themes) affect
 only the Android UI around it.
 
+### Library and manga actions
+
+The embedded web UI's library/manga pages gained a few workflow improvements in
+0.13.7:
+
+- **Library tabs.** The Library page (in the web UI) has an **All** tab plus
+  one tab per library category, each labelled with its count. **All** shows
+  uncategorized manga plus the manga from every category: the server's
+  `categoryId: null` query only returns uncategorized entries, so the UI
+  fetches each category and merges the results, deduplicating by manga id.
+  Selecting a category tab fetches just that category. The existing sort,
+  filter and search controls still work. The former `/library/categories`
+  list page redirects to the tabbed `/library`, and the topbar Categories link
+  is hidden.
+- **Migrate a manga to another source.** Open a saved manga; its top bar has a
+  **Migrate** icon between Refresh and Open. Choose one of the installed
+  sources in the modal; the web UI stores the existing migration context
+  (`from_manga_id`, `from_source_id`, `from_title`, `to_source_id`) and opens
+  that source's catalogue with your manga title as the search query. The
+  catalogue's migration banner/confirm then runs the source-path-based
+  migration and takes you to the migrated manga (the same flow as
+  Suwayomi/Mihon). The icon is hidden for unsaved/opening manga (id 0).
+- **Change Library categories.** Manga already in the library show a
+  **Change Library** button next to **In Library/Read**; it opens the category
+  picker. The UI replaces the manga's categories by removing it and re-adding
+  it with the selected category ids (`deleteFromLibrary` +
+  `addToLibrary`), so leaving the picker empty makes it uncategorized/Default.
+  Read progress, downloaded chapters and trackers are manga-level and are not
+  affected; a **"Library updated"** snackbar confirms.
+
 ## Themes
 
 `Settings → Appearance` selects the Material 3 colour scheme for the app UI:
@@ -863,7 +926,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.6-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.7-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1704,6 +1767,28 @@ now work for every signed-in user (admin-only queue inspection/repro controls
 stay restricted). Update the app and restart the server; if an old web UI is
 still cached, reopen the WebView.
 
+**The Migrate button is missing / migration does not start.** The manga-page
+**Migrate** icon is hidden until the manga is saved (library/opened manga, id
+≠ 0); unsaved catalogue manga show only catalogue actions. Tap it, pick a
+target source, then wait in that source's catalogue for the pre-filled title
+results and confirm the migration banner. Migration is source-path based and
+works through the existing catalogue flow; if the source isn't installed,
+install it from Sources first.
+
+**Change Library is missing / categories did not change.** The button only
+appears for manga already **in the library**. It replaces the categories by
+removing and re-adding the manga with the selected ids; choosing none moves it
+to uncategorized/Default. If an error appears, check the Logs and retry after
+the server is reachable; read progress/downloaded chapters/trackers are not
+affected.
+
+**The Library page still shows the old category list / tabs are missing.**
+0.13.7 replaced the category-list page with tabs on `/library`; the old
+`/library/categories` URL redirects to the tabbed page and the topbar
+Categories link is hidden. The **All** tab fetches each category and merges
+them, so it can take longer on large libraries; category tabs fetch only their
+own list.
+
 **Layout presets do not appear on another device.** From 0.13.6 presets are
 stored on the server in `<TANOSHI_HOME>/layout_presets.json` and served by
 `GET/PUT /api/layout-presets`; every device connected to the same server should
@@ -1953,7 +2038,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless double pages |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless pages, 0.13.7 migrate/change-library/library tabs |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
@@ -1964,7 +2049,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Chapter downloads | Any signed-in user can queue/remove/reorder/see the queue (AuthGuard); per-chapter Download button; progress `downloaded/total`, 4 s auto-refresh and Downloaded marker; guard rejects only Local `10000..1_000_000` so plugin extensions download (0.13.5) |
 | Layout presets | Server-shared custom presets in `<TANOSHI_HOME>/layout_presets.json` via `GET/PUT /api/layout-presets` (unauthenticated, atomic write); selected preset per device in localStorage (from 0.13.6) |
 | Reader double page | Double Display Mode uses `justify-content:center` + zero horizontal image margins so spare space stays at the sides (from 0.13.6) |
-| App version | 0.13.6 (`versionName`); `versionCode` 1306 in local builds and for the `android-v0.13.6` tag |
+| Manga migration | Manga-page Migrate icon → source picker → catalogue pre-filled with title → existing source-path `migrateManga` flow; saved manga only (0.13.7) |
+| Library actions | Change Library = `deleteFromLibrary` + `addToLibrary(category_ids)` category replacement (progress/trackers unchanged); Library tabs All + per-category with counts, All merged/deduped; `/library/categories` redirects (0.13.7) |
+| App version | 0.13.7 (`versionName`); `versionCode` 1307 in local builds and for the `android-v0.13.7` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -1988,7 +2075,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0009 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0010 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

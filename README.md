@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.6](#whats-new-in-0136)
+- [What's new in 0.13.7](#whats-new-in-0137)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,26 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.13.7
+
+- **Migrate from the manga page.** Saved manga have a **Migrate** icon in the
+  manga top bar; pick an installed source, land in its catalogue pre-filled
+  with the manga title, and confirm the existing source-path migration flow
+  (Suwayomi/Mihon style). Hidden for unsaved manga.
+- **Change Library action.** Manga in the library get a **Change Library**
+  button that opens the category picker and replaces the manga's categories
+  (`deleteFromLibrary` + `addToLibrary`; empty selection = uncategorized).
+  Read progress, chapters and trackers stay intact.
+- **Tabbed Library page.** `/library` now has **All** plus one tab per
+  category with counts; **All** merges uncategorized + every category and
+  deduplicates by manga id, while selecting a tab shows that category. The old
+  `/library/categories` page redirects to `/library` and the topbar Categories
+  link is gone; sort/filter/search are unchanged.
+- **Version 0.13.7** (`android-v0.13.7`, `yakushi-server-release-<date>.apk`);
+  includes all earlier features.
+
+Previous release — **0.13.6** — and its features:
 
 ## What's new in 0.13.6
 
@@ -134,7 +154,12 @@ trackers](#downloads-and-trackers).
 
 ### Library and catalogue
 
-- **Library** with categories, unread counts and recent updates.
+- **Library** with category tabs (plus an **All** tab that merges
+  uncategorized and every category, with counts), unread counts and recent
+  updates. The old category-list page redirects to the tabbed library.
+- **Library actions on a manga** — add/remove, **Change Library** (replace the
+  manga's categories with the picker), and **Migrate** to another installed
+  source from the manga top bar (source-path migration via the catalogue).
 - **Catalogue** browsing per source with popular/latest/search listings and
   **infinite scroll** (loads the next page automatically).
 - **Filter sheet that shows the actual choices** — genres/tags (expanded by
@@ -364,7 +389,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.6** (`android-v0.13.6`), published as
+- The current Android release is **0.13.7** (`android-v0.13.7`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

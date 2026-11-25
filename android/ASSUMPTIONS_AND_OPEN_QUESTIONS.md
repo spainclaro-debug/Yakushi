@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.6 / 1306, local date).
+three to Gradle; local builds use the Gradle defaults (0.13.7 / 1307, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.6 / versionCode
-1306 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.6`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.7 / versionCode
+1307 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.7`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -739,6 +739,64 @@ embedded web UI, not a server or reader-mode setting.
 *If wrong:* double-page spreads could still be visually split on unusual
 aspect ratios; the fix is documented as a CSS change and reverting it is
 localised to `reader.rs`/`styles.scss`.
+
+### A38 — Manga-page migration reuses the catalogue migration flow
+
+From 0.13.7 a saved manga's top bar has a **Migrate** icon (between Refresh
+and Open; visible only when `manga.id != 0`). Clicking it loads the installed
+sources (`query::fetch_sources`, GUI text "Migrate manga to source") and opens a
+source-picker modal. Choosing a source calls `migration::set` with
+`from_manga_id`, `from_source_id`, `from_title` and the chosen `to_source_id`,
+closes the modal and routes to
+`Route::Catalogue { id: to_source_id, latest: false, query: Some(title) }`.
+The catalogue's **existing** migration banner/confirm (already used by the
+catalogue's migrate action) then calls `migrateManga` (source-path based) and
+opens the migrated manga. No new server API/schema: this is a new entry point
+into the existing flow. Unsaved manga (id 0) hide the icon; calling without an
+id shows a snackbar. Target sources must be installed (handled by the source
+list); the migrated manga's library entry follows the existing migration
+semantics.
+
+*If wrong:* users could start a migration from an unsaved manga or expect a
+one-tap migration; the docs explain it is saved-manga-only and completes via
+the catalogue's confirm flow.
+
+### A39 — Change Library replaces categories via delete + add
+
+From 0.13.7 manga already in the library (`is_favorite`) show a **Change
+Library** action (folder icon) in the action row. It opens the existing
+`SelectCategoryModal`; on OK the UI calls `deleteFromLibrary(mangaId)` and then
+`addToLibrary(mangaId, category_ids)`, so the selected categories **replace**
+the previous ones (empty selection = uncategorized/Default library). The
+selected category ids come from the modal (existing category picker). Read
+progress, chapters, downloads and trackers are manga-level state and are not
+touched; on success a `"Library updated"` snackbar appears and errors are
+surfaced via snackbar. If the first call succeeds and the second fails the
+manga can be left out of the library until retried — the async chain only
+sets `is_favorite` on both successes.
+
+*If wrong:* manga could lose categories or end up uncategorized; the picker is
+pre-filled with the current selection, the operation is a single user action
+with an explicit confirmation, and docs state progress/trackers are unaffected.
+
+### A40 — Library page uses client-side tabs and merges All
+
+From 0.13.7 `/library` is a tabbed page: `All` plus one tab per library
+category (label includes `count`). Internally `selected` is `-1` (All), `0`
+(uncategorized/Default) or a category id. **All** fetches
+`fetch_manga_from_favorite(None)` plus every category id in parallel and merges
+the covers into a `HashSet` by manga id (the API's `categoryId: null` returns
+only uncategorized manga); it then applies the existing sort. Selecting a
+category tab fetches only that category. Sort/filter/search still work, and the
+selected tab name is reflected in the title. `library_list.rs` now
+unconditionally redirects the legacy `/library/categories` route to
+`/library`, and the topbar Categories link is hidden (categories are tabs).
+The tabs are `button`s with `.library-tabs`/`.library-tab` CSS (active tab uses
+the primary colour). No server API or schema changes.
+
+*If wrong:* large libraries could show duplicate/missing manga if the merge
+key changed, and the All tab is slower because it fetches every category; the
+merge is by manga id and category tabs remain a fast single-query path.
 
 ## Open questions for the repository owner
 

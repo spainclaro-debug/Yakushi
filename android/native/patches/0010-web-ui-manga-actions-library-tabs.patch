@@ -1,0 +1,567 @@
+--- a/crates/tanoshi-web/src/manga.rs
++++ b/crates/tanoshi-web/src/manga.rs
+@@ -2,7 +2,8 @@
+     common::{
+         ChapterSettings, ChapterSort, Filter,  Order, Route, Sort, Spinner, snackbar, SelectCategoryModal, SelectTrackMangaModal, TrackerStatus, icons
+     }, 
+-    query, 
++    query,
++    migration,
+     utils::{AsyncLoader, proxied_image_url, window, format_number_title}
+ };
+ use chrono::NaiveDateTime;
+@@ -38,9 +39,16 @@
+ enum SelectState {
+     None,
+     Category,
++    ChangeCategory,
+     Tracker
+ }
+ 
++#[derive(Clone)]
++struct MigrateSource {
++    id: i64,
++    name: String,
++}
++
+ pub struct Manga {
+     pub id: Mutable<i64>,
+     pub source_id: Mutable<i64>,
+@@ -63,6 +71,8 @@
+     trackers: MutableVec<TrackerStatus>,
+     chapter_settings: Rc<ChapterSettings>,
+     select_state: Mutable<SelectState>,
++    migrate_open: Mutable<bool>,
++    migrate_sources: MutableVec<MigrateSource>,
+     loader: Rc<AsyncLoader>,
+     spinner: Rc<Spinner>,
+     timeout: Mutable<Option<Timeout>>
+@@ -97,6 +107,8 @@
+             trackers: MutableVec::new(),
+             chapter_settings: ChapterSettings::new(false, true),
+             select_state: Mutable::new(SelectState::None),
++            migrate_open: Mutable::new(false),
++            migrate_sources: MutableVec::new(),
+             loader,
+             spinner,
+             timeout: Mutable::new(None)
+@@ -389,6 +401,123 @@
+         }));
+     }
+ 
++    fn fetch_migrate_sources(manga: Rc<Self>) {
++        manga.loader.load(clone!(manga => async move {
++            match query::fetch_sources().await {
++                Ok(sources) => {
++                    manga.migrate_sources.lock_mut().replace_cloned(
++                        sources
++                            .iter()
++                            .map(|source| MigrateSource {
++                                id: source.id,
++                                name: source.name.clone(),
++                            })
++                            .collect(),
++                    );
++                }
++                Err(error) => snackbar::show(format!("Could not load sources: {error}")),
++            }
++        }));
++    }
++
++    fn start_migration(manga: Rc<Self>, to_source_id: i64) {
++        if manga.id.get() == 0 {
++            snackbar::show("Open the saved manga before migrating".to_string());
++            return;
++        }
++        let title = manga.title.get_cloned().unwrap_or_default();
++        migration::set(&migration::MigrationState {
++            from_manga_id: manga.id.get(),
++            from_source_id: manga.source_id.get(),
++            from_title: title.clone(),
++            to_source_id,
++        });
++        manga.migrate_open.set(false);
++        routing::go_to_url(
++            &Route::Catalogue {
++                id: to_source_id,
++                latest: false,
++                query: Some(title),
++            }
++            .url(),
++        );
++    }
++
++    fn change_library(manga: Rc<Self>, category_ids: Vec<i64>) {
++        if manga.id.get() == 0 {
++            return;
++        }
++        manga.loader.load(clone!(manga => async move {
++            match query::delete_from_library(manga.id.get()).await {
++                Ok(_) => match query::add_to_library(manga.id.get(), category_ids).await {
++                    Ok(_) => {
++                        manga.is_favorite.set_neq(true);
++                        snackbar::show("Library updated".to_string());
++                    }
++                    Err(error) => snackbar::show(format!("Could not change library: {error}")),
++                },
++                Err(error) => snackbar::show(format!("Could not change library: {error}")),
++            }
++        }));
++    }
++
++    fn render_migrate_modal(manga: Rc<Self>) -> Dom {
++        html!("div", {
++            .child_signal(manga.migrate_open.signal().map(clone!(manga => move |open| open.then(|| html!("div", {
++                .style("position", "fixed")
++                .style("top", "0")
++                .style("left", "0")
++                .style("right", "0")
++                .style("bottom", "0")
++                .style("background-color", "rgba(0,0,0,0.55)")
++                .style("z-index", "120")
++                .style("display", "flex")
++                .style("align-items", "center")
++                .style("justify-content", "center")
++                .children(&mut [
++                    html!("div", {
++                        .style("background-color", "var(--background-color-100)")
++                        .style("color", "var(--color)")
++                        .style("border-radius", "0.75rem")
++                        .style("padding", "1rem")
++                        .style("min-width", "16rem")
++                        .style("max-width", "24rem")
++                        .style("max-height", "70vh")
++                        .style("display", "flex")
++                        .style("flex-direction", "column")
++                        .children(&mut [
++                            html!("div", {
++                                .style("font-size", "large")
++                                .style("font-weight", "bold")
++                                .style("margin-bottom", "0.5rem")
++                                .text("Migrate manga to source")
++                            }),
++                            html!("div", {
++                                .style("overflow-y", "auto")
++                                .children_signal_vec(manga.migrate_sources.signal_vec_cloned().map(clone!(manga => move |source| html!("button", {
++                                    .class("action-button")
++                                    .style("display", "block")
++                                    .style("width", "100%")
++                                    .style("text-align", "left")
++                                    .style("margin", "0.25rem 0")
++                                    .text(&source.name)
++                                    .event(clone!(manga, source => move |_: events::Click| {
++                                        Self::start_migration(manga.clone(), source.id);
++                                    }))
++                                }))))
++                            }),
++                            html!("button", {
++                                .style("margin-top", "0.5rem")
++                                .text("Cancel")
++                                .event(clone!(manga => move |_: events::Click| manga.migrate_open.set(false)))
++                            }),
++                        ])
++                    })
++                ])
++            })))))
++        })
++    }
++
+     fn handle_mouse_down(manga: Rc<Self>) {
+         if !manga.is_edit_chapter.get() {
+             let timeout = Timeout::new(1_000, clone!(manga => move || {
+@@ -550,6 +679,34 @@
+                                 }
+                             }))
+                         }),
++                        html!("button", {
++                            .attr("title", "Migrate manga")
++                            .style("padding", "0.25rem")
++                            .visible_signal(manga.id.signal().map(|id| id != 0))
++                            .children(&mut [
++                                svg!("svg", {
++                                    .attr("xmlns", "http://www.w3.org/2000/svg")
++                                    .attr("fill", "none")
++                                    .attr("viewBox", "0 0 24 24")
++                                    .attr("stroke", "currentColor")
++                                    .class("icon")
++                                    .children(&mut [
++                                        svg!("path", {
++                                            .attr("stroke-linecap", "round")
++                                            .attr("stroke-linejoin", "round")
++                                            .attr("stroke-width", "2")
++                                            .attr("d", "M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4")
++                                        })
++                                    ])
++                                }),
++                            ])
++                            .event(clone!(manga => move |_: events::Click| {
++                                if manga.migrate_sources.lock_ref().is_empty() {
++                                    Self::fetch_migrate_sources(manga.clone());
++                                }
++                                manga.migrate_open.set_neq(true);
++                            }))
++                        }),
+                         html!("a", {
+                             .class("button")
+                             .attr_signal("href", manga.link.signal_cloned().map(|ext_link| ext_link.unwrap_or_else(|| "".to_string())))
+@@ -677,6 +834,35 @@
+                     }))
+                 }),
+             ])
++            .child_signal(manga.is_favorite.signal().map(clone!(manga => move |is_favorite| is_favorite.then(|| html!("button", {
++                .class("action-button")
++                .style("display", "flex")
++                .style("padding", "0.5rem")
++                .style("margin-left", "0.5rem")
++                .style("margin-top", "0.5rem")
++                .style("margin-bottom", "0.5rem")
++                .style("align-items", "center")
++                .children(&mut [
++                    svg!("svg", {
++                        .attr("xmlns", "http://www.w3.org/2000/svg")
++                        .attr("fill", "currentColor")
++                        .attr("viewBox", "0 0 20 20")
++                        .class("icon-sm")
++                        .children(&mut [
++                            svg!("path", {
++                                .attr("d", "M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z")
++                            })
++                        ])
++                    }),
++                    html!("span", {
++                        .style("margin-left", "0.5rem")
++                        .text("Change Library")
++                    })
++                ])
++                .event(clone!(manga => move |_: events::Click| {
++                    manga.select_state.set(SelectState::ChangeCategory);
++                }))
++            })))))
+             .child_signal(manga.next_chapter.signal_cloned().map(|next_chapter| next_chapter.map(|chapter| html!("button", {
+                 .class("action-button")
+                 .style("display", "flex")
+@@ -1051,6 +1237,7 @@
+                     .class("edit-action-spacing")
+                 }),
+                 ChapterSettings::render(manga_page.chapter_settings.clone()),
++                Self::render_migrate_modal(manga_page.clone()),
+             ])
+             .child_signal(manga_page.select_state.signal_cloned().map(clone!(manga_page => move |select_state| {
+                 match select_state {
+@@ -1066,6 +1253,12 @@
+                             manga_page.select_state.set(SelectState::None);    
+                         })))
+                     }
++                    SelectState::ChangeCategory => {
++                        Some(SelectCategoryModal::new().render(clone!(manga_page => move |category_ids: Vec<i64>| {
++                            Self::change_library(manga_page.clone(), category_ids);
++                            manga_page.select_state.set(SelectState::None);
++                        })))
++                    }
+                     _ => None
+                 }
+             })))
+--- a/crates/tanoshi-web/src/library.rs
++++ b/crates/tanoshi-web/src/library.rs
+@@ -10,15 +10,18 @@
+ 
+ use crate::{
+     common::{
+-        events, snackbar, Cover, LibraryFilter, LibraryOrder, LibrarySettings, LibrarySort,
+-        LibrarySortBy, Route, Spinner,
++        events, snackbar, Category, Cover, LibraryFilter, LibraryOrder, LibrarySettings,
++        LibrarySort, LibrarySortBy, Route, Spinner,
+     },
+     query,
+     utils::{is_tauri_signal, AsyncLoader},
+ };
+ 
+ pub struct Library {
+-    category_id: Option<i64>,
++    /// -1 = All (every library), 0 = the uncategorised/Default library,
++    /// > 0 = a named library category id.
++    selected: Mutable<i64>,
++    categories: MutableVec<Category>,
+     category_name: Mutable<String>,
+     keyword: Mutable<String>,
+     is_search: Mutable<bool>,
+@@ -32,81 +35,164 @@
+ impl Library {
+     pub fn new(category_id: Option<i64>) -> Rc<Self> {
+         Rc::new(Library {
+-            category_id,
+-            category_name: Mutable::new("Default".to_string()),
++            selected: Mutable::new(category_id.unwrap_or(-1)),
++            categories: MutableVec::new(),
++            category_name: Mutable::new("Library".to_string()),
+             keyword: Mutable::new("".to_string()),
+             is_search: Mutable::new(false),
+             loader: AsyncLoader::new(),
+             spinner: Spinner::new_with_fullscreen(true),
+             cover_list: MutableVec::new(),
+-            categories_available: Mutable::new(category_id.is_some()),
++            categories_available: Mutable::new(false),
+             library_settings: LibrarySettings::new(false, true),
+         })
+     }
+ 
+-    pub fn fetch_category_detail(library: Rc<Self>) {
+-        library.spinner.set_active(true);
+-        if let Some(category_id) = library.category_id {
+-            library.loader.load(clone!(library => async move {
+-                match query::fetch_category_detail(category_id).await {
+-                    Ok(res) => {
+-                        library.category_name.set(res.name);
+-                        Self::fetch_libraries(library.clone());
+-                    }
+-                    Err(e) => {
+-                        snackbar::show(format!("failed to fetch library {e}"));
+-                    }
++    fn sort_covers(library: &Rc<Self>, covers: &mut Vec<Cover>) {
++        let sort = library.library_settings.sort.get();
++        covers.sort_by(|a, b| match sort {
++            LibrarySort { by: LibrarySortBy::Alphabetical, order: LibraryOrder::Asc } => a.title.partial_cmp(&b.title).unwrap_or(std::cmp::Ordering::Equal),
++            LibrarySort { by: LibrarySortBy::Alphabetical, order: LibraryOrder::Desc } => b.title.partial_cmp(&a.title).unwrap_or(std::cmp::Ordering::Equal),
++            LibrarySort { by: LibrarySortBy::RecentlyRead, order: LibraryOrder::Asc } => {
++                let a = a.last_read_at.unwrap_or_default();
++                let b = b.last_read_at.unwrap_or_default();
++                a.cmp(&b)
++            }
++            LibrarySort { by: LibrarySortBy::RecentlyRead, order: LibraryOrder::Desc } => {
++                let a = a.last_read_at.unwrap_or_default();
++                let b = b.last_read_at.unwrap_or_default();
++                b.cmp(&a)
++            }
++        });
++    }
++
++    async fn load_covers(library: &Rc<Self>) -> Vec<Cover> {
++        let selected = library.selected.get();
++        if selected == -1 {
++            // "All" must include every category (the API returns only
++            // uncategorised manga for categoryId: null), so fetch each
++            // library and merge by manga id.
++            let mut category_ids: Vec<Option<i64>> = vec![None];
++            for category in library.categories.lock_ref().iter() {
++                if let Some(id) = category.id {
++                    category_ids.push(Some(id));
+                 }
+-                library.spinner.set_active(false);
+-            }));
+-        } else {
+-            library.loader.load(clone!(library => async move {
+-                match query::fetch_categories().await {
+-                    Ok(res) => {
+-                        library.categories_available.set(res.len() > 1);
+-                        Self::fetch_libraries(library.clone());
+-                    }
+-                    Err(e) => {
+-                        snackbar::show(format!("failed to fetch categories {e}"));
++            }
++            let results = futures::future::join_all(
++                category_ids
++                    .iter()
++                    .map(|category_id| query::fetch_manga_from_favorite(*category_id)),
++            )
++            .await;
++            let mut seen = std::collections::HashSet::new();
++            let mut covers = Vec::new();
++            for result in results {
++                match result {
++                    Ok(items) => {
++                        for cover in items {
++                            if seen.insert(cover.id) {
++                                covers.push(cover);
++                            }
++                        }
+                     }
++                    Err(error) => snackbar::show(format!("failed to fetch library {error}")),
+                 }
+-                library.spinner.set_active(false);
+-            }));
++            }
++            covers
++        } else {
++            let category_id = if selected == 0 { None } else { Some(selected) };
++            query::fetch_manga_from_favorite(category_id)
++                .await
++                .unwrap_or_else(|error| {
++                    snackbar::show(format!("failed to fetch library {error}"));
++                    Vec::new()
++                })
+         }
+     }
+ 
+-    pub fn fetch_libraries(library: Rc<Self>) {
+-        let category_id = library.category_id;
++    /// Loads the library-tabs and the covers for the selected tab.
++    pub fn fetch_category_detail(library: Rc<Self>) {
+         library.spinner.set_active(true);
+         library.loader.load(clone!(library => async move {
+-            match query::fetch_manga_from_favorite(category_id).await {
+-                Ok(mut covers) => {
+-                    let sort = library.library_settings.sort.get();
+-                    covers.sort_by(|a, b| match sort {
+-                        LibrarySort { by: LibrarySortBy::Alphabetical, order: LibraryOrder::Asc } => a.title.partial_cmp(&b.title).unwrap_or(std::cmp::Ordering::Equal),
+-                        LibrarySort { by: LibrarySortBy::Alphabetical, order: LibraryOrder::Desc } => b.title.partial_cmp(&a.title).unwrap_or(std::cmp::Ordering::Equal),
+-                        LibrarySort { by: LibrarySortBy::RecentlyRead, order: LibraryOrder::Asc} => {
+-                            let a = a.last_read_at.unwrap_or_default();
+-                            let b = b.last_read_at.unwrap_or_default();
+-                            a.cmp(&b)
+-                        },
+-                        LibrarySort { by: LibrarySortBy::RecentlyRead, order: LibraryOrder::Desc} => {
+-                            let a = a.last_read_at.unwrap_or_default();
+-                            let b = b.last_read_at.unwrap_or_default();
+-                            b.cmp(&a)
+-                        },
+-                    });
++            let categories = query::fetch_categories().await.unwrap_or_else(|error| {
++                snackbar::show(format!("failed to fetch libraries {error}"));
++                Vec::new()
++            });
++            library
++                .categories
++                .lock_mut()
++                .replace_cloned(categories.iter().map(|c| Category {
++                    id: c.id,
++                    name: c.name.clone(),
++                    count: c.count,
++                }).collect());
++
++            let selected = library.selected.get();
++            let name = if selected == -1 {
++                "Library".to_string()
++            } else {
++                library
++                    .categories
++                    .lock_ref()
++                    .iter()
++                    .find(|category| category.id.unwrap_or(0) == selected)
++                    .map(|category| category.name.clone())
++                    .unwrap_or_else(|| "Library".to_string())
++            };
++            library.category_name.set(name);
++
++            let mut covers = Self::load_covers(&library).await;
++            Self::sort_covers(&library, &mut covers);
++            library.cover_list.lock_mut().replace_cloned(covers);
++            library.spinner.set_active(false);
++        }));
++    }
+ 
+-                    library.cover_list.lock_mut().replace_cloned(covers);
+-                }
+-                Err(e) => {
+-                    snackbar::show(format!("failed to fetch library {e}"));
+-                }
+-            }
++    pub fn fetch_libraries(library: Rc<Self>) {
++        library.spinner.set_active(true);
++        library.loader.load(clone!(library => async move {
++            let mut covers = Self::load_covers(&library).await;
++            Self::sort_covers(&library, &mut covers);
++            library.cover_list.lock_mut().replace_cloned(covers);
+             library.spinner.set_active(false);
+         }));
+     }
+ 
++    fn select_category(library: Rc<Self>, selected: i64, name: String) {
++        library.selected.set(selected);
++        library.category_name.set(name);
++        Self::fetch_libraries(library);
++    }
++
++    fn render_tabs(library: Rc<Self>) -> Dom {
++        html!("div", {
++            .class("library-tabs")
++            .children(&mut [
++                html!("button", {
++                    .class("library-tab")
++                    .class_signal("active", library.selected.signal().map(|selected| selected == -1))
++                    .text("All")
++                    .event(clone!(library => move |_: events::Click| {
++                        Self::select_category(library.clone(), -1, "Library".to_string());
++                    }))
++                }),
++            ])
++            .children_signal_vec(library.categories.signal_vec_cloned().map(clone!(library => move |category| {
++                let selected = category.id.unwrap_or(0);
++                let name = category.name.clone();
++                let label = format!("{} ({})", category.name, category.count);
++                html!("button", {
++                    .class("library-tab")
++                    .class_signal("active", library.selected.signal().map(move |current| current == selected))
++                    .text(&label)
++                    .event(clone!(library, name => move |_: events::Click| {
++                        Self::select_category(library.clone(), selected, name.clone());
++                    }))
++                })
++            })))
++        })
++    }
++
+     pub fn render_topbar(library: Rc<Self>) -> Dom {
+         let categories_link_signal = map_ref! {
+             let is_search = library.is_search.signal(),
+@@ -320,6 +406,7 @@
+                 html!("div", {
+                     .class("topbar-spacing")
+                 }),
++                Self::render_tabs(library.clone()),
+                 Spinner::render(library.spinner.clone()),
+                 LibrarySettings::render(library.library_settings.clone()),
+             ])
+--- a/crates/tanoshi-web/src/library_list.rs
++++ b/crates/tanoshi-web/src/library_list.rs
+@@ -29,17 +29,10 @@
+         library.spinner.set_active(true);
+         library.loader.load(clone!(library => async move {
+             match query::fetch_categories().await {
+-                Ok(res) => {
+-                    if res.len() == 1 {
+-                        routing::go_to_url(&Route::Library(None).url());
+-                        return
+-                    }
+-
+-                    library.categories.lock_mut().replace_cloned(res.into_iter().map(|c| Category{
+-                        id: c.id,
+-                        name: c.name.clone(),
+-                        count: c.count,
+-                    }).collect());
++                Ok(_) => {
++                    // The library is now a single page with category tabs.
++                    routing::go_to_url(&Route::Library(None).url());
++                    return;
+                 }
+                 Err(e) => {
+                     snackbar::show(format!("failed to fetch categories {e}"));
+--- a/crates/tanoshi-web/static/css/styles.scss
++++ b/crates/tanoshi-web/static/css/styles.scss
+@@ -1213,3 +1213,27 @@
+ .list-item:hover {
+     background-color: color-mix(in srgb, var(--secondary-color) 18%, transparent);
+ }
++
++/* Library category tabs (the All tab plus one per library category). */
++.library-tabs {
++    display: flex;
++    gap: 0.25rem;
++    overflow-x: auto;
++    padding: 0.5rem;
++    margin: 0 0.25rem;
++}
++
++.library-tab {
++    white-space: nowrap;
++    padding: 0.4rem 0.75rem;
++    border: none;
++    border-radius: 999px;
++    background-color: var(--background-color-100);
++    color: var(--color);
++    cursor: pointer;
++
++    &.active {
++        background-color: var(--primary-color);
++        color: white;
++    }
++}

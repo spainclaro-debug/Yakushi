@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.6`). The Termux package in the repository root has
+(for example `android-v0.13.7`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,57 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.7
+
+### Added
+
+- **Migrate from the manga page.** Saved manga (id ≠ 0) now show a **Migrate**
+  icon in the manga top bar next to Refresh/Open. It opens a source-picker
+  modal listing the installed sources (`installedSources`); choosing one writes
+  the existing migration context (`migration::set` with
+  from_manga_id/from_source_id/from_title/to_source_id) and routes to that
+  source's catalogue **pre-filled with the manga title**
+  (`Route::Catalogue { id, latest:false, query:Some(title) }`). The catalogue's
+  existing migration banner/confirm then calls `migrateManga` (source-path
+  based) and opens the migrated manga — the same flow as Suwayomi/Mihon.
+  The button is hidden for unsaved manga; attempting without an id shows a
+  snackbar.
+- **Change Library on the manga page.** Manga already in the library show a
+  **Change Library** action (folder icon) next to In Library/Read. It opens the
+  existing category selector (`SelectCategoryModal`); on OK the UI calls
+  `deleteFromLibrary` then `addToLibrary(mangaId, category_ids)` so the
+  selected categories **replace** the old ones (no category = uncategorized/
+  Default). Read progress, chapters and trackers are manga-level and stay
+  intact; a **"Library updated"** snackbar confirms, errors are shown.
+- **Tabbed Library page.** `/library` now shows **All** plus one tab per
+  library category (labels include counts) instead of the separate category
+  list. **All** merges uncategorized manga with every category — the API's
+  `categoryId: null` only returns uncategorized, so each category is fetched
+  and results are deduplicated by manga id. Selecting a tab fetches that
+  category; the existing sort/filter/search still apply. The old
+  `/library/categories` page immediately redirects to `/library`, and the
+  topbar Categories link is hidden. New `.library-tabs`/`.library-tab` CSS
+  (active tab uses the primary colour).
+
+### Changed
+
+- **Web UI and `libtanoshi.so` rebuilt** with the new
+  `android/native/patches/0010-web-ui-manga-actions-library-tabs.patch`
+  (applied after 0009; `manga.rs`/`library.rs`/`library_list.rs`/`styles.scss`);
+  version **0.13.7** (versionCode 1307, tag `android-v0.13.7`). APK filename
+  scheme unchanged (`yakushi-server-release-<yyyy-MM-dd>.apk`). No server API or
+  database schema changes.
+
+### Notes
+
+- Migration is source-path based and only available for manga already saved in
+  the library; the flow starts from the manga page and completes in the
+  catalogue's migration mode.
+- `Change Library` is a category replacement (delete + re-add), so a manga
+  leaves its previous categories; progress/trackers are untouched.
+- The Library **All** tab can be slightly slower on large libraries because it
+  fetches every category and merges/dedupes client-side.
 
 ## 0.13.6
 
