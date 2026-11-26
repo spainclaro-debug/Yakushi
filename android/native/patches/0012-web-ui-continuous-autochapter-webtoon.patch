@@ -1,0 +1,388 @@
+--- a/crates/tanoshi-web/src/reader.rs
++++ b/crates/tanoshi-web/src/reader.rs
+@@ -88,6 +88,14 @@
+     viewport_update_pending: Mutable<bool>,
+     visible_pages: Mutable<Option<(usize, usize)>>,
+     source_id: Mutable<i64>,
++    /// (chapter id, page index within that chapter, page count of that chapter)
++    /// aligned with `pages`; updated when the next chapter is appended.
++    page_chapters: RefCell<Vec<(i64, usize, usize)>>,
++    appending: RefCell<bool>,
++    at_end: Mutable<bool>,
++    user_scrolled: RefCell<bool>,
++    webtoon_mode: Mutable<bool>,
++    webtoon_checked: RefCell<bool>,
+ }
+ 
+ impl Reader {
+@@ -124,6 +132,12 @@
+             viewport_update_pending: Mutable::new(false),
+             visible_pages: Mutable::new(None),
+             source_id: Mutable::new(0),
++            page_chapters: RefCell::new(Vec::new()),
++            appending: RefCell::new(false),
++            at_end: Mutable::new(false),
++            user_scrolled: RefCell::new(false),
++            webtoon_mode: Mutable::new(false),
++            webtoon_checked: RefCell::new(false),
+         })
+     }
+ 
+@@ -303,7 +317,17 @@
+                     this.prev_chapter.set_neq(result.prev);
+ 
+                     // Update the number of pages so the correct page can be loaded
+-                    *this.page_dimensions.borrow_mut() = vec![None; result.pages.len()];
++                    let page_count = result.pages.len();
++                    *this.page_dimensions.borrow_mut() = vec![None; page_count];
++                    this.page_chapters.borrow_mut().clear();
++                    for index in 0..page_count {
++                        this.page_chapters
++                            .borrow_mut()
++                            .push((chapter_id, index, page_count));
++                    }
++                    this.at_end.set_neq(result.next.is_none());
++                    *this.appending.borrow_mut() = false;
++                    *this.user_scrolled.borrow_mut() = false;
+                     let pages = result.pages.iter().map(|page| (page.to_string(), PageStatus::Initial)).collect();
+                     this.pages.lock_mut().replace_cloned(pages);
+ 
+@@ -382,9 +406,86 @@
+         }
+     }
+ 
+-    fn update_page_read(this: Rc<Self>, page: usize) {
+-        let chapter_id = this.chapter_id.get();
++    fn maybe_append_next_chapter(this: Rc<Self>) {
++        if !matches!(this.reader_settings.reader_mode.get(), ReaderMode::Continous) {
++            return;
++        }
++        if *this.appending.borrow() || this.at_end.get() {
++            return;
++        }
++        let Some(next_chapter) = this.next_chapter.get() else {
++            this.at_end.set_neq(true);
++            return;
++        };
++
++        *this.appending.borrow_mut() = true;
++        spawn_local(clone!(this => async move {
++            match query::fetch_chapter(next_chapter).await {
++                Ok(result) => {
++                    let page_count = result.pages.len();
++                    {
++                        let mut pages = this.pages.lock_mut();
++                        for page in result.pages {
++                            pages.push_cloned((page.to_string(), PageStatus::Initial));
++                        }
++                    }
++                    {
++                        let mut mapping = this.page_chapters.borrow_mut();
++                        for index in 0..page_count {
++                            mapping.push((next_chapter, index, page_count));
++                        }
++                    }
++                    this.page_dimensions
++                        .borrow_mut()
++                        .extend(vec![None; page_count]);
++                    this.next_chapter.set_neq(result.next);
++                    if result.next.is_none() {
++                        this.at_end.set_neq(true);
++                    }
++                    *this.appending.borrow_mut() = false;
++                    Self::schedule_continuous_page_update(this.clone());
++                }
++                Err(error) => {
++                    *this.appending.borrow_mut() = false;
++                    snackbar::show(format!("Could not load the next chapter: {error}"));
++                }
++            }
++        }));
++    }
++
++    /// A manhua/manhwa page is much taller than it is wide. When the first
++    /// loaded page looks like that, switch to the webtoon reading layout
++    /// (continuous, fit width) and keep only the fit controls in the settings.
++    fn detect_webtoon(this: Rc<Self>) {
++        if *this.webtoon_checked.borrow() {
++            return;
++        }
++        let (loaded_count, tall) = {
++            let dimensions = this.page_dimensions.borrow();
++            let loaded: Vec<_> = dimensions.iter().flatten().collect();
++            (
++                loaded.len(),
++                loaded
++                    .iter()
++                    .any(|dim| dim.width > 0 && dim.height as f64 >= dim.width as f64 * 2.5),
++            )
++        };
++        if !tall {
++            if loaded_count >= 3 {
++                *this.webtoon_checked.borrow_mut() = true;
++            }
++            return;
++        }
++        *this.webtoon_checked.borrow_mut() = true;
++        this.webtoon_mode.set(true);
++        this.reader_settings.reader_mode.set_neq(ReaderMode::Continous);
++        this.reader_settings.fit.set_neq(Fit::Width);
++        this.reader_settings.padding.set_neq(false);
++        this.reader_settings.save();
++        snackbar::show("Webtoon layout detected".to_string());
++    }
+ 
++    fn update_page_read(this: Rc<Self>, page: usize) {
+         let pages_len = this.pages.lock_ref().len();
+         if pages_len == 0 {
+             return;
+@@ -397,9 +498,21 @@
+             page
+         };
+ 
+-        let is_complete = matches!(reader_mode, ReaderMode::Paged) && page + 1 == pages_len;
++        let mapping = this
++            .page_chapters
++            .borrow()
++            .get(page)
++            .cloned()
++            .unwrap_or((this.chapter_id.get(), page, pages_len));
++        let (chapter_id, page_in_chapter, chapter_pages) = mapping;
++
++        let is_complete = if matches!(reader_mode, ReaderMode::Paged) {
++            page + 1 == pages_len
++        } else {
++            page_in_chapter + 1 == chapter_pages
++        };
+ 
+-        Self::replace_state_with_url(chapter_id, page + 1);
++        Self::replace_state_with_url(chapter_id, page_in_chapter + 1);
+ 
+         if this.completion_sent.get() {
+             return;
+@@ -407,7 +520,7 @@
+ 
+         let timeout = Timeout::new(500, move || {
+             spawn_local(async move {
+-                match query::update_page_read_at(chapter_id, page as i64, is_complete).await {
++                match query::update_page_read_at(chapter_id, page_in_chapter as i64, is_complete).await {
+                     Ok(_) => {}
+                     Err(err) => {
+                         snackbar::show(format!("{err}"));
+@@ -452,14 +565,19 @@
+             return;
+         }
+ 
+-        let chapter_id = this.chapter_id.get();
++        let (chapter_id, page_in_chapter, _) = this
++            .page_chapters
++            .borrow()
++            .get(page)
++            .cloned()
++            .unwrap_or((this.chapter_id.get(), page, page + 1));
+         this.completion_sent.set(true);
+         // A terminal update must not be cancelled by a pending debounced progress update.
+         this.timeout.set(None);
+-        Self::replace_state_with_url(chapter_id, page + 1);
++        Self::replace_state_with_url(chapter_id, page_in_chapter + 1);
+ 
+         spawn_local(clone!(this => async move {
+-            if let Err(err) = query::update_page_read_at(chapter_id, page as i64, true).await {
++            if let Err(err) = query::update_page_read_at(chapter_id, page_in_chapter as i64, true).await {
+                 if this.chapter_id.get() == chapter_id {
+                     this.completion_sent.set(false);
+                 }
+@@ -486,7 +604,11 @@
+ 
+                 if is_intersecting {
+                     if let Some(this) = weak_reader.upgrade() {
+-                        Self::maybe_complete_chapter(this);
++                        if this.next_chapter.get().is_some() && !this.at_end.get() {
++                            Self::maybe_append_next_chapter(this);
++                        } else {
++                            Self::maybe_complete_chapter(this);
++                        }
+                     }
+                 }
+             },
+@@ -1079,21 +1201,18 @@
+                 async {}
+             })))
+             .children(&mut [
+-                html!("button", {
++                // No buttons: scrolling to the top automatically loads the
++                // previous chapter; the first chapter just shows a small note.
++                html!("div", {
+                     .style("width", "100%")
+-                    .style("height", "5rem")
+-                    .style("border-width", "2px")
+-                    .style("border-style", "dashed")
++                    .style("padding", "0.75rem")
++                    .style("text-align", "center")
+                     .style("margin-top", "env(safe-area-inset-top)")
+-                    .attr_signal("disabled", this.prev_chapter.signal().map(|prev_chapter| if prev_chapter.is_some() { None } else { Some("true") }))
+-                    .text_signal(this.prev_chapter.signal().map(|prev_chapter| if prev_chapter.is_some() { "Prev Chapter" } else { "No Prev Chapter" }))
+-                    .event(clone!(this => move |_: events::Click| {
+-                        if let Some(prev_chapter) = this.prev_chapter.get() {
+-                            this.chapter_id.set(prev_chapter);
+-                        } else {
+-                            debug!("no prev_page or prev_chapter (vertical)");
+-                        }
+-                    }))
++                    .style("font-size", "0.875rem")
++                    .style("opacity", "0.75")
++                    .style("display", "none")
++                    .style_signal("display", this.prev_chapter.signal().map(|prev| Some(if prev.is_none() { "block" } else { "none" })))
++                    .text("No previous chapter")
+                 })
+             ])
+             .children_signal_vec(this.pages_signal().map(clone!(this => move |(index, page, status)|
+@@ -1131,6 +1250,7 @@
+                         .with_node!(img => {
+                             .event(clone!(this, page, img => move |_: events::Load| {
+                                 this.record_page_dimensions(index, &img);
++                                Self::detect_webtoon(this.clone());
+                                 this.pages_loaded.set_if(ContinousLoaded::Loaded, |a, _| {
+                                     matches!(a, ContinousLoaded::Initial)
+                                 });
+@@ -1174,22 +1294,15 @@
+                         Self::observe_end_sentinel(this, sentinel);
+                     }))
+                 }),
+-                html!("button", {
++                html!("div", {
+                     .style("width", "100%")
+-                    .style("height", "5rem")
+-                    .style("border-width", "2px")
+-                    .style("border-style", "dashed")
++                    .style("padding", "0.75rem")
++                    .style("text-align", "center")
+                     .style("margin-bottom", "env(safe-area-inset-bottom)")
+-                    .attr_signal("disabled", this.next_chapter.signal().map(|next_chapter| if next_chapter.is_some() { None } else { Some("true") }))
+-                    .text_signal(this.next_chapter.signal().map(|next_chapter| if next_chapter.is_some() { "Next Chapter" } else { "No Next Chapter" }))
+-                    .event(clone!(this => move |_: events::Click| {
+-                        if let Some(next_chapter) = this.next_chapter.get() {
+-                            this.chapter_id.set(next_chapter);
+-                            window().scroll_to_with_x_and_y(0.0_f64, 0.0_f64);
+-                        } else {
+-                            debug!("no next_page or next_chapter (vertical)");
+-                        }
+-                    }))
++                    .style("font-size", "0.875rem")
++                    .style("opacity", "0.75")
++                    .style_signal("display", this.at_end.signal().map(|at_end| Some(if at_end { "block" } else { "none" })))
++                    .text("No more chapters")
+                 })
+             ])
+             .global_event_with_options(&EventOptions::preventable(), clone!(this => move |e: events::KeyDown| {
+@@ -1205,6 +1318,18 @@
+                         matches!(loaded, ContinousLoaded::Initial)
+                     });
+                 }
++
++                let scroll_y = Self::scroll_y();
++                if scroll_y > 1.0 {
++                    *this.user_scrolled.borrow_mut() = true;
++                } else if *this.user_scrolled.borrow_mut() {
++                    *this.user_scrolled.borrow_mut() = false;
++                    if let Some(prev) = this.prev_chapter.get() {
++                        this.chapter_id.set_neq(prev);
++                        window().scroll_to_with_x_and_y(0.0_f64, 0.0_f64);
++                    }
++                }
++
+                 Self::schedule_continuous_page_update(this.clone());
+             }))
+             .global_event(clone!(this => move |_: events::Resize| {
+@@ -1259,6 +1384,7 @@
+                         .with_node!(img => {
+                             .event(clone!(this, page, img => move |_: events::Load| {
+                                 this.record_page_dimensions(index, &img);
++                                Self::detect_webtoon(this.clone());
+                                 if !matches!(status, PageStatus::Loaded) {
+                                     let mut lock = this.pages.lock_mut();
+                                     lock.set_cloned(index, (page.clone(), PageStatus::Loaded));
+@@ -1409,6 +1535,7 @@
+                             .event(clone!(this, page, img => move |_: events::Load| {
+                                 // Keep dimensions when the loaded image's status replaces its DOM node.
+                                 this.record_page_dimensions(index, &img);
++                                Self::detect_webtoon(this.clone());
+                                 if !matches!(status, PageStatus::Loaded) {
+                                     this.pages.lock_mut().set_cloned(index, (page.clone(), PageStatus::Loaded));
+                                 }
+@@ -1509,7 +1636,15 @@
+             .children(&mut [
+                 Self::render_page_indicator(this.clone()),
+                 Self::render_bottombar(this.clone()),
+-                ReaderSettings::render(this.reader_settings.clone()),
++                html!("div", {
++                    .child_signal(this.webtoon_mode.signal().map(clone!(this => move |webtoon| {
++                        Some(if webtoon {
++                            ReaderSettings::render_webtoon(this.reader_settings.clone())
++                        } else {
++                            ReaderSettings::render(this.reader_settings.clone())
++                        })
++                    })))
++                }),
+                 Spinner::render(this.spinner.clone())
+             ])
+         })
+--- a/crates/tanoshi-web/src/common/reader_settings.rs
++++ b/crates/tanoshi-web/src/common/reader_settings.rs
+@@ -549,6 +549,16 @@
+     }
+ 
+     pub fn render(settings: Rc<Self>) -> Dom {
++        Self::render_with(settings, false)
++    }
++
++    /// Webtoon/manhwa readers only need the fit controls (full width, height,
++    /// or all); the paged/reader-mode options are hidden.
++    pub fn render_webtoon(settings: Rc<Self>) -> Dom {
++        Self::render_with(settings, true)
++    }
++
++    fn render_with(settings: Rc<Self>, webtoon: bool) -> Dom {
+         let use_modal = settings.use_modal;
+         html!("div", {
+             .future(settings.signal().for_each(clone!(settings => move |s| {
+@@ -578,16 +588,29 @@
+                         None
+                     }))
+                     .visible_signal(settings.first_render.signal().map(|x| !x))
+-                    .children(&mut [
+-                        Self::render_header(settings.clone()),
+-                        Self::render_reader_mode(settings.clone()),
+-                        Self::render_padding(settings.clone()),
+-                        Self::render_display_mode(settings.clone()),
+-                        Self::render_direction(settings.clone()),
+-                        Self::render_background(settings.clone()),
+-                        Self::render_fit_screen(settings.clone()),
+-                        Self::render_tap_area(settings),
+-                    ])
++                    .children(&mut if webtoon {
++                        vec![
++                            Self::render_header(settings.clone()),
++                            html!("div", {
++                                .style("margin", "0.5rem")
++                                .style("font-size", "0.875rem")
++                                .style("opacity", "0.8")
++                                .text("Webtoon layout detected: only the fit options are shown.")
++                            }),
++                            Self::render_fit_screen(settings),
++                        ]
++                    } else {
++                        vec![
++                            Self::render_header(settings.clone()),
++                            Self::render_reader_mode(settings.clone()),
++                            Self::render_padding(settings.clone()),
++                            Self::render_display_mode(settings.clone()),
++                            Self::render_direction(settings.clone()),
++                            Self::render_background(settings.clone()),
++                            Self::render_fit_screen(settings.clone()),
++                            Self::render_tap_area(settings),
++                        ]
++                    })
+                 })
+             ])
+         })

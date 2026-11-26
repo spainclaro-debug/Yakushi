@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.8`). The Termux package in the repository root has
+(for example `android-v0.13.9`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,55 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.13.9
+
+### Added
+
+- **Seamless continuous reading.** In Continuous mode the old Prev/Next chapter
+  buttons are gone. The chapter-end intersection observer now **appends the
+  next chapter's pages to the same continuous list**
+  (`maybe_append_next_chapter` fetches the next chapter and pushes its pages
+  and page mapping), so scrolling flows into the next chapter without a
+  reload/jump; `next_chapter` is advanced, and when there is no next chapter a
+  small non-button **"No more chapters"** label appears at the bottom. A small
+  **"No previous chapter"** label appears at the top only when the first chapter
+  has no previous chapter. Scrolling back to the very top automatically loads
+  the previous chapter (the chapter switches and the reader lands on its last
+  page); a `user_scrolled` guard prevents the initial position restore from
+  triggering it.
+- **Per-chapter progress with the continuous list.** Pages are mapped to their
+  real chapter by a new `page_chapters` vector (chapter id, page index within
+  the chapter, chapter page count), so `update_page_read` records progress/URL
+  for the correct chapter/page, and completion marks each chapter at its own
+  last page (and the final chapter at the true end).
+- **Automatic webtoon layout.** When the first loaded page(s) are long-strip
+  (image height ≥ 2.5 × width), the reader detects a
+  manhua/manhwa/webtoon and switches to **Continuous + Fit Width + padding
+  off**, saves the reader settings and shows a one-shot **"Webtoon layout
+  detected"** snackbar. In webtoon mode the reader settings panel shows only the
+  **Fit** controls (Height/Width/All) plus a note
+  ("Webtoon layout detected: only the fit options are shown."); the paged/
+  display/direction/tap-area/background/reader-mode controls are hidden.
+
+### Changed
+
+- **Web UI and `libtanoshi.so` rebuilt** with
+  `android/native/patches/0012-web-ui-continuous-autochapter-webtoon.patch`
+  (applied after 0011; `reader.rs` + `reader_settings.rs`); version **0.13.9**
+  (versionCode 1309, tag `android-v0.13.9`). APK filename scheme unchanged. No
+  server API/schema changes.
+
+### Notes
+
+- Continuous mode appends pages as you reach the end; a failed next-chapter
+  fetch shows "Could not load the next chapter: …" and can be retried by
+  scrolling to the end again. Returning to the very top loads the previous
+  chapter only after you have scrolled (no surprise switch on open).
+- Webtoon detection runs once per reader session (`webtoon_checked`); if the
+  first pages are not tall and at least 3 pages have loaded, detection stops to
+  avoid false positives. The fit-only settings stay until the reader is
+  reopened/re-detected; the previous full settings return for normal manga.
 
 ## 0.13.8
 

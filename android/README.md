@@ -5,9 +5,15 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.8** — see the
+Current release: **0.13.9** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.8 fixes the **desktop/tablet Library
+and [`CHANGELOG.md`](CHANGELOG.md). 0.13.9 makes **continuous reading
+seamless** (the Next chapter's pages are appended to the same scroll, scrolling
+to the very top loads the previous chapter, with small "No previous chapter"/
+"No more chapters" labels instead of chapter buttons and per-chapter progress)
+and adds **automatic webtoon layout detection** (long-strip pages switch to
+Continuous + Fit Width with a fit-only settings panel). 0.13.8 fixes the
+**desktop/tablet Library
 tabs** being hidden under the 5rem sidebar, restyles them like browser tabs,
 adds **Settings → Categories → Library tabs** per-device toggles (hide the
 All tab, hide category counts) and an inline **Rename** action per category
@@ -110,7 +116,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.8](#whats-new-in-0138)
+- [What's new in 0.13.9](#whats-new-in-0139)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -159,6 +165,31 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.13.9
+
+- **Seamless continuous reading.** The Continuous reader no longer shows
+  Prev/Next chapter buttons: reaching the end **appends the next chapter's
+  pages to the same scroll** (fetch + page mapping), so you keep reading
+  without a reload/jump; scrolling back to the very top auto-loads the previous
+  chapter (with a guard so the initial position restore doesn't trigger it).
+  Small non-button labels **"No previous chapter"** (first chapter only) and
+  **"No more chapters"** (end of manga) replace the buttons. Pages are mapped
+  per chapter, so reading progress, the page URL and chapter completion are
+  recorded against the correct chapter/page.
+- **Automatic webtoon layout.** If the first loaded page(s) are tall strips
+  (height ≥ 2.5 × width), the reader automatically switches to
+  **Continuous + Fit Width + padding off**, saves those settings and shows a
+  one-shot **"Webtoon layout detected"** snackbar. While in webtoon mode the
+  reader-settings panel is reduced to the **Fit** controls (Height/Width/All)
+  plus a "only the fit options are shown" note; paged/display/direction/
+  tap-area/background options are hidden.
+- **Web UI and server rebuilt** with patch **0012** (after 0011;
+  `reader.rs`/`reader_settings.rs`, no server API/schema changes); version
+  **0.13.9** (`versionCode` 1309, tag `android-v0.13.9`), APK filename scheme
+  unchanged.
+
+Previous release — **0.13.8** — and its features:
 
 ## What's new in 0.13.8
 
@@ -594,12 +625,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.8**,
-`versionCode` 1308) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.13.9**,
+`versionCode` 1309) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.8 -PappVersionCode=1308 \
+./gradlew :app:assembleDebug -PappVersionName=0.13.9 -PappVersionCode=1309 \
   -PapkDate=2026-11-14
 ```
 
@@ -660,11 +691,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.8`. For a tag, CI derives everything from the tag and
+example `android-v0.13.9`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.8` → `1308`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.9` → `1309`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -849,6 +880,37 @@ and shipping a new APK — rebuilding the Android app alone is not enough. The
 web UI keeps its own Yakushi theme/palette; the app's [themes](#themes) affect
 only the Android UI around it.
 
+### Reader: continuous chapters and webtoon mode
+
+The embedded web UI reader has two related 0.13.9 behaviours:
+
+- **Continuous mode is seamless.** The old dashed **Prev Chapter/Next Chapter**
+  buttons are gone. When you scroll near the end of the current chapter, the
+  reader fetches the next chapter and **appends its pages to the existing
+  continuous page list**, continuing the same scroll; when there is no next
+  chapter, a small (non-button) **"No more chapters"** label appears at the
+  bottom. Scrolling back to the very top of the list automatically switches to
+  the **previous chapter** and lands on its last page; a `user_scrolled` guard
+  means the initial position restore on open never triggers that switch. A
+  small **"No previous chapter"** label is shown at the top only for the first
+  chapter. Pages are mapped to their real chapter (`page_chapters`: chapter id,
+  page index, chapter page count), so progress, the share URL and chapter
+  completion are recorded for the right chapter/page even across appended
+  chapters.
+- **Webtoon (manhua/manhwa) layout is automatic.** When the first loaded page
+  image is a long strip (height ≥ 2.5 × width), the reader switches to
+  **Continuous + Fit Width + padding off**, saves the reader settings and shows
+  a one-time **"Webtoon layout detected"** snackbar. In this mode the settings
+  sheet is reduced to the **Fit** controls (Height/Width/All) with a note
+  ("Webtoon layout detected: only the fit options are shown."); the other
+  reader options are hidden until a normal (non-webtoon) session.
+
+Settings chosen in Continuous mode are still available in Settings →
+Layout Preference (presets are server-shared from 0.13.6, selected preset per
+device). Webtoon auto-switch happens once per reader session; a next-chapter
+fetch failure shows "Could not load the next chapter: …" and can be retried by
+reaching the end again.
+
 ### Library and manga actions
 
 The embedded web UI's library/manga pages gained a few workflow improvements in
@@ -971,7 +1033,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.8-debug`; the updater strips it before
+`-debug` version suffix such as `0.13.9-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1834,6 +1896,25 @@ Categories link is hidden. The **All** tab fetches each category and merges
 them, so it can take longer on large libraries; category tabs fetch only their
 own list.
 
+**The next chapter does not load in Continuous mode.** Near the chapter end the
+reader fetches and appends the next chapter automatically; a failed fetch shows
+"Could not load the next chapter: …" and can be retried by reaching the end
+again. If there is no next chapter the **"No more chapters"** label appears; for
+the first chapter a **"No previous chapter"** label is shown at the top. Update
+the embedded UI/app if these buttons/labels look like the old version.
+
+**Scrolling to the top jumped to the previous chapter unexpectedly.** This is
+intended in Continuous mode from 0.13.9, but only after you have scrolled: a
+`user_scrolled` guard stops the initial position restore from switching
+chapters. If the previous chapter is missing you'll see "No previous chapter".
+
+**The reader settings are missing options / only Fit controls are shown.** The
+reader detected a webtoon (a loaded page height ≥ 2.5 × width) and switched
+to Continuous + Fit Width with a fit-only settings panel and a
+"Webtoon layout detected" snackbar. Open a normal manga to get the full settings
+back; detection runs once per reader session and stops after 3 non-tall pages to
+avoid false positives.
+
 **The Library tabs are hidden under the sidebar on a desktop/tablet.**
 Fixed in 0.13.8: at widths ≥ 1024px `.library-tabs` gets a 5rem left margin
 plus a right margin to clear the fixed desktop sidebar. Update the app/embedded
@@ -2101,7 +2182,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` + library-tab options/sidebar `0011` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 per-chapter downloads, 0.13.6 shared presets/gapless pages, 0.13.7 migrate/tabs, 0.13.8 tab styling/options/rename |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` + library-tab options/sidebar `0011` + continuous/webtoon reader `0012` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 downloads, 0.13.6 presets/pages, 0.13.7 migrate/tabs, 0.13.8 tab options/rename, 0.13.9 continuous/webtoon |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
@@ -2116,7 +2197,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Library actions | Change Library = `deleteFromLibrary` + `addToLibrary(category_ids)` category replacement (progress/trackers unchanged); Library tabs All + per-category with counts, All merged/deduped; `/library/categories` redirects (0.13.7) |
 | Library tab options | Per-device localStorage (`settings:library`): All tab Shown/Hidden, Counts Shown/Hidden; hidden All falls back to Default; browser-style tabs with 5rem desktop-sidebar offset (0.13.8) |
 | Category rename | Per-row inline Rename in Settings → Categories (Enter saves via server `updateCategory`, list refreshes), bulk edit unchanged (0.13.8) |
-| App version | 0.13.8 (`versionName`); `versionCode` 1308 in local builds and for the `android-v0.13.8` tag |
+| Reader continuous | Seamless chapter appending at end (no Prev/Next buttons), auto previous at top (`user_scrolled` guard), `No previous chapter`/`No more chapters` labels, `page_chapters` per-chapter progress/completion (from 0.13.9) |
+| Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
+| App version | 0.13.9 (`versionName`); `versionCode` 1309 in local builds and for the `android-v0.13.9` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -2140,7 +2223,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0011 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0012 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

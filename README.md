@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.8](#whats-new-in-0138)
+- [What's new in 0.13.9](#whats-new-in-0139)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,25 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.13.9
+
+- **Seamless continuous reading.** In Continuous mode the Prev/Next chapter
+  buttons are gone: the next chapter's pages are **appended to the same
+  scroll** when you reach the end, and scrolling back to the very top loads the
+  previous chapter (with a guard against the initial position restore). Small
+  **"No previous chapter"**/**"No more chapters"** labels replace the buttons,
+  and progress/URL/completion are recorded per chapter via a page-to-chapter
+  mapping even across appended chapters.
+- **Automatic webtoon layout.** If the first loaded pages are long strips
+  (height ≥ 2.5 × width), the reader switches to **Continuous + Fit Width**
+  (+ padding off), saves the settings and shows a one-time "Webtoon layout
+  detected" snackbar; the settings panel is reduced to the Fit controls with a
+  note.
+- **Version 0.13.9** (`android-v0.13.9`, `yakushi-server-release-<date>.apk`);
+  includes all earlier features.
+
+Previous release — **0.13.8** — and its features:
 
 ## What's new in 0.13.8
 
@@ -153,12 +172,18 @@ trackers](#downloads-and-trackers).
 
 ### Reader
 
-- **Reading modes:** paged and continuous.
+- **Reading modes:** paged and continuous. Continuous mode is seamless from
+  0.13.9: the next chapter's pages append to the same scroll, scrolling to the
+  very top loads the previous chapter, and "No previous chapter"/"No more
+  chapters" labels replace the old Prev/Next buttons.
 - **Display:** single, double and auto (landscape-aware) pages; double-page
   spreads are gapless (spare space at the sides, not in the middle, from
   0.13.6).
 - **Direction:** left-to-right and right-to-left.
 - **Fit:** fit all, fit width, fit height; zoom; page padding.
+- **Automatic webtoon layout:** long-strip pages (height ≥ 2.5 × width) switch
+  the reader to Continuous + Fit Width + padding off, with a one-time snackbar
+  and a fit-only settings panel (from 0.13.9).
 - **Backgrounds:** white and black.
 - **Layout Preference presets** — bundle the reader options (mode, padding,
   display, direction, background, fit) under names, with a built-in
@@ -414,7 +439,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.8** (`android-v0.13.8`), published as
+- The current Android release is **0.13.9** (`android-v0.13.9`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

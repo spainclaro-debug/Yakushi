@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.8 / 1308, local date).
+three to Gradle; local builds use the Gradle defaults (0.13.9 / 1309, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.8 / versionCode
-1308 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.8`
+The app follows its own `android-vX.Y.Z` version scheme (0.13.9 / versionCode
+1309 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.9`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -841,6 +841,53 @@ tab display options.
 *If wrong:* a rename could fail silently or conflict with bulk edit; the input
 is row-scoped, Enter is the save action, the list refetches after success and
 the bulk-edit UI stays unchanged.
+
+### A43 — Continuous reading appends chapters and maps pages per chapter
+
+From 0.13.9 Continuous mode is seamless and has no Prev/Next chapter buttons.
+The reader keeps a `page_chapters: Vec<(chapter_id, page_index, page_count)>`
+mapping aligned with the page list; when the reader nears the end of the
+current chapter, `maybe_append_next_chapter` fetches `next_chapter`, pushes its
+page URLs to the existing page list (and dimensions/mapping), advances
+`next_chapter`, and sets `at_end` only when there is no next chapter
+(`appending` prevents duplicate fetches; a fetch error shows "Could not load the
+next chapter: …" and can be retried). A small non-button **"No more chapters"**
+label is rendered at the bottom when `at_end`. The top shows a small
+**"No previous chapter"** label only when the first chapter has no previous
+chapter. Scrolling to the very top (after the user has scrolled) switches
+`chapter_id` to `prev_chapter` and lands on its last page; a `user_scrolled`
+guard (`scroll_y > 1` sets it, returning to the top consumes it) prevents the
+initial position restore from triggering a chapter switch. `update_page_read`
+uses the page's `page_chapters` entry so progress, URL/page and chapter
+completion are recorded for the correct chapter/page (each chapter at its own
+last page; the final chapter at the true end). `at_end`/`appending`/
+`user_scrolled` reset on chapter fetch; appending is Continuous-only.
+
+*If wrong:* a failure to fetch the next chapter could stall the scroll (a
+snackbar appears and the end can be reached again), or progress could be
+attributed to the wrong chapter (the mapping is rebuilt on every chapter fetch
+and appended pages get their own chapter id/page index/page count).
+
+### A44 — Webtoon layout is auto-detected by page aspect ratio
+
+From 0.13.9 the reader checks image dimensions as pages load. If any loaded
+page has `width > 0` and `height >= 2.5 * width` (a manhua/manhwa long strip),
+it sets `webtoon_mode`, switches `reader_mode` to Continuous, `fit` to Width and
+`padding` off, calls `reader_settings.save()` (persisted like normal reader
+settings) and shows the one-shot snackbar **"Webtoon layout detected"**.
+`webtoon_checked` ensures detection runs at most once per reader session; if no
+tall page is found after 3 loaded pages, checking stops (false-positive guard).
+While `webtoon_mode` is true the reader renders
+`ReaderSettings::render_webtoon` (a `render_with(settings, true)` variant): the
+header, note "Webtoon layout detected: only the fit options are shown.", and
+the Fit controls (`render_fit_screen`) only; reader-mode/padding/display/
+direction/background/tap-area controls are not rendered.
+
+*If wrong:* ordinary manga with a very tall credits/cover page could be
+mistaken for webtoon (one page above 2.5:1 before 3 pages load); the switch is
+reversible by reopening/changing settings in a later session, and the settings
+panel has a visible note explaining the reduced controls. Detection only runs in
+the web reader, not the Android UI.
 
 ## Open questions for the repository owner
 
