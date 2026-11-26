@@ -5,9 +5,13 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.14.0** — see the
+Current release: **0.15.0** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.14.0 adds **extension hot reload**: the
+and [`CHANGELOG.md`](CHANGELOG.md). 0.15.0 adds **pinned Catalogue sources**
+(Pin/Unpin per row, a Pinned Sources section at the top in pin order, per-device
+localStorage, no duplicates) and fixes the **inverted Local/External source
+grouping** (user-installed extensions with huge ids are External; bundled and
+Local-folder sources are Local). 0.14.0 adds **extension hot reload**: the
 running server rescans the plugin directories through a new
 **`POST /api/extensions/reload`** endpoint, and the app calls it automatically
 after every install/update/remove/enable/disable, so sources apply **without a
@@ -121,7 +125,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.14.0](#whats-new-in-0140)
+- [What's new in 0.15.0](#whats-new-in-0150)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -170,6 +174,29 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.15.0
+
+- **Pin sources in the Catalogue.** Each Catalogue source row has a **Pin**
+  button (it becomes **Unpin** when active). Pinned ids are stored **per
+  device** in localStorage `catalogue_list_pinned` (JSON array in pin order).
+  A **Pinned Sources** section is shown at the very top of the Catalogue page
+  in pin order; pinned sources are removed from the Local/External sections to
+  avoid duplicates, and unpinning puts them back in their group.
+- **Corrected Local/External grouping.** The list previously used
+  `id >= 10000` for Local (inverted), so user-installed extensions (huge hashed
+  plugin ids) showed under Local and bundled ones under External. It now uses
+  the downloader's boundary: ids **>= 1_000_000** are user-installed
+  extensions → **External Sources**; smaller ids (bundled/pre-installed
+  extensions and the built-in Local folder sources, which start at 10000) →
+  **Local Sources**.
+- **Web UI and server rebuilt** with patch **0014** (after 0012;
+  `catalogue_list.rs` + `styles.scss`); version **0.15.0** (`versionCode` 1500,
+  tag `android-v0.15.0`), APK filename scheme unchanged, no server
+  API/schema changes. Pins are per-device; source groups reflect the server's
+  installed sources.
+
+Previous release — **0.14.0** — and its features:
 
 ## What's new in 0.14.0
 
@@ -659,12 +686,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.14.0**,
-`versionCode` 1400) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.15.0**,
+`versionCode` 1500) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.14.0 -PappVersionCode=1400 \
+./gradlew :app:assembleDebug -PappVersionName=0.15.0 -PappVersionCode=1500 \
   -PapkDate=2026-11-14
 ```
 
@@ -725,11 +752,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.14.0`. For a tag, CI derives everything from the tag and
+example `android-v0.15.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.14.0` → `1400`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.15.0` → `1500`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -990,6 +1017,27 @@ The embedded web UI's library/manga pages gained a few workflow improvements in
   Read progress, downloaded chapters and trackers are manga-level and are not
   affected; a **"Library updated"** snackbar confirms.
 
+### Catalogue sources and pinning
+
+The embedded web UI's Catalogue page lists the installed sources in two groups
+(corrected in 0.15.0):
+
+- **Local Sources** — bundled/pre-installed extensions (small ids) and the
+  built-in **Local** folder source(s), whose ids start at 10000.
+- **External Sources** — extensions you installed yourself; their plugin
+  ids are huge hashed values (>= 1,000,000), the same boundary the download
+  worker uses.
+- **Pinned Sources** (0.15.0) — if any source is pinned, this extra section
+  is shown at the very top, in the order you pinned them. Each row has a
+  **Pin**/**Unpin** button; pins are stored per device in localStorage
+  (`catalogue_list_pinned`, a JSON array) and are **not** synced by the
+  server. Pinned sources are excluded from the Local/External sections (no
+  duplicates); unpinning returns them to their group.
+
+The shared search/catalogue flow is unchanged; pins only affect the ordering
+/sections of the source list. A pinned source that is uninstalled disappears
+from Pinned until installed again (its stored id is kept until you unpin it).
+
 ## Themes
 
 `Settings → Appearance` selects the Material 3 colour scheme for the app UI:
@@ -1067,7 +1115,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.14.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.15.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1978,6 +2026,19 @@ edit the name inline and press Enter; it saves through the server's
 `updateCategory` and refreshes (visible on all devices). The bulk edit mode
 still exists and hides the per-row rename buttons while active.
 
+**Pinned sources are not remembered / appear on another device.** Pins are
+per-device in localStorage (`catalogue_list_pinned`, JSON array in pin order)
+and are not synced by the server; re-pin on each device/browser. Clearing site
+data or uninstalling the app loses them. A pinned source that is uninstalled
+disappears from the Pinned section (its id stays in storage until unpinned) and
+returns when the same source id is installed again.
+
+**A source is in the wrong Local/External group.** Fixed in 0.15.0: sources
+with ids >= 1,000,000 (user-installed extensions/plugins) are **External**;
+small ids (bundled/pre-installed extensions) and Local-folder sources (ids
+starting at 10000) are **Local**. If an old web UI is cached, update/reload the
+embedded UI; the groups follow the server's installed sources.
+
 **A new/removed/disabled source is not active even without a visible restart
 banner.** The app hot-reloads the running server via
 `POST http://127.0.0.1:<port>/api/extensions/reload` after each change and
@@ -2265,7 +2326,8 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Reader continuous | Seamless chapter appending at end (no Prev/Next buttons), auto previous at top (`user_scrolled` guard), `No previous chapter`/`No more chapters` labels, `page_chapters` per-chapter progress/completion (from 0.13.9) |
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
 | Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
-| App version | 0.14.0 (`versionName`); `versionCode` 1400 in local builds and for the `android-v0.14.0` tag |
+| Catalogue pins | Per-device localStorage `catalogue_list_pinned` (JSON array, pin order); Pinned Sources section at top; pinned rows excluded from Local/External; external iff source id >= 1,000,000 (from 0.15.0) |
+| App version | 0.15.0 (`versionName`); `versionCode` 1500 in local builds and for the `android-v0.15.0` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -2289,7 +2351,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0013 (+ theme_settings.rs/layout_presets.rs/extensions_reload.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0014 (+ theme_settings.rs/layout_presets.rs/extensions_reload.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

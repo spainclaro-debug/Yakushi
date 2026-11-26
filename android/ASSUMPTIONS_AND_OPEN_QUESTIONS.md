@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.14.0 / 1400, local date).
+three to Gradle; local builds use the Gradle defaults (0.15.0 / 1500, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.14.0 / versionCode
-1400 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.14.0`
+The app follows its own `android-vX.Y.Z` version scheme (0.15.0 / versionCode
+1500 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.15.0`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -940,6 +940,46 @@ independently (it is a single request); the UI state may need a refresh.
 reload failure by design) or a stopped server would not apply changes (the
 fallback banner covers that); reload is retried by the next mutation, and a
 manual restart always applies pending changes.
+
+### A47 — Catalogue source pins are per-device localStorage, ordered
+
+From 0.15.0 the Catalogue source list lets the user pin sources. The pinned
+source **ids** (not names) are stored as a JSON array under localStorage key
+**`catalogue_list_pinned`** (pin order = array order). `CatalogueList::new`
+loads the array into `pinned: MutableVec<i64>`; `toggle_pin` appends the id if
+not present, removes it if present, rewrites the array and the row button
+toggles between **Pin** and **Unpin** (title "Pin source", active class when
+pinned). Layout: when any pin exists, a **Pinned Sources** section is rendered
+at the very top listing the pinned sources in pin order (ids not present in the
+current source list are silently skipped); the **Local Sources** and
+**External Sources** sections then render only sources **not** in the pinned
+list (no duplicates) and unpinning returns a source to its group. Pins are
+**per device/browser** and never sent to the server (no API/schema change);
+clearing site data loses them. A pinned but uninstalled source stays in the
+stored id list until unpinned and reappears if installed again. The shared
+search flow is unchanged.
+
+*If wrong:* pins could show stale/duplicate entries; missing ids are skipped at
+render time, the group filters exclude pinned ids, and unpin/clear-localStorage
+restores the normal lists. Nothing server-side depends on pins.
+
+### A48 — Local vs External source grouping uses the plugin-id boundary
+
+From 0.15.0 the Catalogue source list classifies sources by id using
+`EXTERNAL_SOURCE_ID_THRESHOLD = 1_000_000`: sources with **id >= 1_000_000**
+are user-installed extensions and go under **External Sources**; sources with
+smaller ids (bundled/pre-installed extensions) and the built-in **Local**
+folder source(s), whose ids start at 10000, go under **Local Sources**. This
+matches the download worker's plugin-id boundary and fixes the pre-0.15.0
+inversion (`id >= 10000` was labelled Local, putting huge hashed user
+extensions under Local and bundled ones under External). The section headers
+stay "Local Sources"/"External Sources"; Pinned Sources (A47) is an additional
+top section. Classification is purely id-based and depends on the server's
+installed source list (no server changes).
+
+*If wrong:* a source could appear in the wrong group if ids from an extension
+ever fall below the threshold; the boundary matches the downloader's
+`10000..1_000_000` Local range logic and bundled sources keep small ids.
 
 ## Open questions for the repository owner
 

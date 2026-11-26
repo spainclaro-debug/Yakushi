@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.14.0`). The Termux package in the repository root has
+(for example `android-v0.15.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,50 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.15.0
+
+### Added
+
+- **Pin sources in the Catalogue.** Every row in the Catalogue source list now
+  has a **Pin/Unpin** button. Pinned source ids are persisted **per device** in
+  localStorage under **`catalogue_list_pinned`** (a JSON array, in pin order).
+  The Catalogue page starts with a **Pinned Sources** section at the very top
+  listing the pinned sources in pin order; pinned sources are **excluded** from
+  the normal Local/External sections (no duplicates). Unpinning removes the
+  source from Pinned and returns it to its group. The global search/catalogue
+  flow is unchanged.
+
+### Fixed
+
+- **Corrected Local vs External source grouping.** The old list was inverted:
+  it labelled `id >= 10000` as Local and `< 10000` as External, which put
+  user-installed extensions (huge hashed plugin ids) under Local and
+  bundled/pre-installed ones under External. The list now uses the same
+  boundary as the downloader: source ids **>= 1_000_000** are user-installed
+  extensions → **External Sources**, while bundled/pre-installed extensions
+  (small ids) and the built-in **Local** folder source(s) (ids starting at
+  10000) are → **Local Sources**. Section headers remain "Local Sources" /
+  "External Sources" (Pinned is an extra section).
+
+### Changed
+
+- **Web UI and `libtanoshi.so` rebuilt** with
+  `android/native/patches/0014-web-ui-source-pins-groups.patch` (applied after
+  0012; `catalogue_list.rs` + `styles.scss`); version **0.15.0** (versionCode
+  1500, tag `android-v0.15.0`). APK filename scheme unchanged. No server
+  API/schema changes.
+
+### Notes
+
+- Pins are **local to the device/browser** (localStorage), not synced through
+  the server; clearing site data/another device loses them. A pinned source
+  that is later uninstalled disappears from the Pinned section (its id remains
+  in storage until unpinned); it reappears when that source id is installed
+  again.
+- Source classification is id-based (external iff `id >= 1_000_000`), matching
+  the download worker's plugin-id boundary; the built-in Local folder sources
+  keep their 10000-range ids and stay under Local.
 
 ## 0.14.0
 

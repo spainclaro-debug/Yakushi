@@ -1,0 +1,212 @@
+--- a/crates/tanoshi-web/src/catalogue_list.rs
++++ b/crates/tanoshi-web/src/catalogue_list.rs
+@@ -13,6 +13,7 @@
+ use dominator::{Dom, EventOptions, clone, events, html, link, routing, svg, with_node};
+ use futures::{StreamExt, stream};
+ use futures_signals::signal::{Mutable, SignalExt};
++use futures_signals::map_ref;
+ use futures_signals::signal_map::MutableBTreeMap;
+ use futures_signals::signal_vec::{self, MutableVec, SignalVecExt};
+ use serde::{Deserialize, Serialize};
+@@ -20,6 +21,10 @@
+ use web_sys::HtmlInputElement;
+ 
+ pub const STORAGE_KEY: &str = "catalogue_list";
++pub const PINNED_KEY: &str = "catalogue_list_pinned";
++/// Bundled/pre-installed sources (including the built-in Local folder source)
++/// have small ids; extensions installed by the user have huge hashed ids.
++const EXTERNAL_SOURCE_ID_THRESHOLD: i64 = 1_000_000;
+ const MAX_CONCURRENT_SOURCE_SEARCHES: usize = 4;
+ 
+ #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+@@ -45,6 +50,8 @@
+     #[serde(skip)]
+     sources: MutableVec<Source>,
+     #[serde(skip)]
++    pinned: MutableVec<i64>,
++    #[serde(skip)]
+     loader: AsyncLoader,
+     #[serde(skip)]
+     spinner: Rc<Spinner>,
+@@ -58,6 +65,7 @@
+             cover_list_map: MutableBTreeMap::new(),
+             spinner: Spinner::new(),
+             sources: MutableVec::new(),
++            pinned: MutableVec::new(),
+             loader: AsyncLoader::new(),
+         }
+     }
+@@ -65,15 +73,38 @@
+ 
+ impl CatalogueList {
+     pub fn new() -> Rc<Self> {
+-        let catalogue = local_storage()
++        let mut catalogue: Self = local_storage()
+             .get(STORAGE_KEY)
+             .unwrap_throw()
+             .and_then(|object_str| serde_json::from_str(&object_str).ok())
+             .unwrap_or_default();
+ 
++        let pinned = local_storage()
++            .get_item(PINNED_KEY)
++            .ok()
++            .flatten()
++            .and_then(|raw| serde_json::from_str::<Vec<i64>>(&raw).ok())
++            .unwrap_or_default();
++        if !pinned.is_empty() {
++            catalogue.pinned.lock_mut().replace_cloned(pinned);
++        }
++
+         Rc::new(catalogue)
+     }
+ 
++    fn toggle_pin(catalogue: Rc<Self>, source_id: i64) {
++        let mut pinned: Vec<i64> = catalogue.pinned.lock_ref().iter().copied().collect();
++        if let Some(position) = pinned.iter().position(|id| *id == source_id) {
++            pinned.remove(position);
++        } else {
++            pinned.push(source_id);
++        }
++        catalogue.pinned.lock_mut().replace_cloned(pinned.clone());
++        if let Ok(raw) = serde_json::to_string(&pinned) {
++            let _ = local_storage().set_item(PINNED_KEY, &raw);
++        }
++    }
++
+     pub fn serialize_into_json(&self) -> String {
+         serde_json::to_string(self).unwrap_throw()
+     }
+@@ -245,7 +276,10 @@
+         })
+     }
+ 
+-    fn render_source_list(source: &Source) -> Dom {
++    fn render_source_list(catalogue: &Rc<Self>, source: &Source) -> Dom {
++        let source_id = source.id;
++        let pinned_for_class = catalogue.pinned.signal_vec_cloned().to_signal_cloned();
++        let pinned_for_text = catalogue.pinned.signal_vec_cloned().to_signal_cloned();
+         html!("li", {
+             .class("list-item")
+             .children(&mut [
+@@ -265,28 +299,86 @@
+                     .class("source-action")
+                     .text("latest")
+                 }),
++                html!("button", {
++                    .class("source-pin")
++                    .attr("title", "Pin source")
++                    .class_signal("active", pinned_for_class.map(move |ids| ids.contains(&source_id)))
++                    .text_signal(pinned_for_text.map(move |ids| if ids.contains(&source_id) { "Unpin" } else { "Pin" }))
++                    .event(clone!(catalogue => move |_: events::Click| {
++                        Self::toggle_pin(catalogue.clone(), source_id);
++                    }))
++                }),
+             ])
+         })
+     }
+ 
+-    pub fn render_main(catalogue: Rc<Self>) -> Dom {
++    fn render_source_rows(
++        catalogue: &Rc<Self>,
++        sources: &[Source],
++        pinned: &[i64],
++        external: bool,
++    ) -> Vec<Dom> {
++        sources
++            .iter()
++            .filter(|source| {
++                !pinned.contains(&source.id)
++                    && (source.id >= EXTERNAL_SOURCE_ID_THRESHOLD) == external
++            })
++            .map(|source| Self::render_source_list(catalogue, source))
++            .collect()
++    }
++
++    fn render_sections(catalogue: Rc<Self>, sources: Vec<Source>, pinned: Vec<i64>) -> Dom {
++        let mut children: Vec<Dom> = Vec::new();
++
++        if !pinned.is_empty() {
++            children.push(html!("span", {
++                .style("margin", "0.5rem")
++                .text("Pinned Sources")
++            }));
++            for source_id in &pinned {
++                if let Some(source) = sources.iter().find(|source| source.id == *source_id) {
++                    children.push(Self::render_source_list(&catalogue, source));
++                }
++            }
++        }
++
++        children.push(html!("span", {
++            .style("margin", "0.5rem")
++            .text("Local Sources")
++        }));
++        children.extend(Self::render_source_rows(
++            &catalogue,
++            &sources,
++            &pinned,
++            false,
++        ));
++
++        children.push(html!("span", {
++            .style("margin", "0.5rem")
++            .text("External Sources")
++        }));
++        children.extend(Self::render_source_rows(
++            &catalogue,
++            &sources,
++            &pinned,
++            true,
++        ));
++
+         html!("ul", {
+             .class("content")
+             .class("list")
+-            .children(&mut [
+-                html!("span", {
+-                    .style("margin", "0.5rem")
+-                    .text("Local Sources")
+-                })
+-            ])
+-            .children_signal_vec(catalogue.sources.signal_vec_cloned().filter(|s| s.id  >= 10000).map(|source| Self::render_source_list(&source)))
+-            .children(&mut [
+-                html!("span", {
+-                    .style("margin", "0.5rem")
+-                    .text("External Sources")
+-                })
+-            ])
+-            .children_signal_vec(catalogue.sources.signal_vec_cloned().filter(|s| s.id  < 10000).map(|source| Self::render_source_list(&source)))
++            .children(&mut children)
++        })
++    }
++
++    pub fn render_main(catalogue: Rc<Self>) -> Dom {
++        html!("div", {
++            .child_signal(map_ref! {
++                let sources = catalogue.sources.signal_vec_cloned().to_signal_cloned(),
++                let pinned = catalogue.pinned.signal_vec_cloned().to_signal_cloned() =>
++                Some(Self::render_sections(catalogue.clone(), sources.clone(), pinned.clone()))
++            })
+         })
+     }
+ 
+--- a/crates/tanoshi-web/static/css/styles.scss
++++ b/crates/tanoshi-web/static/css/styles.scss
+@@ -1258,3 +1258,17 @@
+         margin-right: 0.5rem;
+     }
+ }
++
++/* Pinned source button in the catalogue source list. */
++.source-pin {
++    margin-left: 0.5rem;
++    padding: 0.25rem 0.5rem;
++    border-radius: 0.5rem;
++    background-color: var(--background-color-100);
++    color: var(--color);
++
++    &.active {
++        color: var(--primary-color);
++        font-weight: 600;
++    }
++}

@@ -1104,3 +1104,15 @@ body.themed .settings-page .content :where(span, label, p, div, a, button, input
     margin-right: 0.5rem;
   }
 }
+/* Pinned source button in the catalogue source list. */
+.source-pin {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--background-color-100);
+  color: var(--color);
+}
+.source-pin.active {
+  color: var(--primary-color);
+  font-weight: 600;
+}

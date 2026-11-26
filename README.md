@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.14.0](#whats-new-in-0140)
+- [What's new in 0.15.0](#whats-new-in-0150)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,25 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.15.0
+
+- **Pin Catalogue sources.** Each Catalogue source row has a **Pin**/**Unpin**
+  button; pinned ids are stored per device in localStorage
+  (`catalogue_list_pinned`, in pin order) and a **Pinned Sources** section is
+  shown at the very top of the Catalogue page. Pinned sources are removed from
+  the Local/External sections to avoid duplicates and return to their group
+  when unpinned.
+- **Fixed Local/External source grouping.** Sources with ids >= 1,000,000
+  (user-installed extensions with huge hashed plugin ids) are now under
+  **External Sources**; bundled/pre-installed extensions (small ids) and the
+  built-in Local folder sources (ids starting at 10000) are under **Local
+  Sources** (previously inverted).
+- **Version 0.15.0** (`android-v0.15.0`, `yakushi-server-release-<date>.apk`);
+  rebuilt web UI/server, no server API/schema changes; includes all earlier
+  features.
+
+Previous release — **0.14.0** — and its features:
 
 ## What's new in 0.14.0
 
@@ -227,7 +246,10 @@ trackers](#downloads-and-trackers).
   Categories can be renamed inline in Settings → Categories (pencil button,
   Enter, server `updateCategory`).
 - **Catalogue** browsing per source with popular/latest/search listings and
-  **infinite scroll** (loads the next page automatically).
+  **infinite scroll** (loads the next page automatically). Source rows can be
+  **pinned** (per device) into a **Pinned Sources** section at the top, and the
+  Local/External grouping uses the plugin id boundary (external iff
+  id >= 1,000,000) so user-installed extensions are External.
 - **Filter sheet that shows the actual choices** — genres/tags (expanded by
   default), status, content rating and sort controls, the way Suwayomi/Mihon
   present filters. Sources without filters say so explicitly.
@@ -457,7 +479,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.14.0** (`android-v0.14.0`), published as
+- The current Android release is **0.15.0** (`android-v0.15.0`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

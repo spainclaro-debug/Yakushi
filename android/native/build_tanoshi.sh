@@ -125,6 +125,8 @@ apply_patch "$HERE/patches/0010-web-ui-manga-actions-library-tabs.patch"
 apply_patch "$HERE/patches/0011-web-ui-library-tabs-options-sidebar.patch"
 # Web UI: seamless continuous chapters and automatic webtoon layout.
 apply_patch "$HERE/patches/0012-web-ui-continuous-autochapter-webtoon.patch"
+# Web UI: pin sources in the catalogue and split Local vs External sources.
+apply_patch "$HERE/patches/0014-web-ui-source-pins-groups.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the
