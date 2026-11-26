@@ -138,6 +138,10 @@ apply_patch "$HERE/patches/0005-downloads-tempchapter.patch"
 # over /api/layout-presets so every device sees the same list.
 cp "$HERE/patches/layout_presets.rs" crates/tanoshi/src/presentation/rest/layout_presets.rs
 apply_patch "$HERE/patches/0008-server-layout-presets.patch"
+# Server: hot-reload extensions over /api/extensions/reload so installing or
+# removing a source no longer requires a server restart.
+cp "$HERE/patches/extensions_reload.rs" crates/tanoshi/src/presentation/rest/extensions.rs
+apply_patch "$HERE/patches/0013-server-extension-hot-reload.patch"
 
 # compress-tools is patched for Android/bionic and linked dynamically against
 # libarchive (see patches/README-patches.txt in the repo root).

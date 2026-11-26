@@ -53,7 +53,8 @@ reader (patch 0009), 0.13.7 adds manga-page Migrate/Change Library + tabbed
 Library (patch 0010), 0.13.8 adds browser-style/desktop-safe Library tabs,
 per-device tab display options and inline category rename (patch 0011) and
 0.13.9 adds seamless continuous chapters + automatic webtoon layout (patch
-0012). Offline chapters are extracted as page images into public
+0012), and 0.14.0 adds server-side extension **hot reload** (patch 0013 +
+copied `extensions_reload.rs`; web dist unchanged). Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -118,7 +119,7 @@ The scripts to run are:
 
 | Script | Purpose |
 | --- | --- |
-| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007 + 0009 + 0010 + 0011 + 0012), the Android app/extension-loader patches (0001 + 0002), the downloads patch (0005) and the server layout-presets patch (0008 + copied `layout_presets.rs`), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
+| `native/build_tanoshi.sh` | Fetch upstream Tanoshi at the pinned version, apply this repo's Termux patch set, the web-UI patches (`patches/tanoshi-web-ui*.patch` + 0003 + copied `theme_settings.rs` + 0004 + 0007 + 0009 + 0010 + 0011 + 0012), the Android app/extension-loader patches (0001 + 0002), the downloads patch (0005), the server layout-presets patch (0008 + copied `layout_presets.rs`) and the extension hot-reload patch (0013 + copied `extensions_reload.rs`), embed the vendored `native/web-dist/` web UI when the source tree has no `dist/`, and build the `aarch64-linux-android` server binary. |
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
@@ -244,6 +245,15 @@ the equivalent manual steps, which is what the scripts automate.
    writes `<TANOSHI_HOME>/layout_presets.json` (next to `config.yml`) with a
    tmp+rename atomic write, returns `{"presets":[]}` when absent/invalid and
    validates `{"presets":[...]}` on PUT. The endpoint is unauthenticated.
+7. **`native/patches/0013-server-extension-hot-reload.patch`** plus the new
+   file `extensions_reload.rs` (copied to
+   `crates/tanoshi/src/presentation/rest/extensions.rs`), applied after 0008:
+   adds non-destructive `ExtensionManager::reload_all()` (drain source map,
+   close queues/shut down workers, then `load_all`) and registers
+   **`POST /api/extensions/reload`**; the handler returns
+   `{"ok":true,"sources":N}` or HTTP 500 and logs
+   "extensions hot-reloaded; N source(s) available". Unauthenticated local
+   endpoint; no web/schema changes.
 
 Manually:
 
@@ -288,6 +298,10 @@ git apply ../android/native/patches/0005-downloads-tempchapter.patch
 cp ../android/native/patches/layout_presets.rs \
    crates/tanoshi/src/presentation/rest/layout_presets.rs
 git apply ../android/native/patches/0008-server-layout-presets.patch
+# Server: extension hot reload (0.14.0)
+cp ../android/native/patches/extensions_reload.rs \
+   crates/tanoshi/src/presentation/rest/extensions.rs
+git apply ../android/native/patches/0013-server-extension-hot-reload.patch
 
 # Use the vendored, Android-patched compress-tools crate
 export CARGO_HOME="$PWD/cargo-home"
@@ -343,7 +357,8 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.9+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.13.9+ (the
+  same dist is used by 0.14.0 — that release changes only the server/app):
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -372,7 +387,7 @@ default source is the **vendored dist** in this directory:
   `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.13.9):
+  Current dist asset names (0.13.9/0.14.0, unchanged):
   `tanoshi-web-8ff577ec017e66ca.js`, `tanoshi-web-1f6ae6e5b2416741_bg.wasm`,
   `styles-771514d76def24f9.css`.
 - `build_tanoshi.sh` picks the web UI in this order: an existing
@@ -380,11 +395,12 @@ default source is the **vendored dist** in this directory:
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.13.9**
-  (0.13.8/0.13.7/0.13.6/0.13.5/0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used earlier
-  rebuilt dists; 0.2.0/0.5.0/0.6.0 used older dists). The 0.13.9 rebuild
-  carries patch 0012 (seamless continuous chapters + webtoon auto-layout) on
-  top of 0011/0010/0009/0008; patch 0006 stays deleted.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.14.0**
+  (0.13.9/0.13.8/0.13.7/0.13.6/0.13.5/0.13.1/0.13.0/0.9.x/0.7.0/0.8.0 used
+  earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older dists). The 0.14.0
+  rebuild adds patch 0013 + `extensions_reload.rs` (hot-reload route and
+  `reload_all`) on top of 0012; the embedded web dist is unchanged from 0.13.9
+  and patch 0006 stays deleted.
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -667,6 +683,9 @@ grep -c -a "No previous chapter" libtanoshi.so         # expect >= 1 (0.13.9 lab
 grep -c -a "No more chapters" libtanoshi.so            # expect >= 1 (0.13.9 label)
 grep -c -a "Webtoon layout detected" libtanoshi.so     # expect >= 1 (0.13.9 snackbar)
 grep -c -a "only the fit options" libtanoshi.so        # expect >= 1 (0.13.9 settings note)
+grep -c -a "/api/extensions/reload" libtanoshi.so      # expect >= 1 (0.14.0 route)
+grep -c -a "extensions hot-reloaded" libtanoshi.so     # expect >= 1 (0.14.0 log line)
+grep -c -a "reload_all" libtanoshi.so                  # may be 0 (method name usually stripped); use the route/log checks
 #   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
 #   match the names in android/native/web-dist/index.html
 
@@ -712,9 +731,9 @@ output of this pipeline, built on an x86_64 Linux host with:
   the 0.8.0 web features, infinite-scroll, app-only extension-management,
   per-device theme patches, the 0.13.5 per-chapter download UI and the 0.13.6
   shared-layout/double-page changes, the 0.13.7 manga actions/library-tabs patch,
-  the 0.13.8 tab styling/options/rename patch and the 0.13.9 continuous/webtoon
-  reader patch; 0.9.1 reworked the theme application and 0.9.2 themed the
-  Settings list cells),
+  the 0.13.8 tab styling/options/rename patch, the 0.13.9 continuous/webtoon
+  reader patch and the 0.14.0 extension hot-reload patch; 0.9.1 reworked the
+  theme application and 0.9.2 themed the Settings list cells),
 - libarchive **3.8.11**, built with zlib linked statically and SONAME
   `libarchive.so`,
 - the plugin ABI pinned to `LIB_VERSION` (`0.38.0`); plugin files are named
@@ -738,7 +757,9 @@ the shared layout-presets route/module and the double-page reader fix, and
 **0.13.7 rebuilt it** with patch 0010 (manga Migrate/Change Library + tabbed
 Library), **0.13.8 rebuilt it** with patch 0011 (browser-style/desktop-safe
 tabs, per-device tab options, inline category rename), and **0.13.9 rebuilt it**
-with patch 0012 (seamless continuous chapters + automatic webtoon layout). The exported extension sources
+with patch 0012 (seamless continuous chapters + automatic webtoon layout), and
+**0.14.0 rebuilt it** with patch 0013 + `extensions_reload.rs` (hot-reload
+endpoint and `reload_all`); the web dist did not change. The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

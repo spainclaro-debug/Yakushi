@@ -5,9 +5,14 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.13.9** — see the
+Current release: **0.14.0** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.13.9 makes **continuous reading
+and [`CHANGELOG.md`](CHANGELOG.md). 0.14.0 adds **extension hot reload**: the
+running server rescans the plugin directories through a new
+**`POST /api/extensions/reload`** endpoint, and the app calls it automatically
+after every install/update/remove/enable/disable, so sources apply **without a
+restart** (the restart/start banner remains only as a fallback when the server
+is stopped or the reload fails). 0.13.9 makes **continuous reading
 seamless** (the Next chapter's pages are appended to the same scroll, scrolling
 to the very top loads the previous chapter, with small "No previous chapter"/
 "No more chapters" labels instead of chapter buttons and per-chapter progress)
@@ -116,7 +121,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.13.9](#whats-new-in-0139)
+- [What's new in 0.14.0](#whats-new-in-0140)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -165,6 +170,33 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.14.0
+
+- **Extension hot reload — no restart needed when the server runs.** The
+  server has a new **`POST /api/extensions/reload`** endpoint (new REST handler
+  `extensions_reload.rs`) backed by a non-destructive
+  `ExtensionManager::reload_all()`: it drains the current sources, closes their
+  queues and shuts down workers **without deleting files or markers**, then
+  rescans both plugin directories (`load_all`). Newly installed, removed and
+  enabled/disabled extensions are reflected immediately; it returns
+  `{"ok":true,"sources":N}` (or 500 on failure) and is unauthenticated like the
+  other local REST endpoints.
+- **The app reloads automatically after every source change.** Installing,
+  updating, removing, enabling or disabling a source now calls the endpoint; on
+  success the app refreshes the installed list, clears the restart flag and
+  shows **"Sources updated"**. The **Server restart needed** banner/snackbar
+  (with Restart/Start) appears only as a fallback when the server is stopped or
+  the reload POST fails, so the change still applies on the next start.
+- **Updated strings/semantics.** The Sources explanation says the running
+  server reloads automatically, the remove-confirmation says the bundled copy
+  becomes active immediately, and the new success message is "Sources updated".
+- **Server binary rebuilt** with patch **0013** + copied `extensions_reload.rs`
+  (after 0008); version **0.14.0** (versionCode 1400, tag `android-v0.14.0`),
+  APK filename unchanged. The embedded web UI is unchanged from 0.13.9 and
+  there are no other server API/schema changes.
+
+Previous release — **0.13.9** — and its features:
 
 ## What's new in 0.13.9
 
@@ -578,7 +610,9 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md).
 - To use **in-app updates**: a network connection and the "Install unknown
   apps" permission for Tanoshi (the app links to the system setting).
 - To install extensions from the **Sources** tab: a network connection (the
-  catalog is fetched from GitHub) and a server restart after each change.
+  catalog is fetched from GitHub). The running server hot-reloads extensions
+  automatically after a change; a restart is only needed if the server is
+  stopped or the reload fails.
 
 **To build the APK (app only)**
 
@@ -625,12 +659,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.13.9**,
-`versionCode` 1309) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.14.0**,
+`versionCode` 1400) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.13.9 -PappVersionCode=1309 \
+./gradlew :app:assembleDebug -PappVersionName=0.14.0 -PappVersionCode=1400 \
   -PapkDate=2026-11-14
 ```
 
@@ -691,11 +725,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.13.9`. For a tag, CI derives everything from the tag and
+example `android-v0.14.0`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.13.9` → `1309`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.14.0` → `1400`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -795,7 +829,7 @@ The app has four screens plus an embedded browser:
 | Screen | What it does |
 | --- | --- |
 | **Server** | Server state (`STOPPED` / `STARTING` / `RUNNING` / `STOPPING` / `ERROR`), PID, port, bind address (`127.0.0.1` or `0.0.0.0`), uptime, Start/Stop, the local URL, **Open in browser**, **Open in app**, and (when LAN-exposed) the **Share on your network** QR card. The first-run admin dialog appears here. |
-| **Sources** | Suwayomi-style extension manager: built-in + custom repositories, installed extensions (bundled/user/disabled), **Add extension** from merged catalogs, install/update/enable/disable/remove, and the restart prompt. See [Extensions (Sources tab)](#extensions-sources-tab). |
+| **Sources** | Suwayomi-style extension manager: built-in + custom repositories, installed extensions (bundled/user/disabled), **Add extension** from merged catalogs, install/update/enable/disable/remove, with **automatic hot reload** of the running server (restart banner only if the server is stopped/reload fails). See [Extensions (Sources tab)](#extensions-sources-tab). |
 | **Logs** | Live server stdout/stderr with timestamps and stream colouring; auto-scroll toggle; copy-all and clear. `server.log` in the data directory mirrors the same output. |
 | **Settings** | Appearance (Android app themes + web-UI themes), port, "Expose on LAN", raw `config.yml` editor, notification/battery permissions, in-app updates, and the storage paths. |
 | **Browser** | WebView pointed at the local server (JavaScript and DOM storage enabled) with Back and Reload buttons; the catalogue auto-loads the next page as you scroll. The system back button exits the WebView before leaving the app. |
@@ -1033,7 +1067,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.13.9-debug`; the updater strips it before
+`-debug` version suffix such as `0.14.0-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -1109,10 +1143,11 @@ install, update, enable, disable and remove extensions.
   never be deleted). **Add extension** opens the merged catalog with Install /
   Update / Reinstall, per-entry repository badges, progress and repository
   failure warnings.
-- Every install/update/remove/enable/disable makes the tab show a **Server
-  restart needed** banner and a snackbar ("Restart the server to load the new
-  sources") with a **Restart server** (or **Start server**) action — Tanoshi
-  only reads plugins and the disabled marker at startup.
+- Every install/update/remove/enable/disable is applied to the running server
+  via the hot-reload endpoint (below). On success the tab refreshes and shows a
+  **"Sources updated"** snackbar; the **Server restart needed** banner/snackbar
+  (with **Restart server** / **Start server**) appears only as a fallback when
+  the server is stopped or the reload request fails.
 
 ### How installation works
 
@@ -1127,9 +1162,13 @@ The app (not the server) performs the download on a background thread using
 3. Verify the byte count and, when the catalog provides one, the SHA-256 while
    streaming; files smaller than 256 KB are rejected as implausible plugins.
 4. Atomically rename to `<name>.so` (replacing a previous user copy), clear any
-   disabled marker for that name, and mark **restart required**.
+   disabled marker for that name, then `POST /api/extensions/reload` to the
+   running server. On success the app refreshes the installed list and shows
+   **"Sources updated"**; on failure (server stopped/error) it falls back to
+   marking **restart required** and showing the restart/start banner.
 
-The server is not touched while installing; the restart loads the new file.
+The download writes only the plugin file; the reload makes the server rescan
+both plugin directories without deleting anything.
 
 ### The extension catalog
 
@@ -1219,19 +1258,21 @@ failures card and can be retried.
 
 ### Enable, disable and uninstall
 
-Tanoshi loads extensions and the disabled list only at server start, so every
-change below needs a **server restart** (the app offers it).
+The running server applies every change below **immediately** through
+`POST /api/extensions/reload` (0.14.0); a restart is only needed when the server
+is stopped or the reload fails (the app then offers Restart/Start).
 
 - **Disable / Enable** (app): the app maintains the server's marker file
   `files/tanoshi/plugins/.tanoshi-disabled` — one normalized extension name
   per line (comments with `#` ignored, `lib` prefix/`.so` suffix stripped,
   names lowercased). The server skips every extension listed there on the next
-  start and shows a **Disabled** badge in the app. Disabling works for bundled
+  reload/start and shows a **Disabled** badge in the app. Disabling works for bundled
   and user-installed extensions and does not delete files.
 - **Remove** (app, user-installed copies only): deletes
   `files/tanoshi/plugins/<name>.so` and clears the disabled marker, so a
-  bundled copy with the same name becomes active again after a restart.
-  Bundled extensions cannot be deleted from the app; their card has no Remove.
+  bundled copy with the same name becomes active again on the immediate reload
+  (restart only if the reload failed). Bundled extensions cannot be deleted
+  from the app; their card has no Remove.
 - **Reinstall / Update** (app): replaces the user copy (or installs one over a
   bundled extension) and **clears** the disabled marker, re-enabling the
   source.
@@ -1371,9 +1412,13 @@ you trust.
 - **Network.** Catalogs and downloads need internet access to GitHub /
   raw.githubusercontent.com (or whichever host serves a custom catalog). Failed
   repositories show a retryable warning while the others keep working.
-- **Restart required.** The server reads plugins and the disabled marker at
-  startup, so install/update/remove/enable/disable only apply after a restart
-  (the UI offers the action).
+- **Hot reload.** The server rescans plugins and the disabled marker through
+  `POST /api/extensions/reload` (non-destructive `reload_all`: drains sources,
+  closes queues/stops workers, then `load_all`). The app calls it after every
+  install/update/remove/enable/disable; a **Server restart needed** banner is
+  shown only when the server is stopped or the reload fails. During the brief
+  reload, in-flight extension requests may fail and can be retried; no plugin
+  files or markers are deleted.
 - **Best-effort loader.** If a plugin does not appear even after a restart,
   check the Logs tab, confirm it matches the server/ABI, and use
   Remove/Disable to fall back to a bundled copy.
@@ -1933,6 +1978,26 @@ edit the name inline and press Enter; it saves through the server's
 `updateCategory` and refreshes (visible on all devices). The bulk edit mode
 still exists and hides the per-row rename buttons while active.
 
+**A new/removed/disabled source is not active even without a visible restart
+banner.** The app hot-reloads the running server via
+`POST http://127.0.0.1:<port>/api/extensions/reload` after each change and
+shows **"Sources updated"** on success. If the POST fails (server stopped, an
+error, or an old app version) the app shows the **Server restart needed**
+banner/snackbar — start/restart the server then. Check the Logs tab for
+"extensions hot-reloaded" / "could not reload extensions"; the reload does not
+delete plugin files or markers.
+
+**Chapter/source requests fail briefly right after changing a source.** Hot
+reload drains the extension manager while it re-scans the plugin directories,
+so an in-flight extension request can fail for that short window. Retry the
+request after the reload finishes (the app shows "Sources updated"); no data is
+deleted.
+
+**Extensions do not appear after installing even after a restart.** Check the
+Logs tab, confirm the plugin matches the server/`tanoshi-lib` ABI and
+`arm64-v8a`, and use Remove/Disable to fall back to a bundled copy. A failed
+hot reload leaves the restart banner so a restart can still apply the change.
+
 **Layout presets do not appear on another device.** From 0.13.6 presets are
 stored on the server in `<TANOSHI_HOME>/layout_presets.json` and served by
 `GET/PUT /api/layout-presets`; every device connected to the same server should
@@ -2182,7 +2247,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Tanoshi server | 0.40.0 (`VERSION`) |
 | `tanoshi-lib` (plugin ABI) | 0.38.0 (`LIB_VERSION`) |
 | libarchive | 3.8.11 (custom minimal build; `compress-tools` 0.16.1 requires ≥ 3.2.0) |
-| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), built from source with the 0.8.0 web-feature patches + infinite-scroll + app-only extension-management + 0.9.x theme patches + download-progress `0007` + layout-preset/double-page `0009` + manga-actions/library-tabs `0010` + library-tab options/sidebar `0011` + continuous/webtoon reader `0012` (reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.13.5 downloads, 0.13.6 presets/pages, 0.13.7 migrate/tabs, 0.13.8 tab options/rename, 0.13.9 continuous/webtoon |
+| Embedded web UI | Rebuilt wasm dist (`native/web-dist/`), unchanged since 0.13.9 (patches through `0012`: continuous/webtoon reader, library tabs, migrate/Change Library, shared layout presets, downloads, themes; reader image-save `0006` deleted in 0.13.5), embedded in `libtanoshi.so`; 0.14.0 is a server+app change only |
 | Web UI themes | 12 preset palettes + custom Primary/Secondary/Accent colour builder; per-device `localStorage` (`settings:theme-palette`), from 0.9.0; full-UI palette mapping (banners/icons/badge/background/titles/panels) with contrast-adaptive text from 0.9.1; themed settings list cells with adaptive cell text from 0.9.2 |
 | QR sharing | ZXing core 3.5.3 (pure Java) |
 | Foreground service types | `specialUse` + `mediaPlayback` (silent keep-alive; from 0.4.0) |
@@ -2199,7 +2264,8 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Category rename | Per-row inline Rename in Settings → Categories (Enter saves via server `updateCategory`, list refreshes), bulk edit unchanged (0.13.8) |
 | Reader continuous | Seamless chapter appending at end (no Prev/Next buttons), auto previous at top (`user_scrolled` guard), `No previous chapter`/`No more chapters` labels, `page_chapters` per-chapter progress/completion (from 0.13.9) |
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
-| App version | 0.13.9 (`versionName`); `versionCode` 1309 in local builds and for the `android-v0.13.9` tag |
+| Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
+| App version | 0.14.0 (`versionName`); `versionCode` 1400 in local builds and for the `android-v0.14.0` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -2223,7 +2289,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0012 (+ theme_settings.rs/layout_presets.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0013 (+ theme_settings.rs/layout_presets.rs/extensions_reload.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

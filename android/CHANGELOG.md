@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.13.9`). The Termux package in the repository root has
+(for example `android-v0.14.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,58 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.14.0
+
+### Added
+
+- **Extension hot reload (no server restart).** The server now exposes
+  **`POST /api/extensions/reload`** (new REST handler
+  `extensions_reload.rs`, wired next to the other REST routes with the
+  ExtensionManager provided via axum `Extension`). It calls a new
+  **non-destructive `ExtensionManager::reload_all()`**: drains the current
+  source registrations, closes their queues and shuts down their workers
+  **without deleting plugin files or writing `.tanoshi-disabled`**, then runs
+  `load_all()` over both plugin directories. Installed, removed and
+  disabled/enabled extensions are therefore reflected immediately. Returns
+  `{"ok":true,"sources":N}` or HTTP 500 with an error; the endpoint is
+  unauthenticated like the other local REST endpoints.
+- **The app reloads the running server automatically.** `ExtensionManager`
+  gained `reloadRunningServer()`, which `POST`s to
+  `http://127.0.0.1:${AppSettings.port}/api/extensions/reload` (4 s connect,
+  60 s read, no third-party HTTP library). The Sources ViewModel routes every
+  successful install/update, remove (bundled disable or user delete) and
+  enable/disable through an `applyMutation` helper: on success it refreshes the
+  installed list, clears `restartRequired` and shows the **"Sources updated"**
+  snackbar; only when the reload fails (server stopped/error) does it set
+  `restartRequired` and emit the existing `RestartRequired` event, so the
+  restart/start banner remains as a fallback.
+- **Updated Sources UI text.** The explanation now says the running server
+  reloads extensions automatically (restart only when the server is stopped),
+  the remove-confirmation says the bundled copy becomes active immediately,
+  and a new `extensions_reloaded` string **"Sources updated"** is used on
+  success.
+
+### Changed
+
+- **Server binary rebuilt** with `0013-server-extension-hot-reload.patch` +
+  copied `extensions_reload.rs` (applied after 0008); version **0.14.0**
+  (versionCode 1400, tag `android-v0.14.0`). The embedded web UI/dist is
+  **unchanged from 0.13.9** (no web changes), and there are no server
+  API/schema changes beyond the new endpoint. APK filename scheme unchanged.
+
+### Notes
+
+- Hot reload briefly drains the extension manager while it re-scans the plugin
+  directories: in-flight chapter/image requests against an extension can fail
+  during that window and can be retried; nothing on disk (plugins, disabled
+  markers, downloads) is deleted.
+- If the server is stopped or the POST fails, the app falls back to the
+  previous "Server restart needed" banner/snackbar with Restart/Start, so the
+  change still applies once the server is (re)started.
+- The endpoint is local (loopback by default; reachable over LAN if the server
+  is exposed) and unauthenticated, consistent with the existing image/layout
+  REST endpoints.
 
 ## 0.13.9
 

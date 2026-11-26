@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.13.9 / 1309, local date).
+three to Gradle; local builds use the Gradle defaults (0.14.0 / 1400, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.13.9 / versionCode
-1309 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.13.9`
+The app follows its own `android-vX.Y.Z` version scheme (0.14.0 / versionCode
+1400 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.14.0`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -888,6 +888,58 @@ mistaken for webtoon (one page above 2.5:1 before 3 pages load); the switch is
 reversible by reopening/changing settings in a later session, and the settings
 panel has a visible note explaining the reduced controls. Detection only runs in
 the web reader, not the Android UI.
+
+### A45 — Extensions hot-reload via `POST /api/extensions/reload`
+
+From 0.14.0 the server exposes **`POST /api/extensions/reload`** (new REST
+handler `extensions_reload.rs`, registered next to the other REST routes with
+the `ExtensionManager` supplied as an axum `Extension`). It calls the new
+**`ExtensionManager::reload_all()`**, which is non-destructive:
+
+1. takes a write lock on the source map and `drain()`s every `SourceEntry`;
+2. for each entry closes its queue and calls `worker.shutdown().await`;
+3. then runs the normal `load_all()` over both plugin directories
+   (writable `files/tanoshi/plugins` first, then `nativeLibraryDir`).
+
+It never deletes plugin files and never writes `.tanoshi-disabled`, so
+installed/removed/disabled sources are reflected immediately. The handler
+returns `{"ok":true,"sources":N}` (N from `manager.list()`) on success, or
+HTTP 500 `{"ok":false,"error":...}` if `reload_all` fails; it is
+**unauthenticated** like `/image/{url}` and `/api/layout-presets` (loopback by
+default, reachable on LAN if exposed). During the brief drain/reload window,
+in-flight extension requests may fail and can be retried; a failed reload leaves
+the old state and the app shows the restart fallback. No server API/schema
+changes beyond this endpoint.
+
+*If wrong:* a reload could leave the manager empty on failure (the app falls
+back to restart, and the handler returns 500); no data on disk is touched, and
+`load_all` re-registers from the same directories the startup path uses.
+
+### A46 — App auto-reloads after source changes; restart is a fallback
+
+From 0.14.0 `ExtensionManager.reloadRunningServer()` in the Android app POSTs to
+`http://127.0.0.1:${AppSettings.port}/api/extensions/reload` with
+`HttpURLConnection` (4 s connect, 60 s read, `User-Agent: Yakushi-App`), drains
+the body and treats only 2xx as success. The Sources `ExtensionsViewModel`
+routes every successful mutation (install/update, remove = bundled disable or
+user delete, enable/disable) through `applyMutation`: it clears the per-action
+busy flag, refreshes installed sources, then on reload success clears
+`restartRequired` and sends a `ShowMessage("Sources updated")`; on failure
+(server stopped, HTTP error, exception) it sets `restartRequired = true` and
+emits the existing `RestartRequired` event, so the **Server restart needed**
+banner/snackbar with Restart/Start remains the fallback. These mutations no
+longer unconditionally set restartRequired/emit RestartRequired (that was the
+0.13.x behaviour). Strings: `extensions_explanation` now says the running
+server reloads automatically (restart only when stopped),
+`extensions_remove_body` says the bundled copy becomes active immediately, and
+new `extensions_reloaded` = "Sources updated". The web UI is unchanged. If the
+app is killed/backgrounded mid-reload, the server-side reload itself completes
+independently (it is a single request); the UI state may need a refresh.
+
+*If wrong:* a successful change might still show the restart banner (only on
+reload failure by design) or a stopped server would not apply changes (the
+fallback banner covers that); reload is retried by the next mutation, and a
+manual restart always applies pending changes.
 
 ## Open questions for the repository owner
 

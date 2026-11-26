@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.13.9](#whats-new-in-0139)
+- [What's new in 0.14.0](#whats-new-in-0140)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,22 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.14.0
+
+- **Extensions hot-reload without a server restart.** The server now exposes
+  **`POST /api/extensions/reload`**, which re-scans both plugin directories
+  through a non-destructive `ExtensionManager::reload_all()` (drains sources,
+  closes queues/stops workers, then loads again) and returns
+  `{"ok":true,"sources":N}`. The app calls it automatically after
+  install/update/remove/enable/disable, refreshes the Sources list and shows
+  **"Sources updated"**; the **Server restart needed** banner remains only as a
+  fallback if the server is stopped or the reload fails.
+- **Version 0.14.0** (`android-v0.14.0`, `yakushi-server-release-<date>.apk`);
+  server/rebuilt, embedded web UI unchanged from 0.13.9; includes all earlier
+  features.
+
+Previous release — **0.13.9** — and its features:
 
 ## What's new in 0.13.9
 
@@ -266,9 +282,11 @@ trackers](#downloads-and-trackers).
 
 - Nine bundled sources: MangaDex, Guya, Manhwa18.cc, WeebCentral, Atsumaru,
   QiScans, MangaBall, MadaraDex and HentaiNexus.
-- **App-only extension management** (Settings in the app): install, update,
-  reinstall, disable/enable and remove extensions from the catalog; the server
-  restarts to load them.
+- **App-only extension management** (Sources tab in the app): install, update,
+  reinstall, disable/enable and remove extensions from the catalog. Since
+  0.14.0 the running server **hot-reloads** plugins immediately after each
+  change; the restart/start prompt is only a fallback when the server is stopped
+  or the reload fails.
 - **Extension repositories**: the built-in `tanoshi-extension` catalog plus up
   to 10 custom HTTPS catalog repositories. Catalogs are merged, deduplicated
   and validated; per-repository failures can be retried.
@@ -439,7 +457,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.13.9** (`android-v0.13.9`), published as
+- The current Android release is **0.14.0** (`android-v0.14.0`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

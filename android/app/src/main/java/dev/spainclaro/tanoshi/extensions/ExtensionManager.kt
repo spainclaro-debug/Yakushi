@@ -275,6 +275,41 @@ class ExtensionManager(context: Context) {
         AppSettings.extensionRepositoriesJson = json.toString()
     }
 
+    /**
+     * Asks the running server to rescan the plugin directories and reload every
+     * extension. The app calls this after installing/removing/enabling a source
+     * so no server restart is needed. Fails when the server is not running (the
+     * UI then falls back to the restart/start prompt).
+     */
+    suspend fun reloadRunningServer(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("http://127.0.0.1:${AppSettings.port}/api/extensions/reload")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 4_000
+            connection.readTimeout = 60_000
+            connection.setRequestProperty("User-Agent", "Yakushi-App")
+            try {
+                val code = connection.responseCode
+                // Drain the body so the connection can be reused/closed.
+                connection.inputStream?.use { it.readBytes() }
+                if (code !in 200..299) {
+                    return@withContext Result.failure(
+                        IOException("server returned HTTP $code"),
+                    )
+                }
+                Log.i(TAG, "Server hot-reloaded extensions")
+                Result.success(Unit)
+            } finally {
+                connection.disconnect()
+            }
+        } catch (throwable: Throwable) {
+            if (throwable is CancellationException) throw throwable
+            Log.w(TAG, "Could not hot-reload extensions", throwable)
+            Result.failure(throwable)
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Catalog fetching
     // -----------------------------------------------------------------------

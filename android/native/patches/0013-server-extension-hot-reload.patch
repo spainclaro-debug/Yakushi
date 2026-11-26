@@ -1,0 +1,68 @@
+--- a/crates/tanoshi-vm/src/extension/manager.rs
++++ b/crates/tanoshi-vm/src/extension/manager.rs
+@@ -1120,6 +1120,33 @@
+         Ok(())
+     }
+ 
++    /// Reload every plugin from disk without deleting anything: drain the
++    /// current registrations, stop their workers, then run `load_all` so added,
++    /// removed and disabled extensions are reflected without a server restart.
++    pub async fn reload_all(&self) -> Result<()> {
++        // Reload only plugin-managed entries: in-process sources such as the
++        // built-in Local folder libraries have no plugin_path and must stay.
++        let entries: Vec<Arc<SourceEntry>> = {
++            let mut sources = self.write()?;
++            let plugin_ids: Vec<i64> = sources
++                .iter()
++                .filter(|(_, entry)| entry.plugin_path().is_some())
++                .map(|(source_id, _)| *source_id)
++                .collect();
++            plugin_ids
++                .into_iter()
++                .filter_map(|source_id| sources.remove(&source_id))
++                .collect()
++        };
++        for entry in entries {
++            entry.queue.close();
++            if let Some(worker) = entry.worker() {
++                worker.shutdown().await;
++            }
++        }
++        self.load_all().await
++    }
++
+     pub async fn exists(&self, source_id: i64) -> Result<bool> {
+         Ok(self.read()?.get(&source_id).is_some())
+     }
+--- a/crates/tanoshi/src/presentation/rest/mod.rs
++++ b/crates/tanoshi/src/presentation/rest/mod.rs
+@@ -1,3 +1,4 @@
++pub mod extensions;
+ pub mod health;
+ pub mod image;
+ pub mod layout_presets;
+--- a/crates/tanoshi/src/presentation/mod.rs
++++ b/crates/tanoshi/src/presentation/mod.rs
+@@ -249,7 +249,7 @@
+             .data(history_svc)
+             .data(download_svc)
+             .loader(loader)
+-            .data(extension_manager)
++            .data(extension_manager.clone())
+             .data(download_tx)
+             .data(notifier)
+             .data(chapter_update_receiver)
+@@ -266,7 +266,12 @@
+                 get(rest::layout_presets::get_layout_presets)
+                     .put(rest::layout_presets::put_layout_presets),
+             )
+-            .layer(Extension(image_svc));
++            .route(
++                "/api/extensions/reload",
++                post(rest::extensions::reload_extensions),
++            )
++            .layer(Extension(image_svc))
++            .layer(Extension(extension_manager));
+ 
+         let svc = if self.enable_playground {
+             get(graphql_playground).post(graphql_handler)

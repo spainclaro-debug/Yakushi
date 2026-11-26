@@ -30,8 +30,9 @@ import kotlinx.coroutines.withContext
  * merged catalog (with per-repository failures), what is installed on the
  * device, the enable/disable markers and any in-flight operation.
  *
- * [restartRequired] becomes true after any mutation (install/remove/enable/
- * disable); the server only picks the change up on its next start.
+ * After a mutation the app asks the running server to hot-reload its plugins;
+ * [restartRequired] is only set when that call fails (e.g. the server is
+ * stopped) so the user can start/restart it to apply the change.
  */
 data class ExtensionsUiState(
     val repositories: List<ExtensionRepository> = emptyList(),
@@ -188,6 +189,20 @@ class ExtensionsViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    private suspend fun applyMutation(clearState: () -> Unit): Boolean {
+        clearState()
+        refreshInstalledSuspend()
+        return if (manager.reloadRunningServer().isSuccess) {
+            _uiState.update { it.copy(restartRequired = false) }
+            _events.trySend(ExtensionsEvent.ShowMessage(string(R.string.extensions_reloaded)))
+            true
+        } else {
+            _uiState.update { it.copy(restartRequired = true) }
+            _events.trySend(ExtensionsEvent.RestartRequired)
+            false
+        }
+    }
+
     /** Downloads and installs (or replaces) the catalog entry; clears disabled. */
     fun install(entry: CatalogExtension) {
         if (_uiState.value.busy) return
@@ -217,15 +232,11 @@ class ExtensionsViewModel(application: Application) : AndroidViewModel(applicati
             }
             result.fold(
                 onSuccess = {
-                    refreshInstalledSuspend()
-                    _uiState.update {
-                        it.copy(
-                            installingName = null,
-                            installProgress = null,
-                            restartRequired = true,
-                        )
+                    applyMutation {
+                        _uiState.update {
+                            it.copy(installingName = null, installProgress = null)
+                        }
                     }
-                    _events.trySend(ExtensionsEvent.RestartRequired)
                 },
                 onFailure = { error ->
                     val message = string(
@@ -261,11 +272,9 @@ class ExtensionsViewModel(application: Application) : AndroidViewModel(applicati
             }
             result.fold(
                 onSuccess = {
-                    refreshInstalledSuspend()
-                    _uiState.update {
-                        it.copy(removingName = null, restartRequired = true)
+                    applyMutation {
+                        _uiState.update { it.copy(removingName = null) }
                     }
-                    _events.trySend(ExtensionsEvent.RestartRequired)
                 },
                 onFailure = { error ->
                     val message = string(
@@ -300,11 +309,9 @@ class ExtensionsViewModel(application: Application) : AndroidViewModel(applicati
             }
             result.fold(
                 onSuccess = {
-                    refreshInstalledSuspend()
-                    _uiState.update {
-                        it.copy(togglingName = null, restartRequired = true)
+                    applyMutation {
+                        _uiState.update { it.copy(togglingName = null) }
                     }
-                    _events.trySend(ExtensionsEvent.RestartRequired)
                 },
                 onFailure = { error ->
                     val message = string(

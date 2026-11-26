@@ -190,7 +190,7 @@
     <string name="nav_sources">Sources</string>
     <string name="extensions_title">Sources</string>
     <string name="extensions_subtitle">Manage the extensions that add manga sources to Yakushi Server.</string>
-    <string name="extensions_explanation">Extensions are prebuilt Android (aarch64) Yakushi plugins. Install or update them from the repository catalog; the server loads them after a restart.</string>
+    <string name="extensions_explanation">Extensions are prebuilt Android (aarch64) Yakushi plugins. Install or update them from the repository catalog; the running server reloads them automatically (restart is only needed when the server is stopped).</string>
     <string name="extensions_section_installed">Installed</string>
     <plurals name="extensions_installed_count">
         <item quantity="one">%1$d extension</item>
@@ -219,9 +219,10 @@
     <string name="extensions_installing">Installing…</string>
     <string name="extensions_install_failed">Could not install %1$s: %2$s</string>
     <string name="extensions_remove_title">Remove extension?</string>
-    <string name="extensions_remove_body">Remove %1$s from the user-installed plugins? The bundled copy, if any, becomes active again after a restart.</string>
+    <string name="extensions_remove_body">Remove %1$s from the user-installed plugins? The running server reloads and the bundled copy, if any, becomes active immediately.</string>
     <string name="extensions_remove_confirm">Remove</string>
     <string name="extensions_remove_cancel">Cancel</string>
+    <string name="extensions_reloaded">Sources updated</string>
     <string name="extensions_remove_failed">Could not remove %1$s: %2$s</string>
     <string name="extensions_restart_banner_title">Server restart needed</string>
     <string name="extensions_restart_banner_body">Extensions changed. Start or restart the server to load the new sources.</string>

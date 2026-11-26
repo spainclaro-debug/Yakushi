@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.13.9 (default)}' code '${CODE:-1309 (default)}'"
+          echo "Building version '${NAME:-0.14.0 (default)}' code '${CODE:-1400 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.13.9}"
-          CODE="${APP_VERSION_CODE:-1309}"
+          NAME="${APP_VERSION_NAME:-0.14.0}"
+          CODE="${APP_VERSION_CODE:-1400}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi Server 0.13.9 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). New: continuous reading is now seamless - the Prev/Next chapter buttons are gone; scrolling to the end automatically appends the next chapter's pages (with per-chapter progress), scrolling back to the top automatically loads the previous chapter, 'No previous chapter' only appears on the first chapter and 'No more chapters' only at the end of the manga. Manhua/manhwa/long-strip pages are detected automatically and switch to the webtoon layout (continuous, fit width), with the reader settings reduced to the fit options. Includes all 0.13.8 features (browser-style library tabs, tab display options/rename, manga-page Migrate/Change Library) and 0.13.6/0.13.7 features. Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
+          NOTES="Yakushi Server 0.14.0 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). New: installing, removing, enabling or disabling a source no longer requires restarting the server - the app asks the running server to hot-reload its extensions via the new /api/extensions/reload endpoint, so new sources appear immediately; a restart is only suggested when the server is stopped (or reload fails). Includes all 0.13.x features: seamless continuous chapters with auto previous and webtoon detection, server-shared layout presets, gapless double-page reader, page-image chapter downloads, browser-style library tabs with options/rename, manga-page Migrate/Change Library, themes and extension repositories. Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
           APK_DIR=android/app/build/outputs/apk/debug
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \
