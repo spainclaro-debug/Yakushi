@@ -56,11 +56,11 @@ per-device tab display options and inline category rename (patch 0011) and
 0012), 0.14.0 adds server-side extension **hot reload** (patch 0013 + copied
 `extensions_reload.rs`; web dist unchanged) and 0.15.0 adds Catalogue source
 pins + corrected Local/External grouping (patch 0014), 0.15.1 fixes
-continuous read status (patch 0015), and 0.16.0/0.16.1 re-release the same
-server binary alongside the new **Yashi** client (separate `android/yashi/`
-module, pure Kotlin/Compose with no app-specific native code; 0.16.1 fixes the
-Yashi back-button offset and WebView reader rendering only — **no native or
-pipeline changes**). Offline chapters are extracted as page images into public
+continuous read status (patch 0015), and 0.16.0/0.16.1/0.16.2 re-release the
+same server binary alongside the new **Yashi** client (separate `android/yashi/`
+module, pure Kotlin/Compose with no app-specific native code; Yashi 0.1.1/0.1.2
+fix back-button/navigation and display insets only — **no native or pipeline
+changes**). Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -434,11 +434,11 @@ default source is the **vendored dist** in this directory:
   The 0.15.1 rebuild adds patch 0015 (continuous read-status fix) to the dist;
   the 0.15.0 pins/grouping, 0.14.0 hot-reload patch 0013 and the rest stay in
   the binary, and patch 0006 stays deleted.
-- **0.16.0/0.16.1 do not change the native binaries.** Yakushi Server
-  0.16.0/0.16.1 are re-releases of the 0.15.1 server (version bumps only)
-  published together with the Yashi client (0.1.1 in 0.16.1); the web dist and
-  `libtanoshi.so` are unchanged, and Yashi has no app-specific native code (no
-  jniLibs/NDK/Rust step).
+- **0.16.0/0.16.1/0.16.2 do not change the native binaries.** Yakushi Server
+  0.16.0/0.16.1/0.16.2 are re-releases of the 0.15.1 server (version bumps
+  only) published together with the Yashi client (0.1.2 in 0.16.2); the web
+  dist and `libtanoshi.so` are unchanged, and Yashi has no app-specific native
+  code (no jniLibs/NDK/Rust step).
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -746,7 +746,7 @@ And on the built APKs (0.16.x publishes two: the server app
 Yashi client `android/yashi/build/outputs/apk/debug/yashi-client-release-<date>.apk`;
 Yashi is pure Kotlin/Compose and carries only the standard AndroidX
 `libandroidx.graphics.path.so` support library, no server/plugin natives; 0.16.1
-adds the Yashi back-button/WebView fixes without touching the native build):
+and 0.16.2 add Yashi UI/inset fixes without touching the native build):
 
 ```bash
 APK=android/app/build/outputs/apk/debug/yakushi-server-release-*.apk

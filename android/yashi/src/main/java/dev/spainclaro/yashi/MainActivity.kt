@@ -3,6 +3,7 @@ package dev.spainclaro.yashi
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,6 +14,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Yashi draws edge-to-edge; MainScreen pads the status bar itself and
+        // the browser screen hides it for a true full-screen reader/browser.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         val store = AddressStore(this)
         setContent {
             val theme by store.theme.collectAsStateWithLifecycle()

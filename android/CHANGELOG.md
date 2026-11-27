@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.16.1`). The Termux package in the repository root has
+(for example `android-v0.16.2`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,32 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.2
+
+### Fixed
+
+- **Yashi: top controls no longer covered by the status bar/cutout.** Yashi now
+  draws edge-to-edge (`WindowCompat.setDecorFitsSystemWindows(window, false)`);
+  the start screen uses a zero-inset Scaffold and applies `WindowInsets.safeDrawing`
+  top + horizontal padding, so the header, address field and buttons sit below
+  the status-bar icons and clear of display cutouts.
+- **Yashi: status bar hidden in the full-screen browser/reader.** While the
+  WebView browser is open, Yashi hides the device status bar (`statusBars()`
+  via `WindowInsetsControllerCompat`, `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`
+  so a top swipe reveals it) and restores it when returning to the start
+  screen. The WebView is padded by `WindowInsets.displayCutout` so the web UI
+  avoids camera cutouts. The floating back button keeps its 96dp-above-bottom
+  placement and is still hidden on `/catalogue`, `/manga` and `/chapter`.
+
+### Changed
+
+- **Versions:** Yashi **0.1.2 / versionCode 102**; Yakushi Server **0.16.2 /
+  versionCode 1602** is a re-release with **no server/native changes** from
+  0.16.1. CI builds both apps and publishes both assets
+  (`yakushi-server-release-<date>.apk`, `yashi-client-release-<date>.apk`) on
+  tag `android-v0.16.2` with combined notes/title
+  "Yakushi Server 0.16.2 + Yashi 0.1.2".
 
 ## 0.16.1
 

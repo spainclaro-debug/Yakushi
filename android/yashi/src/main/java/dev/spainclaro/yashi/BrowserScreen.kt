@@ -1,6 +1,9 @@
 package dev.spainclaro.yashi
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -13,8 +16,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.net.URI
 
 /**
@@ -55,6 +64,23 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
             view.goBack()
         } else {
             onExit()
+        }
+    }
+
+    // The browser/reader is full screen: hide the device's status-bar icons
+    // (time, battery, Wi-Fi) and let the web UI own the whole display. They
+    // come back when Yashi's start screen is shown again; a swipe from the top
+    // temporarily reveals them.
+    val activity = context.findActivity()
+    DisposableEffect(activity) {
+        val controller = activity?.let {
+            WindowCompat.getInsetsController(it.window, it.window.decorView)
+        }
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller?.hide(WindowInsetsCompat.Type.statusBars())
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.statusBars())
         }
     }
 
@@ -130,7 +156,9 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
         }
 
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.displayCutout),
             factory = { currentWebView },
             update = {},
         )
@@ -158,6 +186,15 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
             }
         }
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
 }
 
 private fun isImmersivePage(url: String?): Boolean {

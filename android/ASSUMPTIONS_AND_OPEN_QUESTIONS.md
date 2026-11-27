@@ -226,10 +226,10 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.16.1 / 1601, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.2 / 1602, local date).
 
 From 0.16.0 the same workflow also builds the **Yashi** client module
-(`:yashi:assembleDebug`; version defaults 0.1.1 / versionCode 101, overridable
+(`:yashi:assembleDebug`; version defaults 0.1.2 / versionCode 102, overridable
 with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
 publishes both assets (`yakushi-server-release-*.apk` and
 `yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
@@ -293,11 +293,11 @@ tag), independent of the bundled Tanoshi server (0.40.0 /
 not change the bundled server; the two version lines are documented
 separately.
 
-Yashi has its own independent version line: **0.1.1 / versionCode 101**, set
+Yashi has its own independent version line: **0.1.2 / versionCode 102**, set
 in `android/yashi/build.gradle.kts` and overridable from CI
 (`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
 `android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
-(server 1601) while Yashi stays 0.1.1/101, published on the same release.
+(server 1602) while Yashi stays 0.1.2/102, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1030,9 +1030,9 @@ and docs describe partial reads vs finishing a chapter.
 
 ### A50 — Yashi is a client-only companion app with local persistence
 
-Yashi 0.1.1 is a separate Android application module (`android/yashi/`, package
+Yashi 0.1.2 is a separate Android application module (`android/yashi/`, package
 `dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
-0.1.1 / versionCode 101) shipped in the same repository and signed with the
+0.1.2 / versionCode 102) shipped in the same repository and signed with the
 same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
 does not start a server and makes no server-side changes. It connects to a
 Yakushi server over plain HTTP in a full-screen WebView. From 0.1.1 the
@@ -1062,6 +1062,18 @@ removed, which fixed blank chapter pages/missing reader images.
   from 16dp in 0.1.1 so it clears the web UI's bottom navigation bar), hidden
   when the WebView path starts with `/catalogue`, `/manga` or `/chapter`; system
   back navigates the WebView history first, then exits to the start screen.
+- **Display insets (0.1.2):** Yashi calls
+  `WindowCompat.setDecorFitsSystemWindows(window, false)` and draws edge-to-edge.
+  The start screen sets Scaffold `contentWindowInsets = WindowInsets(0,0,0,0)`
+  and pads its content with `WindowInsets.safeDrawing.only(Top + Horizontal)`
+  (the bottom bar handles navigation-bar padding), so the header/address/buttons
+  are below the status bar and clear of cutouts. `BrowserScreen` hides the
+  device status bar via `WindowInsetsControllerCompat` with
+  `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` (swipe reveals temporarily) and
+  restores it in `onDispose`; the WebView is padded by
+  `WindowInsets.displayCutout` so the page avoids camera cutouts. The floating
+  back button placement/visibility is unchanged (96dp above bottom, hidden on
+  catalogue/manga/chapter).
 - **Scope:** Yashi is a convenience client for the web UI; it has no offline
   reading, downloads, extension management or server lifecycle features of its
   own (those remain in the server app/web UI).
