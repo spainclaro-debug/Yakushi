@@ -226,10 +226,10 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.16.2 / 1602, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.3 / 1603, local date).
 
 From 0.16.0 the same workflow also builds the **Yashi** client module
-(`:yashi:assembleDebug`; version defaults 0.1.2 / versionCode 102, overridable
+(`:yashi:assembleDebug`; version defaults 0.1.3 / versionCode 103, overridable
 with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
 publishes both assets (`yakushi-server-release-*.apk` and
 `yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
@@ -293,11 +293,11 @@ tag), independent of the bundled Tanoshi server (0.40.0 /
 not change the bundled server; the two version lines are documented
 separately.
 
-Yashi has its own independent version line: **0.1.2 / versionCode 102**, set
+Yashi has its own independent version line: **0.1.3 / versionCode 103**, set
 in `android/yashi/build.gradle.kts` and overridable from CI
 (`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
 `android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
-(server 1602) while Yashi stays 0.1.2/102, published on the same release.
+(server 1603) while Yashi stays 0.1.3/103, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1030,9 +1030,9 @@ and docs describe partial reads vs finishing a chapter.
 
 ### A50 — Yashi is a client-only companion app with local persistence
 
-Yashi 0.1.2 is a separate Android application module (`android/yashi/`, package
+Yashi 0.1.3 is a separate Android application module (`android/yashi/`, package
 `dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
-0.1.2 / versionCode 102) shipped in the same repository and signed with the
+0.1.3 / versionCode 103) shipped in the same repository and signed with the
 same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
 does not start a server and makes no server-side changes. It connects to a
 Yakushi server over plain HTTP in a full-screen WebView. From 0.1.1 the
@@ -1052,28 +1052,32 @@ removed, which fixed blank chapter pages/missing reader images.
   feature). Camera permission is requested on first launch (`camera_asked`
   remembers the ask); QR scanning uses ZXing embedded with QR-only scanning and
   parses the result as a server address (host/host:port/http URL).
-- **LAN discovery:** best-effort scan of the current local IPv4 `/24` on ports
-  **8080** and **18084**, 48 concurrent probes with 350 ms connect/700 ms read,
-  keeping HTTP 200–399 responses whose first 4 KB contain "yakushi"/"tanoshi"
-  or a doctype; results are listed in a popup for one-tap connect. Custom ports
-  are reachable via the address bar/QR, not discovery.
+- **LAN discovery (0.1.3):** the local IPv4 is read from the active network's
+  `LinkProperties` (NetworkInterface fallback); it scans the local `/24` on
+  default ports **8080/18084/8000/3000** plus preferred ports from saved/
+  history entries, probing each host first on the unauthenticated **`/health`**
+  endpoint (HTTP 200 = running Yakushi) and falling back to the `/` HTML
+  check (200–399 and body containing "yakushi"/"tanoshi"/doctype). Probes use
+  400 ms connect/900 ms read with 48 concurrency; results are listed for
+  one-tap connect and the no-results dialog shows the scanned local IP/ports.
+  Custom ports not in the list are reachable via the address bar/QR.
 - **Navigation:** the floating back button is positioned with
   `padding(start=16dp, bottom=96dp, top=16dp)` plus navigation-bar insets (raised
   from 16dp in 0.1.1 so it clears the web UI's bottom navigation bar), hidden
   when the WebView path starts with `/catalogue`, `/manga` or `/chapter`; system
   back navigates the WebView history first, then exits to the start screen.
-- **Display insets (0.1.2):** Yashi calls
+- **Display insets (0.1.3):** Yashi calls
   `WindowCompat.setDecorFitsSystemWindows(window, false)` and draws edge-to-edge.
   The start screen sets Scaffold `contentWindowInsets = WindowInsets(0,0,0,0)`
-  and pads its content with `WindowInsets.safeDrawing.only(Top + Horizontal)`
-  (the bottom bar handles navigation-bar padding), so the header/address/buttons
-  are below the status bar and clear of cutouts. `BrowserScreen` hides the
-  device status bar via `WindowInsetsControllerCompat` with
-  `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` (swipe reveals temporarily) and
-  restores it in `onDispose`; the WebView is padded by
-  `WindowInsets.displayCutout` so the page avoids camera cutouts. The floating
-  back button placement/visibility is unchanged (96dp above bottom, hidden on
-  catalogue/manga/chapter).
+  and pads only `WindowInsets.statusBars.only(Top)` (0.1.2 used safe-drawing
+  top/horizontal, which left padding when the status bar was hidden by the
+  phone's fullscreen/cutout setting). The bottom bar handles navigation bars.
+  `BrowserScreen` hides the device status bar via
+  `WindowInsetsControllerCompat` with `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`
+  (swipe reveals temporarily) and restores it in `onDispose`; from 0.1.3 the
+  WebView has **no** display-cutout padding (the 0.1.2 padding left a top gap
+  in fullscreen mode). The floating back button placement/visibility is
+  unchanged (96dp above bottom, hidden on catalogue/manga/chapter).
 - **Scope:** Yashi is a convenience client for the web UI; it has no offline
   reading, downloads, extension management or server lifecycle features of its
   own (those remain in the server app/web UI).
@@ -1081,6 +1085,35 @@ removed, which fixed blank chapter pages/missing reader images.
 *If wrong:* users could expect Yashi to run/update the server or sync servers
 across devices; the docs and UI state it is client-only and device-local, and
 the server app remains the only way to host.
+
+### A51 — Paged reader renders the current page(s) directly (0.16.3)
+
+Before 0.16.3 the embedded reader's Single/Double/Auto paged modes created a
+DOM node for **every** page and used `visible_signal`/`image_src_signal` preload
+signals to reveal the current one, which could leave the paged view blank white.
+Patch 0016 (`reader.rs`, applied after 0015) changes the paged renderers:
+
+- `paged_image(index, page, double)` creates a single `<img id=index>` with a
+  **direct proxied `src`** (`proxied_image_url`), fit styling (contain/height/
+  width/50%/100vw/vh), load/error handlers (records dimensions for webtoon
+  detection, marks Loaded/Error) and a click toggles the bars.
+- `render_single` uses `child_signal` of current page + page count and renders
+  only the current page; `render_double` uses current page/length and the
+  double-page layout signal to render the current page and (when
+  `show_second`) the next one in a centred flex row/row-reverse, keeping the
+  gapless double-page CSS.
+- Prev/next are set from `current_page` and the page count (not from per-node
+  visible signals); the main paged wrapper clamps `current_page` to
+  `len - 1` when it is out of range.
+- Continuous (vertical) and webtoon detection/rendering paths are unchanged.
+The release rebuilds the web UI (`tanoshi-web-1edbdb41e59693d8.js`,
+`tanoshi-web-d365ab7b7ebb27eb_bg.wasm`; CSS unchanged) and refreshed
+`libtanoshi.so`. No server API/schema changes.
+
+*If wrong:* an out-of-range index is clamped; if a page URL fails the img
+`error` handler logs and marks that page's status Error (the previous all-page
+retry UI is gone for paged mode); continuous/webtoon retain their existing
+behaviour.
 
 ## Open questions for the repository owner
 

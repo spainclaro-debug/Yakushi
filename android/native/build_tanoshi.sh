@@ -129,6 +129,8 @@ apply_patch "$HERE/patches/0012-web-ui-continuous-autochapter-webtoon.patch"
 apply_patch "$HERE/patches/0014-web-ui-source-pins-groups.patch"
 # Web UI: keep chapter read status correct during seamless continuous reading.
 apply_patch "$HERE/patches/0015-web-ui-continuous-read-status.patch"
+# Web UI: paged reader rewrite (direct current-page rendering) and fixes.
+apply_patch "$HERE/patches/0016-web-ui-paged-reader-fix.patch"
 say "applying Android app patches"
 apply_patch "$HERE/patches/0001-android-app.patch"
 # The extension loader is a new source file; `git diff` cannot carry it, so the

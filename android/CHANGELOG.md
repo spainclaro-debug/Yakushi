@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.16.2`). The Termux package in the repository root has
+(for example `android-v0.16.3`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,41 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.3
+
+### Fixed
+
+- **Yashi: local-network discovery now finds servers.** `LanScanner` takes the
+  local IPv4 from the active network's `LinkProperties` (NetworkInterface
+  fallback), probes each host on the unauthenticated **`/health`** endpoint
+  first (HTTP 200 = running Yakushi) then falls back to the `/` HTML check,
+  scans the default ports **8080/18084/8000/3000** plus preferred ports from
+  saved/history entries, and the no-results dialog now shows the scanned local
+  IP and port list (500 ms timeouts, still /24 and best-effort).
+- **Yashi: display-inset padding in fullscreen/cutout mode.** The start screen
+  now reserves only `WindowInsets.statusBars` top inset (instead of
+  safe-drawing/cutout), so the padding disappears when the phone's
+  fullscreen/cutout setting hides the status bar; the WebView no longer applies
+  display-cutout padding, removing the leftover top gap in fullscreen reading.
+  The browser still hides the status bar while browsing and restores it on
+  exit; the floating back button is unchanged.
+- **Paged reader no longer blank in Single/Double/Auto.** The paged renderers
+  previously created every page node and relied on visibility/src preload
+  signals, leaving a blank page. `render_single`/`render_double` now render the
+  current page(s) directly with a proxied image source, clamp out-of-range
+  page indices, and maintain prev/next from the page count. Continuous and
+  webtoon reading are unchanged. New web dist
+  `tanoshi-web-1edbdb41e59693d8.js` / `tanoshi-web-d365ab7b7ebb27eb_bg.wasm`
+  (CSS unchanged); `libtanoshi.so` rebuilt with patch 0016 after 0015.
+
+### Changed
+
+- **Versions:** Yashi **0.1.3 / versionCode 103**; Yakushi Server **0.16.3 /
+  versionCode 1603** (rebuilt web UI/server with patch 0016). CI builds both
+  apps and publishes both APK assets on tag `android-v0.16.3` with combined
+  notes/title "Yakushi Server 0.16.3 + Yashi 0.1.3". APK filename scheme
+  unchanged.
 
 ## 0.16.2
 

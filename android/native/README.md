@@ -57,10 +57,10 @@ per-device tab display options and inline category rename (patch 0011) and
 `extensions_reload.rs`; web dist unchanged) and 0.15.0 adds Catalogue source
 pins + corrected Local/External grouping (patch 0014), 0.15.1 fixes
 continuous read status (patch 0015), and 0.16.0/0.16.1/0.16.2 re-release the
-same server binary alongside the new **Yashi** client (separate `android/yashi/`
-module, pure Kotlin/Compose with no app-specific native code; Yashi 0.1.1/0.1.2
-fix back-button/navigation and display insets only — **no native or pipeline
-changes**). Offline chapters are extracted as page images into public
+same server binary alongside the **Yashi** client (separate `android/yashi/`
+module, pure Kotlin/Compose with no app-specific native code), and 0.16.3
+rebuilds the server web UI with the paged-reader fix (patch 0016) while Yashi
+0.1.3 fixes LAN/inset behaviour only. Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -241,11 +241,18 @@ the equivalent manual steps, which is what the scripts automate.
      fast scrolling (non-debounced `update_page_read_at(..., true)`), reset on
      fetch, and log-only errors (`could not mark chapter ...`); keeps the
      server's sticky `is_complete` semantics.
+   - **`native/patches/0016-web-ui-paged-reader-fix.patch`** (0.16.3, applied
+     after 0015; `reader.rs`): paged Single/Double/Auto render the current
+     page(s) directly via a new `paged_image` (direct proxied `src`, fit/zoom
+     styles, load/error handling, webtoon detection), with prev/next derived
+     from current page + page count and the paged page index clamped to
+     `len-1`; removes the all-page `visible_signal`/`image_src_signal` preload
+     that left the paged view blank. Continuous/webtoon paths unchanged.
    - These web patches only matter when regenerating the wasm UI: the vendored
      `native/web-dist/` already contains the patched output, so a normal server
      rebuild uses it as-is. `build_tanoshi.sh` applies them automatically
      (infinite scroll → web features → 0003 → `theme_settings.rs` +
-     0004 → 0007 → 0009 → 0010 → 0011 → 0012 → 0014 → 0015).
+     0004 → 0007 → 0009 → 0010 → 0011 → 0012 → 0014 → 0015 → 0016).
 5. **`native/patches/0005-downloads-tempchapter.patch`** (final in 0.13.5),
    applied after the app/loader patches: a new `AuthGuard` lets **any
    signed-in user** download/remove/reorder chapters and read the queue/
@@ -317,6 +324,8 @@ git apply ../android/native/patches/0012-web-ui-continuous-autochapter-webtoon.p
 git apply ../android/native/patches/0014-web-ui-source-pins-groups.patch
 # Continuous read-status fix (0.15.1)
 git apply ../android/native/patches/0015-web-ui-continuous-read-status.patch
+# Paged reader direct-render fix (0.16.3)
+git apply ../android/native/patches/0016-web-ui-paged-reader-fix.patch
 
 # Android app layer
 git apply ../android/native/patches/0001-android-app.patch
@@ -388,7 +397,7 @@ The server binary embeds the Tanoshi web UI (`crates/tanoshi-web/dist`) with
 `rust-embed`, so a web UI dist must exist before the server is compiled. The
 default source is the **vendored dist** in this directory:
 
-- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.15.1+:
+- `android/native/web-dist/` is the **rebuilt web UI** used by app 0.16.3+:
   upstream Tanoshi 0.40.0's wasm UI built with
   `patches/tanoshi-infinite-scroll.patch` (auto-loading catalogue),
   `patches/tanoshi-web-ui.patch` + `patches/tanoshi-web-ui-settings.patch`
@@ -416,24 +425,26 @@ default source is the **vendored dist** in this directory:
   `native/patches/0014-web-ui-source-pins-groups.patch` (0.15.0: Catalogue
   pins + Local/External grouping) and
   `native/patches/0015-web-ui-continuous-read-status.patch` (0.15.1:
-  continuous read-status fix; patch 0006/reader Save image was deleted). Its
+  continuous read-status fix) and
+  `native/patches/0016-web-ui-paged-reader-fix.patch` (0.16.3: paged reader
+  direct current-page rendering; patch 0006/reader Save image was deleted). Its
   wasm bundle still contains the `catalogue-scroll-sentinel`,
   which auto-loads the next catalogue page about 600 px before the viewport and
   turns the **Load More** button into *No more results* at the end.
-  Current dist asset names (0.15.1):
-  `tanoshi-web-4b94016ac7719c6e.js`, `tanoshi-web-f9597b71814b98b9_bg.wasm`,
+  Current dist asset names (0.16.3):
+  `tanoshi-web-1edbdb41e59693d8.js`, `tanoshi-web-d365ab7b7ebb27eb_bg.wasm`,
   `styles-b8b644c443a79429.css` (CSS unchanged from 0.15.0).
 - `build_tanoshi.sh` picks the web UI in this order: an existing
   `crates/tanoshi-web/dist/`, then the vendored `android/native/web-dist/`
   (copied into place), then `trunk build --release`. A plain
   `./build_tanoshi.sh` therefore uses the vendored rebuilt UI with no web
   toolchain installed.
-- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.15.1**
-  (0.15.0/0.14.0/0.13.9/0.13.8/0.13.7/0.13.6/0.13.5/0.13.1/0.13.0/0.9.x/
-  0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older dists).
-  The 0.15.1 rebuild adds patch 0015 (continuous read-status fix) to the dist;
-  the 0.15.0 pins/grouping, 0.14.0 hot-reload patch 0013 and the rest stay in
-  the binary, and patch 0006 stays deleted.
+- The checked-in `libtanoshi.so` was rebuilt this way for app **v0.16.3**
+  (0.15.1/0.15.0/0.14.0/0.13.9/0.13.8/0.13.7/0.13.6/0.13.5/0.13.1/0.13.0/
+  0.9.x/0.7.0/0.8.0 used earlier rebuilt dists; 0.2.0/0.5.0/0.6.0 used older
+  dists). The 0.16.3 rebuild adds patch 0016 (paged reader direct rendering) to
+  the dist; all earlier patches stay in the binary and patch 0006 stays
+  deleted.
 - **0.16.0/0.16.1/0.16.2 do not change the native binaries.** Yakushi Server
   0.16.0/0.16.1/0.16.2 are re-releases of the 0.15.1 server (version bumps
   only) published together with the Yashi client (0.1.2 in 0.16.2); the web
@@ -731,6 +742,8 @@ grep -c -a "External Sources" libtanoshi.so            # expect >= 1
 grep -c -a "Pin source" libtanoshi.so                  # expect >= 1 (0.15.0 button title)
 grep -c -a "could not mark chapter" libtanoshi.so      # expect >= 1 (0.15.1 log string)
 #   mark_crossed_chapters is usually stripped; use the log string + dist hashes
+grep -c -a "error loading image for page" libtanoshi.so # expect >= 1 (0.16.3 paged reader)
+#   0.16.3 paged reader is verified via the new JS/wasm dist hashes below
 #   For 0.7.0+ the js/wasm/css asset names embedded in libtanoshi.so should
 #   match the names in android/native/web-dist/index.html
 
@@ -817,9 +830,10 @@ with patch 0012 (seamless continuous chapters + automatic webtoon layout), and
 endpoint and `reload_all`; web dist unchanged), and **0.15.0 rebuilt it** with
 patch 0014 (Catalogue pins + Local/External grouping; new JS/wasm/CSS), and
 **0.15.1 rebuilt it** with patch 0015 (continuous read-status fix; new JS/wasm,
-CSS unchanged). **0.16.0 does not rebuild the native binaries** (the server app
-is a version-only re-release published alongside the new pure-Kotlin Yashi
-client; the web dist and `libtanoshi.so` stay as in 0.15.1). The exported extension sources
+CSS unchanged). **0.16.0/0.16.1/0.16.2 do not rebuild the native binaries**
+(version-only re-releases published alongside the pure-Kotlin Yashi client; the
+web dist and `libtanoshi.so` stay as in 0.15.1), and **0.16.3 rebuilds it**
+with patch 0016 (paged reader fix; new JS/wasm, CSS unchanged). The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

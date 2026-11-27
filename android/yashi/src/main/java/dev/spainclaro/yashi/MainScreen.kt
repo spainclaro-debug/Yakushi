@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -98,7 +98,7 @@ fun MainScreen(
     var clearConfirm by remember { mutableStateOf(false) }
     var lanOpen by remember { mutableStateOf(false) }
     var lanScanning by remember { mutableStateOf(false) }
-    var lanResults by remember { mutableStateOf<List<ServerAddress>>(emptyList()) }
+    var lanScanResult by remember { mutableStateOf<LanScanResult?>(null) }
     var lanScanRequest by remember { mutableIntStateOf(0) }
     var pendingQr by remember { mutableStateOf(false) }
 
@@ -162,8 +162,11 @@ fun MainScreen(
     LaunchedEffect(lanOpen, lanScanRequest) {
         if (lanOpen) {
             lanScanning = true
-            lanResults = emptyList()
-            lanResults = LanScanner.scan()
+            lanScanResult = null
+            lanScanResult = LanScanner.scan(
+                context = context,
+                preferredPorts = (saved + history).map { it.port },
+            )
             lanScanning = false
         }
     }
@@ -209,11 +212,11 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                    ),
-                )
+                // Only reserve the system status-bar height when it is
+                // actually shown. When the phone's fullscreen/cutout handling
+                // hides the status bar (e.g. "Show cutout"), this inset is
+                // zero and the content uses the full display.
+                .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(16.dp))
@@ -408,11 +411,19 @@ fun MainScreen(
                             Spacer(Modifier.width(10.dp))
                             Text("Scanning your network…")
                         }
-                    } else if (lanResults.isEmpty()) {
-                        Text("No Yakushi servers found. Make sure Yakushi is running, LAN mode is enabled, and both devices are on the same network.")
+                    } else if (lanScanResult == null || lanScanResult?.servers.isNullOrEmpty()) {
+                        val result = lanScanResult
+                        Text(
+                            "No Yakushi servers found" +
+                                (result?.localIp?.let { " on $it" } ?: "") +
+                                (result?.ports?.takeIf { it.isNotEmpty() }?.let { " (ports ${it.joinToString()})" } ?: "") +
+                                ". Make sure Yakushi is running, LAN mode is enabled, and both devices are on the same network.",
+                        )
                     } else {
-                        Text("Found ${lanResults.size} server(s). Tap one to connect.")
-                        lanResults.forEach { address ->
+                        val result = lanScanResult
+                        val servers = result?.servers.orEmpty()
+                        Text("Found ${servers.size} server(s). Tap one to connect.")
+                        servers.forEach { address ->
                             Surface(
                                 onClick = {
                                     lanOpen = false

@@ -1,5 +1,7 @@
 package dev.spainclaro.yashi
 
+import android.content.Context
+import android.net.ConnectivityManager
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.Inet4Address
@@ -22,16 +24,31 @@ import kotlinx.coroutines.withContext
  * keeps discovery dependency-free; servers on a custom port can still be
  * connected with the address bar or QR scanner.
  */
-object LanScanner {
-    private val DEFAULT_PORTS = listOf(8080, 18084)
+data class LanScanResult(
+    val servers: List<ServerAddress>,
+    val localIp: String?,
+    val ports: List<Int>,
+)
 
-    suspend fun scan(): List<ServerAddress> = withContext(Dispatchers.IO) {
-        val localIp = localIpv4() ?: return@withContext emptyList()
+object LanScanner {
+    private val DEFAULT_PORTS = listOf(8080, 18084, 8000, 3000)
+
+    suspend fun scan(
+        context: Context,
+        preferredPorts: List<Int> = emptyList(),
+    ): LanScanResult = withContext(Dispatchers.IO) {
+        val ports = (preferredPorts + DEFAULT_PORTS)
+            .filter { it in 1..65535 }
+            .distinct()
+        val localIp = localIpv4(context)
+        if (localIp == null) return@withContext LanScanResult(emptyList(), null, ports)
         val prefix = localIp.substringBeforeLast('.', missingDelimiterValue = "")
-        if (prefix.isEmpty()) return@withContext emptyList()
+        if (prefix.isEmpty()) {
+            return@withContext LanScanResult(emptyList(), localIp, ports)
+        }
 
         val candidates = (1..254).flatMap { host ->
-            DEFAULT_PORTS.map { port -> ServerAddress("$prefix.$host", port) }
+            ports.map { port -> ServerAddress("$prefix.$host", port) }
         }
         val semaphore = Semaphore(48)
         coroutineScope {
@@ -47,34 +64,57 @@ object LanScanner {
                 .filterNotNull()
                 .distinctBy { it.url }
                 .sortedBy { it.display }
-        }
+        }.let { LanScanResult(it, localIp, ports) }
     }
 
-    private fun localIpv4(): String? = runCatching {
-        NetworkInterface.getNetworkInterfaces()
-            .asSequence()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.asSequence() }
-            .filterIsInstance<Inet4Address>()
-            .firstOrNull { it.isSiteLocalAddress && !it.isLoopbackAddress }
-            ?.hostAddress
-    }.getOrNull()
+    private fun localIpv4(context: Context): String? {
+        // Prefer the active network's IPv4 address (works on Wi-Fi and avoids
+        // picking a VPN/loopback interface from NetworkInterface ordering).
+        runCatching {
+            val connectivity = context.getSystemService(ConnectivityManager::class.java)
+            val props = connectivity?.activeNetwork?.let { connectivity.getLinkProperties(it) }
+            props?.linkAddresses
+                ?.map { it.address }
+                ?.filterIsInstance<Inet4Address>()
+                ?.firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+                ?.hostAddress
+                ?.let { return it }
+        }
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces()
+                .asSequence()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.asSequence() }
+                .filterIsInstance<Inet4Address>()
+                .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+                ?.hostAddress
+        }.getOrNull()
+    }
 
-    private fun probe(address: ServerAddress): Boolean {
+    private fun probe(address: ServerAddress): Boolean =
+        probePath(address, "/health", health = true) ||
+            probePath(address, "/", health = false)
+
+    private fun probePath(address: ServerAddress, path: String, health: Boolean): Boolean {
         val connection = try {
-            URL(address.url).openConnection() as HttpURLConnection
+            URL(address.url + path).openConnection() as HttpURLConnection
         } catch (_: IOException) {
             return false
         }
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 350
-            connection.readTimeout = 700
+            connection.connectTimeout = 400
+            connection.readTimeout = 900
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("User-Agent", "Yashi")
             val code = connection.responseCode
             if (code !in 200..399) {
                 false
+            } else if (health) {
+                // The server's /health endpoint is unauthenticated and returns
+                // 200 for a running Yakushi/Tanoshi server. This is much more
+                // reliable than guessing from the SPA HTML.
+                true
             } else {
                 val stream = connection.inputStream
                 val buffer = ByteArray(4096)
