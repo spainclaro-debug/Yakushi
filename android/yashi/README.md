@@ -11,11 +11,11 @@ the local network, and hosts the full Yakushi web UI in a full-screen WebView.
   Termux/desktop Yakushi install).
 - **Package:** `dev.spainclaro.yashi` (debug builds use
   `dev.spainclaro.yashi.debug`), minSdk 26, target/compile SDK 35.
-- **Release asset:** `yashi-client-release-<yyyy-MM-dd>.apk` (version **0.1.3**,
-  versionCode **103**), signed with the repository's shared sideload key
+- **Release asset:** `yashi-client-release-<yyyy-MM-dd>.apk` (version **0.1.4**,
+  versionCode **104**), signed with the repository's shared sideload key
   (`android/keystore/tanoshi-signing.jks`, alias `tanoshi`) so updates install
   over earlier Yashi builds.
-- Released together with **Yakushi Server 0.16.3** on tag `android-v0.16.3`
+- Released together with **Yakushi Server 0.16.4** on tag `android-v0.16.4`
   (`yakushi-server-release-<date>.apk` + `yashi-client-release-<date>.apk`);
   it has its own version line and can be overridden with
   `-PyashiVersionName` / `-PyashiVersionCode`.
@@ -32,13 +32,13 @@ the local network, and hosts the full Yakushi web UI in a full-screen WebView.
   tap the QR button if not granted). QR-only scanning via
   `com.journeyapps:zxing-android-embedded`; an unrelated QR is rejected with a
   message.
-- **Local-network discovery (0.1.3):** uses the active network's IPv4
-  (`LinkProperties`, NetworkInterface fallback) and scans the local `/24` on
-  default ports **8080/18084/8000/3000** plus preferred ports from saved/history
-  servers. It probes the unauthenticated **`/health`** endpoint first (HTTP
-  200 = running Yakushi) then falls back to `/` HTML; found servers are listed
-  for one-tap connect and the no-results dialog shows the scanned IP/ports.
-  Best-effort; custom ports via address/QR.
+- **Local-network discovery (0.1.4):** probes known saved/history addresses
+  first and returns them if any respond, otherwise scans subnets from every Wi-Fi/Ethernet IPv4 plus saved-address
+  prefixes (up to 4) on ports **8080/18084/8000/3000** plus preferred
+  saved/history ports, probing the unauthenticated **`/health`** endpoint first
+  (HTTP 200 = running Yakushi) then `/` HTML. Found servers list for one-tap
+  connect; the no-results dialog shows the scanned local IP, ports and
+  subnets. Best-effort; custom ports via address/QR.
 - **Display/insets (0.1.3):** edge-to-edge; the start screen reserves only the
   **status-bar** top inset (padding disappears when the phone's
   fullscreen/cutout setting hides the status bar); the browser hides the status
@@ -82,8 +82,9 @@ default ports 8080/18084/8000/3000 plus saved/history preferred ports, and
 scanned-IP/ports in the no-results dialog) and adjusts insets: the start screen
 reserves only the status-bar top inset (so padding disappears when the phone's
 fullscreen/cutout setting hides the status bar) and the WebView no longer adds
-display-cutout padding, removing the leftover top gap. Yakushi Server 0.16.3
-rebuilds the web UI with the paged-reader fix.
+display-cutout padding, removing the leftover top gap. Yakushi Server 0.16.4 rebuilds the
+web UI with the updated paged-reader fixes (direct current-page renderer,
+borrow/defensive fixes, verified in headless Chromium).
 
 The debug APK is written to
 `android/yashi/build/outputs/apk/debug/yashi-client-release-<yyyy-MM-dd>.apk`.

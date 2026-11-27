@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.16.3`). The Termux package in the repository root has
+(for example `android-v0.16.4`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,42 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.4
+
+### Fixed
+
+- **Yashi: saving an address no longer crashes the app.** History and saved
+  rows shared the same `LazyColumn` key (the same URL can appear in both),
+  which crashed Compose after saving and persisted until the app data was
+  cleared. Keys are now namespaced **`history:<url>`** and
+  **`saved:<url>`**, so saving/editing/deleting saved servers works normally.
+- **Yashi: stronger local-network discovery.** The scanner first probes known
+  addresses from the saved/history lists (most reliable hint, even on a
+  VPN/different interface), then scans subnets from every Wi-Fi/Ethernet IPv4
+  plus saved-address prefixes (up to 4 subnets), using ports
+  **8080/18084/8000/3000** plus preferred saved/history ports (capped at 6
+  total), probing `/health` first then `/` (64 concurrent probes). The no-results dialog now
+  reports the scanned local IP, ports and subnets.
+- **Paged reader and mode switching fixed** (embedded web UI, patch 0016
+  updated). Single/Double/Auto render the current page/pair directly from the
+  current page + page count (direct proxied `src`), clamp out-of-range page
+  indices, derive prev/next from the page count, and the defensive fixes
+  remove the `RefCell` `lock_ref`/`lock_mut` overlap in the image-load handler
+  and avoid holding the `pages` Ref while building DOM. Verified in headless
+  Chromium: opening a chapter from the manga page shows the image in Paged
+  Single, and switching Paged/Continuous/Double/Single renders the pages
+  correctly. Continuous/webtoon otherwise unchanged. New web dist
+  `tanoshi-web-50677b028f65ac39.js` / `tanoshi-web-e44457c58580df61_bg.wasm`
+  (CSS unchanged); `libtanoshi.so` rebuilt.
+
+### Changed
+
+- **Versions:** Yashi **0.1.4 / versionCode 104**; Yakushi Server **0.16.4 /
+  versionCode 1604** (rebuilt web UI/server with the patch-0016 updates). CI
+  builds both apps and publishes both APK assets on tag `android-v0.16.4` with
+  combined notes/title "Yakushi Server 0.16.4 + Yashi 0.1.4". APK filename
+  scheme unchanged.
 
 ## 0.16.3
 

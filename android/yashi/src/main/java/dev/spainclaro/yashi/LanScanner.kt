@@ -28,6 +28,7 @@ data class LanScanResult(
     val servers: List<ServerAddress>,
     val localIp: String?,
     val ports: List<Int>,
+    val subnets: List<String> = emptyList(),
 )
 
 object LanScanner {
@@ -36,21 +37,55 @@ object LanScanner {
     suspend fun scan(
         context: Context,
         preferredPorts: List<Int> = emptyList(),
+        knownAddresses: List<ServerAddress> = emptyList(),
     ): LanScanResult = withContext(Dispatchers.IO) {
         val ports = (preferredPorts + DEFAULT_PORTS)
             .filter { it in 1..65535 }
             .distinct()
-        val localIp = localIpv4(context)
-        if (localIp == null) return@withContext LanScanResult(emptyList(), null, ports)
-        val prefix = localIp.substringBeforeLast('.', missingDelimiterValue = "")
-        if (prefix.isEmpty()) {
+            .take(6)
+        val localIps = localIpv4s(context)
+        val localIp = localIps.firstOrNull()
+
+        // Knowing an address from the saved list/history is the most reliable
+        // hint: probe it first, even if the phone is on a VPN or a different
+        // interface than the one NetworkInterface reports first.
+        val knownServers = knownAddresses
+            .mapNotNull { AddressParser.parse(it.url) }
+            .distinctBy { it.url }
+            .filter { probe(it) }
+        if (knownServers.isNotEmpty()) {
+            return@withContext LanScanResult(
+                servers = knownServers.sortedBy { it.display },
+                localIp = localIp,
+                ports = ports,
+                subnets = knownAddresses.mapNotNull { it.display.substringBeforeLast('.') }.distinct(),
+            )
+        }
+
+        val prefixes = LinkedHashSet<String>()
+        localIps.forEach { ip ->
+            ip.substringBeforeLast('.', missingDelimiterValue = "")
+                .takeIf { it.isNotEmpty() }
+                ?.let(prefixes::add)
+        }
+        knownAddresses.forEach { address ->
+            if (address.host.count { it == '.' } == 3) {
+                address.host.substringBeforeLast('.')
+                    .takeIf { it.isNotEmpty() }
+                    ?.let(prefixes::add)
+            }
+        }
+        val scanPrefixes = prefixes.take(4)
+        if (scanPrefixes.isEmpty()) {
             return@withContext LanScanResult(emptyList(), localIp, ports)
         }
 
-        val candidates = (1..254).flatMap { host ->
-            ports.map { port -> ServerAddress("$prefix.$host", port) }
-        }
-        val semaphore = Semaphore(48)
+        val candidates = scanPrefixes.flatMap { prefix ->
+            (1..254).flatMap { host ->
+                ports.map { port -> ServerAddress("$prefix.$host", port) }
+            }
+        }.distinctBy { it.url }
+        val semaphore = Semaphore(64)
         coroutineScope {
             candidates
                 .map { address ->
@@ -64,31 +99,40 @@ object LanScanner {
                 .filterNotNull()
                 .distinctBy { it.url }
                 .sortedBy { it.display }
-        }.let { LanScanResult(it, localIp, ports) }
+        }.let { LanScanResult(it, localIp, ports, scanPrefixes) }
     }
 
-    private fun localIpv4(context: Context): String? {
-        // Prefer the active network's IPv4 address (works on Wi-Fi and avoids
-        // picking a VPN/loopback interface from NetworkInterface ordering).
+    private fun localIpv4s(context: Context): List<String> {
+        val result = LinkedHashSet<String>()
         runCatching {
             val connectivity = context.getSystemService(ConnectivityManager::class.java)
-            val props = connectivity?.activeNetwork?.let { connectivity.getLinkProperties(it) }
-            props?.linkAddresses
-                ?.map { it.address }
-                ?.filterIsInstance<Inet4Address>()
-                ?.firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
-                ?.hostAddress
-                ?.let { return it }
+            // Prefer a real Wi-Fi/Ethernet network over a VPN's active network.
+            val networks = connectivity?.allNetworks.orEmpty().filter { network ->
+                val caps = connectivity?.getNetworkCapabilities(network) ?: return@filter false
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
+            } + listOfNotNull(connectivity?.activeNetwork)
+            networks.forEach { network ->
+                connectivity?.getLinkProperties(network)
+                    ?.linkAddresses
+                    ?.map { it.address }
+                    ?.filterIsInstance<Inet4Address>()
+                    ?.filter { it.isSiteLocalAddress && !it.isLoopbackAddress && !it.isLinkLocalAddress }
+                    ?.mapTo(result) { it.hostAddress.orEmpty() }
+            }
         }
-        return runCatching {
+        if (result.isNotEmpty()) return result.toList()
+
+        runCatching {
             NetworkInterface.getNetworkInterfaces()
                 .asSequence()
                 .filter { it.isUp && !it.isLoopback }
                 .flatMap { it.inetAddresses.asSequence() }
                 .filterIsInstance<Inet4Address>()
-                .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
-                ?.hostAddress
-        }.getOrNull()
+                .filter { it.isSiteLocalAddress && !it.isLoopbackAddress && !it.isLinkLocalAddress }
+                .mapNotNullTo(result) { it.hostAddress }
+        }
+        return result.toList()
     }
 
     private fun probe(address: ServerAddress): Boolean =

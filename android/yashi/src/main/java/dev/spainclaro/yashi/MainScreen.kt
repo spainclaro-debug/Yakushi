@@ -166,6 +166,7 @@ fun MainScreen(
             lanScanResult = LanScanner.scan(
                 context = context,
                 preferredPorts = (saved + history).map { it.port },
+                knownAddresses = (saved + history).distinctBy { it.url },
             )
             lanScanning = false
         }
@@ -270,7 +271,7 @@ fun MainScreen(
                         EmptyHint("No connections yet. Enter an address, scan the server QR code, or scan your network.")
                     }
                 } else {
-                    items(history, key = { it.url }) { address ->
+                    items(history, key = { "history:${it.url}" }) { address ->
                         HistoryRow(
                             address = address,
                             isSaved = store.isSaved(address),
@@ -295,7 +296,7 @@ fun MainScreen(
                         EmptyHint("No saved servers. Save one from the history list above.")
                     }
                 } else {
-                    items(saved, key = { it.url }) { address ->
+                    items(saved, key = { "saved:${it.url}" }) { address ->
                         SavedRow(
                             address = address,
                             onOpen = { connect(address) },
@@ -417,6 +418,7 @@ fun MainScreen(
                             "No Yakushi servers found" +
                                 (result?.localIp?.let { " on $it" } ?: "") +
                                 (result?.ports?.takeIf { it.isNotEmpty() }?.let { " (ports ${it.joinToString()})" } ?: "") +
+                                (result?.subnets?.takeIf { it.isNotEmpty() }?.let { " on ${it.joinToString()}" } ?: "") +
                                 ". Make sure Yakushi is running, LAN mode is enabled, and both devices are on the same network.",
                         )
                     } else {

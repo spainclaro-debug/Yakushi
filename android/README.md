@@ -5,17 +5,17 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.16.3** — see the
+Current release: **0.16.4** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.16.3 fixes **Yashi 0.1.3**: local-network
-discovery now uses the active network's IPv4 and probes the unauthenticated
-`/health` endpoint (more ports + preferred saved/history ports, diagnostics in
-the no-results dialog), and the start screen pads only the status-bar inset
-(no leftover gap when fullscreen/cutout hides it; no WebView cutout padding).
-It also fixes the **paged reader blank page** in the embedded web UI
-(Single/Double/Auto render the current page(s) directly; patch 0016).
-**Yakushi Server 0.16.3** is a rebuilt web UI/server release; both APKs
-publish on `android-v0.16.3`. 0.16.1 fixed **Yashi 0.1.1**: the floating
+and [`CHANGELOG.md`](CHANGELOG.md). 0.16.4 fixes **Yashi 0.1.4**: saving an
+address no longer crashes (history/saved LazyColumn keys are namespaced), LAN
+discovery probes known saved/history addresses first and scans subnets from
+every Wi-Fi/Ethernet IPv4 plus saved prefixes (ports 8080/18084/8000/3000 +
+preferred, `/health` then `/`, diagnostics in the dialog), and the paged
+reader/mode switching is fixed in the embedded web UI (direct current-page/
+pair rendering, clamp, prev/next from page count, defensive borrow fixes;
+verified in headless Chromium). **Yakushi Server 0.16.4** contains the rebuilt
+web UI/server; both APKs publish on `android-v0.16.4`. 0.16.1 fixed **Yashi 0.1.1**: the floating
 back button is raised clear of the web UI's bottom navigation bar, and the
 WebView is now a stable remembered instance with the same zoom/image settings
 as the Yakushi Server app, fixing blank chapter pages/missing reader images.
@@ -131,6 +131,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
+- [What's new in 0.16.4](#whats-new-in-0164)
 - [What's new in 0.16.3](#whats-new-in-0163)
 - [What's new in 0.16.2](#whats-new-in-0162)
 - [What's new in 0.16.1](#whats-new-in-0161)
@@ -184,6 +185,31 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.16.4
+
+- **Yashi: save-address crash fixed.** History and saved rows now use
+  namespaced LazyColumn keys (`history:<url>` / `saved:<url>`); previously the
+  same URL in both lists produced a duplicate key and crashed Compose after
+  saving (until app data was cleared).
+- **Yashi: stronger LAN discovery.** It probes known saved/history addresses
+  first and returns them if any respond, otherwise scans subnets from every Wi-Fi/Ethernet IPv4 plus saved-address
+  prefixes (up to 4), with ports **8080/18084/8000/3000** plus preferred ports,
+  `/health` then `/` probing, and the no-result dialog shows the local IP,
+  ports and subnets. Insets remain status-bar-only (no WebView cutout padding;
+  status bar hidden while browsing, restored on exit).
+- **Paged reader + mode switching fixed** (embedded web UI). Single/Double/Auto
+  render the current page/pair directly (proxied src), clamp page indices,
+  derive prev/next from the page count, with defensive RefCell/borrow fixes
+  (no lock_ref/lock_mut overlap, no pages Ref held while building DOM).
+  Verified in headless Chromium: opening a chapter shows the page in Paged
+  Single, and Paged/Continuous/Double/Single switching renders images.
+  Continuous/webtoon unchanged. Web UI and `libtanoshi.so` rebuilt.
+- **Versions:** Yashi **0.1.4 / versionCode 104**; Yakushi Server **0.16.4 /
+  versionCode 1604**. Both assets publish on `android-v0.16.4` with title
+  "Yakushi Server 0.16.4 + Yashi 0.1.4".
+
+Previous release — **0.16.3** — and its features:
 
 ## What's new in 0.16.3
 
@@ -760,7 +786,7 @@ client counterpart of Yakushi Server.
 | | |
 | --- | --- |
 | Module | `android/yashi/` (package `dev.spainclaro.yashi`; included by `settings.gradle.kts`) |
-| Asset | `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.3, versionCode 103, same signing key) |
+| Asset | `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.4, versionCode 104, same signing key) |
 | Permissions | internet/network state + **camera** (QR scanner; asked on first launch) |
 | Persistence | `SharedPreferences` file `yashi` — history, saved servers, theme, camera_asked (device-only) |
 
@@ -768,17 +794,19 @@ What it does:
 
 - **Start screen:** address bar + **Go**, connection **history** (newest first,
   max 30, de-duplicated by URL) and **saved servers** (save from history,
-  **edit** host/port, **delete**). Addresses accept `host`,
-  `host:port`, `http://…`, full URLs and the server's QR contents; HTTP is the
-  default scheme and 8080 the default port when omitted.
+  **edit** host/port, **delete**; rows use namespaced LazyColumn keys so the
+  same address can appear in both lists without crashing). Addresses accept
+  `host`, `host:port`, `http://…`, full URLs and the server's QR contents; HTTP
+  is the default scheme and 8080 the default port when omitted.
 - **Connect:** scan the Yakushi Server's LAN-sharing **QR code** (first launch
   asks for camera permission; denied → the app explains and keeps working for
   typed addresses), or run **local network** discovery: it takes the active
-  network's IPv4, scans the local `/24` on **8080/18084/8000/3000** plus
-  preferred ports from saved/history servers, probes the unauthenticated
-  `/health` endpoint first (then `/` HTML), and lists found servers for one-tap
-  connect. The no-results dialog shows the scanned IP/ports (best-effort;
-  custom ports via address/QR).
+  known saved/history addresses first (returning them if any respond), otherwise scans subnets from every
+  Wi-Fi/Ethernet IPv4 plus saved-address prefixes (up to 4), using ports
+  **8080/18084/8000/3000** plus preferred saved/history ports, probes the
+  unauthenticated `/health` endpoint first (then `/` HTML), and lists found
+  servers for one-tap connect. The no-results dialog shows the scanned local
+  IP, ports and subnets (best-effort; custom ports via address/QR).
 - **Browse:** a full-screen WebView of the complete Yakushi web UI. The WebView
   is a stable remembered instance configured like the Yakushi Server app
   (images load automatically, network images allowed, zoom enabled, JavaScript/
@@ -866,16 +894,16 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.16.3**,
-`versionCode` 1603) and `yashi/build.gradle.kts` (**0.1.3**, versionCode 103)
+Local builds use the defaults in `app/build.gradle.kts` (**0.16.4**,
+`versionCode` 1604) and `yashi/build.gradle.kts` (**0.1.4**, versionCode 104)
 plus today's date in the APK filenames. CI derives the server version from the
-release tag; Yashi stays on 0.1.3/103 unless overridden. You can do the same
+release tag; Yashi stays on 0.1.4/104 unless overridden. You can do the same
 manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.16.3 -PappVersionCode=1603 \
+./gradlew :app:assembleDebug -PappVersionName=0.16.4 -PappVersionCode=1604 \
   -PapkDate=2026-11-27
-./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.3 -PyashiVersionCode=103 \
+./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.4 -PyashiVersionCode=104 \
   -PapkDate=2026-11-27
 ```
 
@@ -2238,6 +2266,12 @@ small ids (bundled/pre-installed extensions) and Local-folder sources (ids
 starting at 10000) are **Local**. If an old web UI is cached, update/reload the
 embedded UI; the groups follow the server's installed sources.
 
+**Yashi: saving a server crashes the app.** Fixed in Yashi 0.1.4: history and
+saved rows previously shared the same LazyColumn key (the URL appears in both
+lists); keys are now `history:<url>` / `saved:<url>`. Update Yashi; if the app
+still crashes on launch from corrupt state, clear app data (this also clears
+saved servers/history but keeps the theme).
+
 **Yashi: local-network scan finds no servers.** Fixed in Yashi 0.1.3: it uses
 the active network's IPv4 (`LinkProperties`), probes the unauthenticated
 `/health` endpoint first, scans ports **8080/18084/8000/3000** plus preferred
@@ -2252,12 +2286,15 @@ phone hides the status bar in fullscreen/cutout mode) and the WebView no longer
 adds display-cutout padding. The browser still hides the status bar while
 reading and restores it on exit.
 
-**The paged (Single/Double/Auto) reader shows a blank page.** Fixed in Yakushi
-0.16.3 (patch 0016): the paged renderers now draw the current page(s) directly
-with a proxied image source instead of relying on all-page visibility/preload
-signals, clamp out-of-range indices and maintain prev/next from the page
-count. Update Yakushi Server and restart/reload the web UI if an old embedded
-UI is cached; continuous/webtoon modes were already unaffected.
+**The paged (Single/Double/Auto) reader shows a blank page / mode switching
+breaks.** Fixed in Yakushi 0.16.3/0.16.4 (patch 0016): paged renderers draw the
+current page/pair directly with a proxied image source, clamp out-of-range
+indices, derive prev/next from the page count, and avoid RefCell lock_ref/
+lock_mut overlap and holding the pages Ref while building DOM. Verified in
+headless Chromium (chapter opens with an image in Paged Single; Paged/
+Continuous/Double/Single switching renders images). Update Yakushi Server and
+reload the web UI if an old embedded UI is cached; continuous/webtoon modes
+are otherwise unchanged.
 
 **Yashi: the status bar/time/battery icons cover the header or address bar.**
 Fixed in Yashi 0.1.2: the start screen draws edge-to-edge with safe-drawing
@@ -2587,7 +2624,7 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Chapter downloads | Any signed-in user can queue/remove/reorder/see the queue (AuthGuard); per-chapter Download button; progress `downloaded/total`, 4 s auto-refresh and Downloaded marker; guard rejects only Local `10000..1_000_000` so plugin extensions download (0.13.5) |
 | Layout presets | Server-shared custom presets in `<TANOSHI_HOME>/layout_presets.json` via `GET/PUT /api/layout-presets` (unauthenticated, atomic write); selected preset per device in localStorage (from 0.13.6) |
 | Reader double page | Double Display Mode uses `justify-content:center` + zero horizontal image margins so spare space stays at the sides (from 0.13.6) |
-| Paged reader | Single/Double/Auto render the current page(s) directly with proxied image sources (no all-page visibility preload), clamp page index and maintain prev/next from page count (0.16.3, patch 0016) |
+| Paged reader | Single/Double/Auto render the current page(s) directly with proxied image sources (no all-page visibility preload), clamp page index, maintain prev/next from page count, defensive RefCell/borrow fixes; mode switching verified in headless Chromium (0.16.3/0.16.4, patch 0016) |
 | Manga migration | Manga-page Migrate icon → source picker → catalogue pre-filled with title → existing source-path `migrateManga` flow; saved manga only (0.13.7) |
 | Library actions | Change Library = `deleteFromLibrary` + `addToLibrary(category_ids)` category replacement (progress/trackers unchanged); Library tabs All + per-category with counts, All merged/deduped; `/library/categories` redirects (0.13.7) |
 | Library tab options | Per-device localStorage (`settings:library`): All tab Shown/Hidden, Counts Shown/Hidden; hidden All falls back to Default; browser-style tabs with 5rem desktop-sidebar offset (0.13.8) |
@@ -2596,8 +2633,8 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
 | Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
 | Catalogue pins | Per-device localStorage `catalogue_list_pinned` (JSON array, pin order); Pinned Sources section at top; pinned rows excluded from Local/External; external iff source id >= 1,000,000 (from 0.15.0) |
-| Yashi client | Module `android/yashi/`, package `dev.spainclaro.yashi`, version 0.1.3 / versionCode 103, pure Kotlin/Compose (no app-specific native code); client-only, same signing key |
-| App version | Yakushi Server 0.16.3 (`versionName`, `versionCode` 1603 in local builds and the `android-v0.16.3` tag) |
+| Yashi client | Module `android/yashi/`, package `dev.spainclaro.yashi`, version 0.1.4 / versionCode 104, pure Kotlin/Compose (no app-specific native code); client-only, same signing key |
+| App version | Yakushi Server 0.16.4 (`versionName`, `versionCode` 1604 in local builds and the `android-v0.16.4` tag) |
 | APK filenames | `yakushi-server-release-<yyyy-MM-dd>.apk` and `yashi-client-release-<yyyy-MM-dd>.apk` (Yakushi 0.12.1+; older 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

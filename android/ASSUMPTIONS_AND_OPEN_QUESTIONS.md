@@ -226,10 +226,10 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.16.3 / 1603, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.4 / 1604, local date).
 
 From 0.16.0 the same workflow also builds the **Yashi** client module
-(`:yashi:assembleDebug`; version defaults 0.1.3 / versionCode 103, overridable
+(`:yashi:assembleDebug`; version defaults 0.1.4 / versionCode 104, overridable
 with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
 publishes both assets (`yakushi-server-release-*.apk` and
 `yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
@@ -293,11 +293,11 @@ tag), independent of the bundled Tanoshi server (0.40.0 /
 not change the bundled server; the two version lines are documented
 separately.
 
-Yashi has its own independent version line: **0.1.3 / versionCode 103**, set
+Yashi has its own independent version line: **0.1.4 / versionCode 104**, set
 in `android/yashi/build.gradle.kts` and overridable from CI
 (`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
 `android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
-(server 1603) while Yashi stays 0.1.3/103, published on the same release.
+(server 1604) while Yashi stays 0.1.4/104, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1030,9 +1030,9 @@ and docs describe partial reads vs finishing a chapter.
 
 ### A50 — Yashi is a client-only companion app with local persistence
 
-Yashi 0.1.3 is a separate Android application module (`android/yashi/`, package
+Yashi 0.1.4 is a separate Android application module (`android/yashi/`, package
 `dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
-0.1.3 / versionCode 103) shipped in the same repository and signed with the
+0.1.4 / versionCode 104) shipped in the same repository and signed with the
 same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
 does not start a server and makes no server-side changes. It connects to a
 Yakushi server over plain HTTP in a full-screen WebView. From 0.1.1 the
@@ -1052,15 +1052,24 @@ removed, which fixed blank chapter pages/missing reader images.
   feature). Camera permission is requested on first launch (`camera_asked`
   remembers the ask); QR scanning uses ZXing embedded with QR-only scanning and
   parses the result as a server address (host/host:port/http URL).
-- **LAN discovery (0.1.3):** the local IPv4 is read from the active network's
-  `LinkProperties` (NetworkInterface fallback); it scans the local `/24` on
-  default ports **8080/18084/8000/3000** plus preferred ports from saved/
-  history entries, probing each host first on the unauthenticated **`/health`**
-  endpoint (HTTP 200 = running Yakushi) and falling back to the `/` HTML
-  check (200–399 and body containing "yakushi"/"tanoshi"/doctype). Probes use
-  400 ms connect/900 ms read with 48 concurrency; results are listed for
-  one-tap connect and the no-results dialog shows the scanned local IP/ports.
-  Custom ports not in the list are reachable via the address bar/QR.
+- **LAN discovery (0.1.4):** known addresses from saved/history are probed
+  first (most reliable hint, even on a VPN/different interface) and returned if
+  any respond. Otherwise subnets are built from every Wi-Fi/Ethernet IPv4
+  (`LinkProperties` over all Wi-Fi/ethernet networks + active network, with a
+  NetworkInterface fallback) plus the /24 prefixes of saved-address hosts (up
+  to **4** subnets), scanned on ports **8080/18084/8000/3000** plus preferred
+  saved/history ports (capped at 6 total). Each host probes the unauthenticated
+  **`/health`** endpoint first (HTTP 200 = running Yakushi) then falls back to
+  the `/` HTML check (200–399 and body containing "yakushi"/"tanoshi"/
+  doctype), 400 ms connect/900 ms read with 64 concurrency. Results are listed
+  for one-tap connect; the no-results dialog shows the scanned local IP, ports
+  and subnets. Custom ports not in the list are reachable via the address
+  bar/QR.
+- **Saved-list keys (0.1.4):** the history and saved lists render the same
+  URL in two LazyColumns, so keys are namespaced `history:<url>` and
+  `saved:<url>`; this fixes the Compose duplicate-key crash that occurred
+  after saving an address (and persisted until app data was cleared).
+  Saving/editing/deleting saved servers writes only local `SharedPreferences`.
 - **Navigation:** the floating back button is positioned with
   `padding(start=16dp, bottom=96dp, top=16dp)` plus navigation-bar insets (raised
   from 16dp in 0.1.1 so it clears the web UI's bottom navigation bar), hidden
@@ -1114,6 +1123,17 @@ The release rebuilds the web UI (`tanoshi-web-1edbdb41e59693d8.js`,
 `error` handler logs and marks that page's status Error (the previous all-page
 retry UI is gone for paged mode); continuous/webtoon retain their existing
 behaviour.
+
+**0.16.4 follow-up defensive fixes:** the image-load handler no longer calls
+`pages.lock_ref()` and then `pages.lock_mut()` (a RefCell borrow overlap that
+could panic), just marking the page Loaded; single/double DOM construction now
+extracts `(index, url)` pairs into a small vector while briefly holding the
+pages Ref, then drops it before calling `paged_image`, so no pages lock is held
+while building/signal-building DOM. The rebuilt dist
+`tanoshi-web-50677b028f65ac39.js` / `tanoshi-web-e44457c58580df61_bg.wasm` was
+verified in headless Chromium: opening a chapter from the manga page shows the
+page image in Paged Single, and switching Paged/Continuous/Double/Single
+renders pages correctly.
 
 ## Open questions for the repository owner
 

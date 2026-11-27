@@ -18,6 +18,7 @@ terminal install.
 
 - [What Yakushi is](#what-yakushi-is)
 - [Yashi client app](#yashi-client-app)
+- [What's new in 0.16.4](#whats-new-in-0164)
 - [What's new in 0.16.3](#whats-new-in-0163)
 - [What's new in 0.16.2](#whats-new-in-0162)
 - [What's new in 0.16.1](#whats-new-in-0161)
@@ -88,11 +89,35 @@ general-purpose browser every time.
   this repository. It is signed with the same sideload key as Yakushi Server.
   Yashi is a client only: it does not bundle or run the server.
 
-Yashi 0.1.3 is released together with Yakushi Server 0.16.3. See the
+Yashi 0.1.4 is released together with Yakushi Server 0.16.4. See the
 [Yashi source module](android/yashi/) and [Android README](android/README.md)
 for build details.
 
 ---
+
+## What's new in 0.16.4
+
+- **Yashi: saving an address no longer crashes.** History and saved rows used
+  the same `LazyColumn` key (the same URL appears in both sections), crashing
+  Compose after saving until app data was cleared. Keys are now namespaced
+  `history:<url>` / `saved:<url>`.
+- **Yashi: stronger LAN discovery.** It probes known saved/history addresses
+  first and returns them if any respond, otherwise scans subnets from every Wi-Fi/Ethernet IPv4 plus saved-address
+  prefixes (up to 4), with ports 8080/18084/8000/3000 plus preferred ports,
+  `/health` then `/` probing, and the no-result dialog shows ports/subnets.
+  The start screen keeps the status-bar-only top inset (no WebView cutout
+  padding) so fullscreen/cutout mode has no leftover gap.
+- **Paged reader + mode switching fixed** (embedded web UI, patch 0016):
+  Single/Double/Auto render the current page/pair directly, clamp page indices,
+  derive prev/next from the page count, and avoid RefCell borrow overlaps /
+  holding the pages Ref while building DOM. Verified in headless Chromium
+  (opening a chapter shows the page; Paged/Continuous/Double/Single switching
+  renders images). Web UI and `libtanoshi.so` rebuilt (new JS/wasm dist).
+- **Yakushi Server 0.16.4** includes the rebuilt web UI/server; both APKs are
+  published on `android-v0.16.4` with title/notes
+  "Yakushi Server 0.16.4 + Yashi 0.1.4".
+
+Previous release — **0.16.3** — and its features:
 
 ## What's new in 0.16.3
 
@@ -528,8 +553,8 @@ key so updates install over each other).
 > Each release publishes **two** assets: `yakushi-server-release-<date>.apk`
 > (the Android app is called **Yakushi Server**; the web frontend/PWA keeps the
 > short name **Yakushi**) and `yashi-client-release-<date>.apk` (the companion
-> **Yashi** client). They have separate version lines (Yakushi 0.16.3, Yashi
-> 0.1.3) but share the same release tag `android-v0.16.3` and signing key.
+> **Yashi** client). They have separate version lines (Yakushi 0.16.4, Yashi
+> 0.1.4) but share the same release tag `android-v0.16.4` and signing key.
 
 ---
 
@@ -611,7 +636,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 | Path | Contents |
 | --- | --- |
 | `android/` | The standalone Yakushi Server app (Kotlin/Compose) and its prebuilt `arm64-v8a` binaries, plus the native build pipeline. |
-| `android/yashi/` | **Yashi 0.1.3**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
+| `android/yashi/` | **Yashi 0.1.4**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
 | `patches/` | Fork patches applied to upstream Tanoshi and its extensions. |
 | `extensions/` | Sources of the ported extensions (Atsumaru, MadaraDex, QiScans, MangaBall, HentaiNexus). |
 | `lib/` | Termux package build scripts. |
@@ -622,16 +647,17 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current release is **0.16.3** (`android-v0.16.3`): **Yakushi Server
-  0.16.3** (`yakushi-server-release-<date>.apk`, rebuilt web UI/server with the
-  paged-reader fix) and **Yashi 0.1.3** (`yashi-client-release-<date>.apk`, LAN
-  discovery + inset fixes) are published together on the same GitHub release.
+- The current release is **0.16.4** (`android-v0.16.4`): **Yakushi Server
+  0.16.4** (`yakushi-server-release-<date>.apk`, rebuilt web UI/server with the
+  paged-reader/mode-switch fixes) and **Yashi 0.1.4**
+  (`yashi-client-release-<date>.apk`, save-crash + stronger LAN discovery) are
+  published together on the same GitHub release.
 - Android releases use tags **`android-vX.Y.Z`** (for example
-  `android-v0.16.3`). CI builds both apps (`:app` and `:yashi`) and publishes
+  `android-v0.16.4`). CI builds both apps (`:app` and `:yashi`) and publishes
   both APKs with combined release notes/title.
-- Yashi has its own version line (0.1.3 / versionCode 103); local builds
+- Yashi has its own version line (0.1.4 / versionCode 104); local builds
   default to it, and CI can override it with `-PyashiVersionName` /
-  `-PyashiVersionCode`. The server app defaults to 0.16.3 / versionCode 1603.
+  `-PyashiVersionCode`. The server app defaults to 0.16.4 / versionCode 1604.
 - Termux package releases use `v*` tags (`PACKAGE_TAG`), independent of the
   app's version.
 - The in-app updater compares the numeric version of published `android-v*`
