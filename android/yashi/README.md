@@ -1,68 +1,84 @@
-# Yashi — companion Android client for Yakushi
+# Yashi — companion Android client for Yakushi (0.2.0-alpha)
+
+> **ALPHA — known issue.** Yashi 0.2.0-alpha's **paged reader is unreliable on
+> Android WebView**: pages can be blank/partial, mode switching may not change
+> the layout, and page next/prev controls may fail. **Use Webtoon/Continuous
+> mode only** for reliable reading. Other features (QR scan, address/history/
+> saved edit/delete, LAN discovery, theme, clear data) are expected to work.
 
 Yashi is a small Android client that connects a phone or tablet to a **Yakushi
-server** running on another device (or anywhere reachable by IP). It is a
-lighter alternative to typing the server URL into a browser: it remembers
+server** running on another device (or anywhere reachable by IP). It remembers
 servers, scans the server's LAN-sharing QR code, discovers Yakushi servers on
-the local network, and hosts the full Yakushi web UI in a full-screen WebView.
+the local network, and hosts the Yakushi web UI in a full-screen WebView.
 
 - **Client only:** Yashi does not bundle `libtanoshi.so`, does not run a server
-  and makes no server-side changes. The server is still Yakushi Server (or a
-  Termux/desktop Yakushi install).
+  and makes no server-side changes.
 - **Package:** `dev.spainclaro.yashi` (debug builds use
   `dev.spainclaro.yashi.debug`), minSdk 26, target/compile SDK 35.
-- **Release asset:** `yashi-client-release-<yyyy-MM-dd>.apk` (version **0.1.4**,
-  versionCode **104**), signed with the repository's shared sideload key
-  (`android/keystore/tanoshi-signing.jks`, alias `tanoshi`) so updates install
-  over earlier Yashi builds.
-- Released together with **Yakushi Server 0.16.4** on tag `android-v0.16.4`
-  (`yakushi-server-release-<date>.apk` + `yashi-client-release-<date>.apk`);
-  it has its own version line and can be overridden with
-  `-PyashiVersionName` / `-PyashiVersionCode`.
+- **Release asset:** **`yashi-client-alpha-0.2.0-alpha-<yyyy-MM-dd>.apk`**
+  (versionName `0.2.0-alpha`, versionCode **200**), signed with the
+  repository's shared sideload key (`android/keystore/tanoshi-signing.jks`,
+  alias `tanoshi`).
+- Released together with **Yakushi Server 0.16.8** on tag `android-v0.16.8`
+  (`yakushi-server-release-<date>.apk` +
+  `yashi-client-alpha-0.2.0-alpha-<date>.apk`) with combined title
+  "Yakushi Server 0.16.8 + Yashi 0.2.0-alpha". Yashi has its own version line
+  and can be overridden with `-PyashiVersionName` / `-PyashiVersionCode`.
 
 ## Features
 
 - **Start screen:** address bar + **Go**, a **history** of every server you
   connected to (newest first, max 30, de-duplicated by URL) and a **saved
   servers** list (save a history entry, **edit** host/port, **delete**).
-  Addresses accept `host`, `host:port`, `http://host:port`, full URLs and the
-  server QR contents; HTTP is the default scheme and 8080 the default port.
-- **QR scan:** scan the connection QR shown by Yakushi Server's **Share on your
-  network** card. Camera permission is requested on first launch (and when you
-  tap the QR button if not granted). QR-only scanning via
-  `com.journeyapps:zxing-android-embedded`; an unrelated QR is rejected with a
-  message.
-- **Local-network discovery (0.1.4):** probes known saved/history addresses
-  first and returns them if any respond, otherwise scans subnets from every Wi-Fi/Ethernet IPv4 plus saved-address
-  prefixes (up to 4) on ports **8080/18084/8000/3000** plus preferred
-  saved/history ports, probing the unauthenticated **`/health`** endpoint first
-  (HTTP 200 = running Yakushi) then `/` HTML. Found servers list for one-tap
-  connect; the no-results dialog shows the scanned local IP, ports and
-  subnets. Best-effort; custom ports via address/QR.
-- **Display/insets (0.1.3):** edge-to-edge; the start screen reserves only the
-  **status-bar** top inset (padding disappears when the phone's
-  fullscreen/cutout setting hides the status bar); the browser hides the status
-  bar (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`) and restores it on exit, with
-  **no** display-cutout padding on the WebView (no leftover top gap). The
-  floating back button keeps its 96dp-above-bottom placement and hidden
-  catalogue/manga/reader behaviour.
+  History/saved rows use namespaced LazyColumn keys
+  (`history:<url>`/`saved:<url>`), so saving the same address in both lists no
+  longer crashes Compose (0.2.0-alpha fix). Addresses accept `host`,
+  `host:port`, `http://host:port`, full URLs and the server QR contents; HTTP
+  is the default scheme and 8080 the default port.
+- **QR scan:** scan the connection QR shown by Yakushi Server's **Share on
+  your network** card. Camera permission is requested on first launch (and
+  when tapping the QR button if not granted). QR-only scanning via
+  `com.journeyapps:zxing-android-embedded`.
+- **Local-network discovery:** probes known saved/history addresses first
+  (returns them if any respond, the most reliable hint even on VPN/different
+  interfaces); otherwise scans subnets from every Wi-Fi/Ethernet IPv4 plus
+  saved-address prefixes (up to 4) on ports **8080/18084/8000/3000** plus
+  preferred saved/history ports (max 6), probing the unauthenticated
+  **`/health`** endpoint first (HTTP 200 = running Yakushi) then `/` HTML.
+  Found servers are listed for one-tap connect; the no-results dialog shows
+  the scanned local IP, ports and subnets (best-effort; custom ports via
+  address/QR).
 - **Settings bottom sheet:** **System / Dark / Light** theme and **Clear data**
   (removes saved servers and connection history; the theme is kept).
-- **Full-screen web UI:** the complete Yakushi web frontend in a stable
-  `remember`ed `WebView` configured like the Yakushi Server app (JavaScript,
-  DOM storage, database, `loadsImagesAutomatically=true`,
-  `blockNetworkImage=false`, overview/wide viewport, built-in zoom controls
-  with support zoom, `javaScriptCanOpenWindowsAutomatically`, media playback,
-  mixed content, cookies and a `WebChromeClient`). 0.1.1 removes the old
-  `setSupportZoom(false)`, which fixes blank chapter pages/missing reader
-  images. A small floating bottom-left **back** button (bottom padding
-  **96dp** plus navigation-bar insets, so it clears the web UI's bottom bar)
-  returns to the Yashi start screen; it is hidden on `/catalogue`, `/manga` and
-  `/chapter` paths so it never covers the catalogue or reader. The system back
-  button walks WebView history first, then exits to the start screen.
+- **Web UI/browser:** the complete Yakushi frontend in a stable `remember`ed
+  WebView, with a normal **status-bar-padded viewport** and
+  `cacheMode = LOAD_NO_CACHE` / `clearCache(true)` in this alpha (the status
+  bar is not hidden). JavaScript/DOM storage/database, images, zoom controls,
+  mixed content, cookies and a `WebChromeClient` are enabled. A small floating
+  back button (96dp above the bottom bar) returns to the start screen and is
+  hidden on `/catalogue`, `/manga`, `/chapter`; system back walks WebView
+  history first.
+- **Last-resort `/chapter` reader injection (alpha):** Yashi injects a
+  stylesheet that sizes `#page-list` to the real WebView height, fits paged
+  images (`max-width/height`, `object-fit: contain`, `pointer-events: none`),
+  raises `.reader-settings`/`.topbar` above the tap overlay, and installs a
+  capture-phase trusted-click fallback for left/right/middle screen thirds.
+  It was verified in Chromium (image visible; next/prev hash changes) but
+  **not confirmed on real Android WebView** — hence the alpha paged-reader
+  warning above.
 - **Device-local persistence:** `SharedPreferences` file **`yashi`** with
   `history`/`saved` (JSON arrays), `theme` and `camera_asked`. Nothing syncs to
-  the server; each device keeps its own list.
+  the server.
+
+## Known issues (alpha)
+
+- **Paged reader unreliable:** blank/partial pages, mode switching, and page
+  next/prev may fail on real Android WebView. **Use Webtoon/Continuous mode
+  only** for reliable reading.
+- The `/chapter` injection is a last-resort workaround and may not help on all
+  WebViews; treat paged mode as unsupported in this alpha.
+- Everything else (QR scan, address/history/saved management, LAN discovery,
+  theme, clear data, continuous/webtoon reading) is expected to work.
 
 ## Build
 
@@ -70,44 +86,32 @@ the local network, and hosts the full Yakushi web UI in a full-screen WebView.
 cd android
 ./gradlew :yashi:assembleDebug
 # optional overrides
-./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.0 -PyashiVersionCode=100 \
+./gradlew :yashi:assembleDebug -PyashiVersionName=0.2.0-alpha -PyashiVersionCode=200 \
   -PapkDate=2026-11-27
 ```
 
-0.1.1 fixed the floating back button covering the web UI's bottom bar and the
-blank-reader/missing-image WebView issue (stable instance + Yakushi-matching
-settings). 0.1.2 fixed display insets. 0.1.3 fixes **local-network discovery**
-(active-network IPv4 via LinkProperties, unauthenticated `/health` probe,
-default ports 8080/18084/8000/3000 plus saved/history preferred ports, and
-scanned-IP/ports in the no-results dialog) and adjusts insets: the start screen
-reserves only the status-bar top inset (so padding disappears when the phone's
-fullscreen/cutout setting hides the status bar) and the WebView no longer adds
-display-cutout padding, removing the leftover top gap. Yakushi Server 0.16.4 rebuilds the
-web UI with the updated paged-reader fixes (direct current-page renderer,
-borrow/defensive fixes, verified in headless Chromium).
-
 The debug APK is written to
-`android/yashi/build/outputs/apk/debug/yashi-client-release-<yyyy-MM-dd>.apk`.
-Build both apps with `./gradlew :app:assembleDebug :yashi:assembleDebug`
-(what CI does). Android Studio: open the `android/` project; the `yashi`
-run configuration builds/installs this module.
+`android/yashi/build/outputs/apk/debug/yashi-client-alpha-0.2.0-alpha-<yyyy-MM-dd>.apk`
+(debug builds report `0.2.0-alpha-debug`/200). Build both apps with
+`./gradlew :app:assembleDebug :yashi:assembleDebug` (what CI does). CI builds
+both and publishes both assets with the alpha label and known issues.
 
 ## Structure
 
 ```
 android/yashi/
-├── build.gradle.kts          # module config, shared signing key, dated APK name
+├── build.gradle.kts          # module config, shared signing key, alpha APK name
 ├── README.md                 # this file
 └── src/main/
     ├── AndroidManifest.xml   # INTERNET/ACCESS_NETWORK_STATE/CAMERA, cleartext HTTP
     ├── java/dev/spainclaro/yashi/
     │   ├── MainActivity.kt   # theme + start/browser switch
-    │   ├── MainScreen.kt     # address bar/history/saved, QR, LAN popup, settings sheet
-    │   ├── BrowserScreen.kt  # full-screen WebView, back button/history
+    │   ├── MainScreen.kt     # address bar/history/saved, QR, LAN popup, settings
+    │   ├── BrowserScreen.kt  # WebView (normal viewport/no cache), back button, /chapter injection
     │   ├── AddressStore.kt   # SharedPreferences persistence + theme
     │   ├── Address.kt        # ServerAddress + address parser
-    │   ├── LanScanner.kt    # /24 discovery on ports 8080/18084
-    │   └── Theme.kt         # Compose Material 3 light/dark palettes
+    │   ├── LanScanner.kt     # known-address/multi-subnet discovery (/health probe)
+    │   └── Theme.kt          # Compose Material 3 light/dark palettes
     └── res/                  # strings, colors, icon, splash/theme
 ```
 
@@ -121,15 +125,12 @@ android/yashi/
 
 ## Limitations
 
-- Discovery only scans the local `/24` and the default ports; use the address
-  bar or QR for custom ports/hosts.
-- No offline reading, downloads, extension management or server lifecycle —
-  use the Yakushi Server app/web UI for those.
-- The web UI is the normal Yakushi frontend; Yashi does not modify it.
-- Yashi ships **no app-specific native libraries** (only the standard AndroidX
-  `libandroidx.graphics.path.so` support library, which is packaged for all
-  ABIs), so the client is not limited to arm64-v8a (the Yakushi Server app
-  remains arm64-v8a); it is a normal Kotlin/Compose APK.
+- Discovery is best-effort; custom ports/hosts may need the address bar/QR.
+- Yashi has **no offline reading, downloads, extension management or server
+  lifecycle**; use the Yakushi Server app/web UI for those.
+- Yashi ships no app-specific native libraries (only the standard AndroidX
+  `libandroidx.graphics.path.so`), so it is not limited to arm64-v8a. The
+  server app remains arm64-v8a.
 
-See the [Android README](../README.md) for the server app and the
-[repository README](../../README.md) for the project overview.
+See the [Android README](../README.md) for the server app and known issues, and
+the [repository README](../../README.md) for the project overview.

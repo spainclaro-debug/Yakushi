@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.16.4`). The Termux package in the repository root has
+(for example `android-v0.16.8`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,63 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.8 — final release (Yakushi Server + Yashi 0.2.0-alpha)
+
+### Changed / Reverted
+
+- **Server web reader reverted to the known-good 0.15.1 implementation.** The
+  paged-renderer rewrite shipped in 0.16.3–0.16.7 was removed:
+  `android/native/patches/0016-web-ui-paged-reader-fix.patch` is deleted and no
+  longer applied by `build_tanoshi.sh`, and the embedded web UI is again the
+  0.15.1 dist (`tanoshi-web-4b94016ac7719c6e.js` /
+  `tanoshi-web-f9597b71814b98b9_bg.wasm`, CSS unchanged). `libtanoshi.so` was
+  rebuilt from it. This restores the original browser paged/double behaviour;
+  no other server changes. Yakushi Server version **0.16.8 / versionCode
+  1608**.
+
+### Added / Fixed (Yashi 0.2.0-alpha)
+
+- **Yashi is now 0.2.0-alpha** (versionCode **200**), asset
+  **`yashi-client-alpha-0.2.0-alpha-<date>.apk`** (same signing key). It is
+  explicitly an **alpha** release.
+- **Save-address crash fixed.** History/saved LazyColumn keys are namespaced
+  (`history:<url>` / `saved:<url>`), so the same address can appear in both
+  lists without crashing Compose.
+- **Normal WebView viewport / no cache.** The browser no longer hides the
+  status bar or uses cutout/edge-to-edge padding; the WebView is padded by the
+  status bar, `cacheMode = LOAD_NO_CACHE`, and `clearCache(true)` is called on
+  creation.
+- **LAN discovery:** probes known saved/history addresses first, then scans
+  subnets from all Wi-Fi/Ethernet IPv4 plus saved-address prefixes (up to 4)
+  on ports 8080/18084/8000/3000 + preferred, using `/health` then `/`.
+- **Last-resort client-side reader injection on `/chapter` pages:** sizes
+  `#page-list` to the real WebView height, fits paged images
+  (`max-width/height`, `object-fit: contain`, `pointer-events: none`), raises
+  the settings/topbar above the tap overlay and installs a capture-phase
+  left/right/middle trusted-tap fallback. Verified in Chromium (image fully
+  visible, next/prev hash changes) but **not confirmed on real Android
+  WebView**.
+
+### Known issues (Yashi 0.2.0-alpha) — read before installing
+
+- The **paged reader is unreliable on Android WebView**: blank or partial
+  pages, mode switching, and page next/prev controls may fail.
+- **Use Webtoon/Continuous mode only** for reliable reading. Continuous/
+  webtoon reading works, and other Yashi features (QR scan, address/history/
+  saved edit/delete, LAN discovery, theme, clear data) are expected to work.
+- The client-side `/chapter` injection is a last-resort workaround and may
+  still fail on some WebViews; treat the paged reader as unsupported in this
+  alpha.
+
+### Changed (release)
+
+- Tag **`android-v0.16.8`**, combined release title
+  "Yakushi Server 0.16.8 + Yashi 0.2.0-alpha", assets
+  `yakushi-server-release-<date>.apk` and
+  `yashi-client-alpha-0.2.0-alpha-<date>.apk` (alpha labelled with known
+  issues in the release notes). CI builds both apps and uploads/publishes both
+  APKs.
 
 ## 0.16.4
 

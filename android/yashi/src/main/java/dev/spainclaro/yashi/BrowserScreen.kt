@@ -1,9 +1,6 @@
 package dev.spainclaro.yashi
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -16,7 +13,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -36,9 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import java.net.URI
 
 /**
@@ -65,23 +58,6 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
         }
     }
 
-    // The browser/reader is full screen: hide the device's status-bar icons
-    // (time, battery, Wi-Fi) and let the web UI own the whole display. They
-    // come back when Yashi's start screen is shown again; a swipe from the top
-    // temporarily reveals them.
-    val activity = context.findActivity()
-    DisposableEffect(activity) {
-        val controller = activity?.let {
-            WindowCompat.getInsetsController(it.window, it.window.decorView)
-        }
-        controller?.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.hide(WindowInsetsCompat.Type.statusBars())
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.statusBars())
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         val currentWebView = remember {
             WebView(context).apply {
@@ -101,7 +77,9 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
                 settings.setSupportZoom(true)
                 settings.javaScriptCanOpenWindowsAutomatically = true
                 settings.mediaPlaybackRequiresUserGesture = false
+                settings.cacheMode = WebSettings.LOAD_NO_CACHE
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                clearCache(true)
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
@@ -117,11 +95,13 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
                         super.onPageFinished(view, url)
                         loading = false
                         showBack = !isImmersivePage(url)
+                        injectReaderFix(view, url)
                     }
 
                     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                         super.doUpdateVisitedHistory(view, url, isReload)
                         showBack = !isImmersivePage(url)
+                        injectReaderFix(view, url)
                     }
 
                     override fun shouldOverrideUrlLoading(
@@ -154,7 +134,9 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
         }
 
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
             factory = { currentWebView },
             update = {},
         )
@@ -184,14 +166,74 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
     }
 }
 
-private fun Context.findActivity(): Activity? {
-    var current: Context = this
-    while (current is ContextWrapper) {
-        if (current is Activity) return current
-        current = current.baseContext
-    }
-    return current as? Activity
+/**
+ * Last-resort client-side reader workaround for the Android WebView. The
+ * browser renders the paged reader correctly, but some WebViews report an odd
+ * viewport while the page uses 100vh and let the image intercept the tap zones.
+ * This injects a stylesheet sized to the real WebView height, makes paged
+ * images fit/full and non-interactive, raises the reader settings/topbar above
+ * the fixed tap overlay, and provides a capture-phase left/right tap fallback.
+ * It only runs on /chapter pages.
+ */
+private fun injectReaderFix(view: WebView?, url: String?) {
+    if (view == null || url == null) return
+    val path = runCatching { URI(url).path }.getOrNull() ?: return
+    if (!path.startsWith("/chapter")) return
+    view.evaluateJavascript(READER_FIX_JS, null)
 }
+
+private val READER_FIX_JS = """
+(function() {
+  if (window.__yashiReaderFix) {
+    if (window.__yashiApplyReaderFix) window.__yashiApplyReaderFix();
+    return;
+  }
+  window.__yashiReaderFix = true;
+  var style = document.createElement('style');
+  style.id = 'yashi-reader-fix';
+  (document.head || document.documentElement).appendChild(style);
+
+  window.__yashiApplyReaderFix = function() {
+    var h = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (!h) return;
+    style.textContent = [
+      '#page-list { width: 100vw !important; height: ' + h + 'px !important; overflow: hidden !important; }',
+      '#page-list > img { width: auto !important; height: auto !important; max-width: 100vw !important; max-height: ' + h + 'px !important; object-fit: contain !important; pointer-events: none !important; margin: auto !important; }',
+      '#next, #prev, #hide-bar { pointer-events: auto !important; touch-action: manipulation !important; }',
+      '.reader-settings.modal { z-index: 200 !important; }',
+      '.topbar { z-index: 220 !important; }',
+      '.bottombar { z-index: 210 !important; }'
+    ].join('\n');
+  };
+  window.__yashiApplyReaderFix();
+  window.addEventListener('resize', window.__yashiApplyReaderFix);
+
+  document.addEventListener('click', function(e) {
+    if (location.pathname.indexOf('/chapter') !== 0) return;
+    // Only act on real taps; our own target.click() below is untrusted and
+    // must reach the reader's normal handler without being intercepted again.
+    if (!e.isTrusted) return;
+    var t = e.target;
+    if (t && t.closest && t.closest('button, a, input, textarea, select, label, .reader-settings, .topbar, .bottombar')) return;
+    var x = (e.clientX || 0) / (window.innerWidth || 1);
+    var target = x > 0.66 ? document.getElementById('next')
+               : x < 0.33 ? document.getElementById('prev')
+               : document.getElementById('hide-bar');
+    if (target) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.__yashiTapGuard) return;
+      window.__yashiTapGuard = true;
+      target.click();
+      setTimeout(function() { window.__yashiTapGuard = false; }, 0);
+    }
+  }, true);
+
+  setInterval(function() {
+    if (window.__yashiApplyReaderFix) window.__yashiApplyReaderFix();
+  }, 1500);
+})();
+""".trimIndent()
 
 private fun isImmersivePage(url: String?): Boolean {
     if (url.isNullOrBlank()) return false

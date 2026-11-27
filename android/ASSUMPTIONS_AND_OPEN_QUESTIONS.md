@@ -226,10 +226,10 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.16.4 / 1604, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.8 / 1608, local date).
 
 From 0.16.0 the same workflow also builds the **Yashi** client module
-(`:yashi:assembleDebug`; version defaults 0.1.4 / versionCode 104, overridable
+(`:yashi:assembleDebug`; version defaults 0.2.0-alpha / versionCode 200, overridable
 with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
 publishes both assets (`yakushi-server-release-*.apk` and
 `yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
@@ -293,11 +293,11 @@ tag), independent of the bundled Tanoshi server (0.40.0 /
 not change the bundled server; the two version lines are documented
 separately.
 
-Yashi has its own independent version line: **0.1.4 / versionCode 104**, set
+Yashi has its own independent version line: **0.2.0-alpha / versionCode 200**, set
 in `android/yashi/build.gradle.kts` and overridable from CI
 (`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
 `android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
-(server 1604) while Yashi stays 0.1.4/104, published on the same release.
+(server 1608) while Yashi stays 0.2.0-alpha/200, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1030,9 +1030,9 @@ and docs describe partial reads vs finishing a chapter.
 
 ### A50 — Yashi is a client-only companion app with local persistence
 
-Yashi 0.1.4 is a separate Android application module (`android/yashi/`, package
-`dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
-0.1.4 / versionCode 104) shipped in the same repository and signed with the
+Yashi 0.2.0-alpha is a separate Android application module (`android/yashi/`, package
+`dev.spainclaro.yashi`, APK `yashi-client-alpha-0.2.0-alpha-<yyyy-MM-dd>.apk`,
+version 0.2.0-alpha / versionCode 200, **alpha**) shipped in the same repository and signed with the
 same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
 does not start a server and makes no server-side changes. It connects to a
 Yakushi server over plain HTTP in a full-screen WebView. From 0.1.1 the
@@ -1075,18 +1075,26 @@ removed, which fixed blank chapter pages/missing reader images.
   from 16dp in 0.1.1 so it clears the web UI's bottom navigation bar), hidden
   when the WebView path starts with `/catalogue`, `/manga` or `/chapter`; system
   back navigates the WebView history first, then exits to the start screen.
-- **Display insets (0.1.3):** Yashi calls
-  `WindowCompat.setDecorFitsSystemWindows(window, false)` and draws edge-to-edge.
-  The start screen sets Scaffold `contentWindowInsets = WindowInsets(0,0,0,0)`
-  and pads only `WindowInsets.statusBars.only(Top)` (0.1.2 used safe-drawing
-  top/horizontal, which left padding when the status bar was hidden by the
-  phone's fullscreen/cutout setting). The bottom bar handles navigation bars.
-  `BrowserScreen` hides the device status bar via
-  `WindowInsetsControllerCompat` with `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`
-  (swipe reveals temporarily) and restores it in `onDispose`; from 0.1.3 the
-  WebView has **no** display-cutout padding (the 0.1.2 padding left a top gap
-  in fullscreen mode). The floating back button placement/visibility is
-  unchanged (96dp above bottom, hidden on catalogue/manga/chapter).
+- **Viewport/insets (0.2.0-alpha):** the start screen keeps the status-bar-only
+  top inset behaviour, and the browser no longer hides the status bar or uses
+  edge-to-edge/cutout padding: the WebView is a normal **status-bar-padded
+  viewport** (`Modifier.statusBarsPadding()`) with `cacheMode = LOAD_NO_CACHE`
+  and `clearCache(true)` on creation. The floating back button keeps its 96dp
+  bottom padding and hidden catalogue/manga/chapter behaviour.
+- **Chapter reader injection (0.2.0-alpha, last resort):** on `/chapter` pages
+  (`onPageFinished`/`doUpdateVisitedHistory`) Yashi evaluates a stylesheet that
+  sizes `#page-list` to the real `window.innerHeight`, fits paged images
+  (`max-width/height`, `object-fit: contain`, `pointer-events: none`), raises
+  `.reader-settings`/`.topbar` above the tap overlay, and installs a
+  capture-phase trusted-click fallback mapping left/right/middle screen thirds
+  to `#prev`/`#next`/`#hide-bar` (guarded against its own synthetic click).
+  Verified in Chromium (image visible, next/prev hash changes) but **not on a
+  real Android WebView**.
+- **Known issues (alpha):** the paged reader remains unreliable on Android
+  WebView (blank/partial pages, mode switching, page next/prev may fail). Use
+  **Webtoon/Continuous only** for reliable reading. Other features (QR,
+  address/history/saved edit/delete, LAN discovery, theme, clear data) are
+  expected working.
 - **Scope:** Yashi is a convenience client for the web UI; it has no offline
   reading, downloads, extension management or server lifecycle features of its
   own (those remain in the server app/web UI).
@@ -1095,7 +1103,7 @@ removed, which fixed blank chapter pages/missing reader images.
 across devices; the docs and UI state it is client-only and device-local, and
 the server app remains the only way to host.
 
-### A51 — Paged reader renders the current page(s) directly (0.16.3)
+### A51 — Paged reader rewrite (0.16.3–0.16.7) was reverted in 0.16.8
 
 Before 0.16.3 the embedded reader's Single/Double/Auto paged modes created a
 DOM node for **every** page and used `visible_signal`/`image_src_signal` preload
@@ -1124,16 +1132,16 @@ The release rebuilds the web UI (`tanoshi-web-1edbdb41e59693d8.js`,
 retry UI is gone for paged mode); continuous/webtoon retain their existing
 behaviour.
 
-**0.16.4 follow-up defensive fixes:** the image-load handler no longer calls
-`pages.lock_ref()` and then `pages.lock_mut()` (a RefCell borrow overlap that
-could panic), just marking the page Loaded; single/double DOM construction now
-extracts `(index, url)` pairs into a small vector while briefly holding the
-pages Ref, then drops it before calling `paged_image`, so no pages lock is held
-while building/signal-building DOM. The rebuilt dist
-`tanoshi-web-50677b028f65ac39.js` / `tanoshi-web-e44457c58580df61_bg.wasm` was
-verified in headless Chromium: opening a chapter from the manga page shows the
-page image in Paged Single, and switching Paged/Continuous/Double/Single
-renders pages correctly.
+**0.16.4 follow-up defensive fixes** removed a `pages.lock_ref()`/
+`lock_mut()` overlap and avoided holding the pages Ref while building DOM, and
+the dist was verified in headless Chromium. **However the paged reader remained
+unreliable on real Android WebView, so 0.16.8 reverted the whole rewrite:**
+patch `0016-web-ui-paged-reader-fix.patch` was deleted and removed from
+`build_tanoshi.sh`, the embedded web UI is again the 0.15.1 dist
+(`tanoshi-web-4b94016ac7719c6e.js` / `tanoshi-web-f9597b71814b98b9_bg.wasm`,
+CSS unchanged), and `libtanoshi.so` was rebuilt from it. The original
+paged/double browser behaviour is restored; no other server changes. (Yashi's
+separate client-side `/chapter` workaround and its known issues are in A50.)
 
 ## Open questions for the repository owner
 

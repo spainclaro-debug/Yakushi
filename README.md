@@ -18,6 +18,7 @@ terminal install.
 
 - [What Yakushi is](#what-yakushi-is)
 - [Yashi client app](#yashi-client-app)
+- [What's new in 0.16.8](#whats-new-in-0168)
 - [What's new in 0.16.4](#whats-new-in-0164)
 - [What's new in 0.16.3](#whats-new-in-0163)
 - [What's new in 0.16.2](#whats-new-in-0162)
@@ -80,20 +81,55 @@ general-purpose browser every time.
 - **Settings:** choose **System / Dark / Light** theme, and **clear data** to
   forget all saved addresses and connection history.
 - **Full server UI:** once connected, Yashi displays the complete Yakushi web
-  frontend in a full-screen WebView. A small floating **back** button returns to
-  the Yashi start screen; it is automatically hidden on the catalogue
+  frontend in a full-screen WebView with a normal status-bar-padded viewport
+  and a disabled/cleared cache. A small floating **back** button returns to the
+  Yashi start screen; it is automatically hidden on the catalogue
   (`/catalogue`), manga (`/manga`) and reader (`/chapter`) pages, so it never
   covers those screens. The system back button first walks the WebView history,
   then returns to the start screen.
+- **Known issue (alpha):** the **paged reader** can show blank/partial pages and
+  mode switching/page next-prev may fail on Android WebView. **Use
+  Webtoon/Continuous mode only** for reliable reading. Yashi tries a client-side
+  `/chapter` injection to size/fit pages and add tap fallbacks, but this is not
+  confirmed on real WebView devices.
 - **Download:** `yashi-client-release-<date>.apk` from the latest release on
   this repository. It is signed with the same sideload key as Yakushi Server.
   Yashi is a client only: it does not bundle or run the server.
 
-Yashi 0.1.4 is released together with Yakushi Server 0.16.4. See the
+Yashi **0.2.0-alpha** is released together with Yakushi Server 0.16.8. It is an **alpha**: the paged reader is unreliable on Android WebView (use Webtoon/Continuous only); other features are expected working. See the
 [Yashi source module](android/yashi/) and [Android README](android/README.md)
 for build details.
 
 ---
+
+## What's new in 0.16.8
+
+- **Server web reader reverted to the known-good 0.15.1 implementation.** The
+  0.16.3–0.16.7 paged-renderer rewrite was removed (patch 0016 deleted); the
+  embedded web UI is again the 0.15.1 dist (`tanoshi-web-4b94016ac7719c6e.js` /
+  `tanoshi-web-f9597b71814b98b9_bg.wasm`) and `libtanoshi.so` was rebuilt from
+  it. This restores the original browser paged/double behaviour; no other
+  server changes (version 0.16.8 / 1608).
+- **Yashi 0.2.0-alpha** (versionCode 200, alpha asset
+  `yashi-client-alpha-0.2.0-alpha-<date>.apk`): save-address crash fixed
+  (namespaced history/saved keys), normal status-bar-padded WebView viewport
+  with cache disabled/cleared, known-address/multi-subnet LAN discovery with
+  `/health`, and a last-resort client-side `/chapter` reader injection
+  (page-list sized to the real WebView height, paged images fitted and made
+  non-interactive, settings/topbar raised, capture-phase left/right tap
+  fallback). The injection was verified in Chromium but **not on a real
+  Android WebView**.
+- **Known issues (Yashi alpha) — read before installing:** the paged reader
+  remains unreliable on Android WebView (blank/partial pages; mode switching
+  and page next/prev controls may fail). **Use Webtoon/Continuous mode only**
+  for reliable reading. Other Yashi features (QR scan, address/history/saved
+  edit/delete, LAN discovery, theme, clear data) are expected to work.
+- **Release:** tag `android-v0.16.8`, title
+  "Yakushi Server 0.16.8 + Yashi 0.2.0-alpha", assets
+  `yakushi-server-release-<date>.apk` and
+  `yashi-client-alpha-0.2.0-alpha-<date>.apk`.
+
+Previous release — **0.16.4** — and its features:
 
 ## What's new in 0.16.4
 
@@ -367,7 +403,10 @@ trackers](#downloads-and-trackers).
 
 ### Reader
 
-- **Reading modes:** paged and continuous. Continuous mode is seamless from
+- **Reading modes:** paged and continuous. **Server web UI:** the 0.16.8
+  release restores the known-good 0.15.1 web reader (the 0.16.3–0.16.7 paged
+  rewrite was reverted), so browser paged/double behaviour is the original
+  implementation. Continuous mode is seamless from
   0.13.9: the next chapter's pages append to the same scroll, scrolling to the
   very top loads the previous chapter, and "No previous chapter"/"No more
   chapters" labels replace the old Prev/Next buttons. From 0.15.1 chapters
@@ -553,8 +592,11 @@ key so updates install over each other).
 > Each release publishes **two** assets: `yakushi-server-release-<date>.apk`
 > (the Android app is called **Yakushi Server**; the web frontend/PWA keeps the
 > short name **Yakushi**) and `yashi-client-release-<date>.apk` (the companion
-> **Yashi** client). They have separate version lines (Yakushi 0.16.4, Yashi
-> 0.1.4) but share the same release tag `android-v0.16.4` and signing key.
+> **Yashi** client). They have separate version lines (Yakushi 0.16.8,
+> Yashi 0.2.0-alpha/200) but share the same release tag `android-v0.16.8` and
+> signing key. The Yashi asset is named
+> `yashi-client-alpha-0.2.0-alpha-<date>.apk` and is an **alpha**: paged reader
+> known issues (use Webtoon/Continuous).
 
 ---
 
@@ -636,7 +678,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 | Path | Contents |
 | --- | --- |
 | `android/` | The standalone Yakushi Server app (Kotlin/Compose) and its prebuilt `arm64-v8a` binaries, plus the native build pipeline. |
-| `android/yashi/` | **Yashi 0.1.4**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
+| `android/yashi/` | **Yashi 0.2.0-alpha**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
 | `patches/` | Fork patches applied to upstream Tanoshi and its extensions. |
 | `extensions/` | Sources of the ported extensions (Atsumaru, MadaraDex, QiScans, MangaBall, HentaiNexus). |
 | `lib/` | Termux package build scripts. |
@@ -647,17 +689,19 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current release is **0.16.4** (`android-v0.16.4`): **Yakushi Server
-  0.16.4** (`yakushi-server-release-<date>.apk`, rebuilt web UI/server with the
-  paged-reader/mode-switch fixes) and **Yashi 0.1.4**
-  (`yashi-client-release-<date>.apk`, save-crash + stronger LAN discovery) are
-  published together on the same GitHub release.
+- The current release is **0.16.8** (`android-v0.16.8`): **Yakushi Server
+  0.16.8** (`yakushi-server-release-<date>.apk`, web reader reverted to the
+  0.15.1 implementation) and **Yashi 0.2.0-alpha**
+  (`yashi-client-alpha-0.2.0-alpha-<date>.apk`, alpha with known paged-reader
+  issues) are published together on the same GitHub release with title
+  "Yakushi Server 0.16.8 + Yashi 0.2.0-alpha".
 - Android releases use tags **`android-vX.Y.Z`** (for example
-  `android-v0.16.4`). CI builds both apps (`:app` and `:yashi`) and publishes
-  both APKs with combined release notes/title.
-- Yashi has its own version line (0.1.4 / versionCode 104); local builds
-  default to it, and CI can override it with `-PyashiVersionName` /
-  `-PyashiVersionCode`. The server app defaults to 0.16.4 / versionCode 1604.
+  `android-v0.16.8`). CI builds both apps (`:app` and `:yashi`) and publishes
+  both APKs with combined release notes (including the Yashi alpha known
+  issues).
+- Yashi has its own version line (**0.2.0-alpha / versionCode 200**); local
+  builds default to it, and CI can override it with `-PyashiVersionName` /
+  `-PyashiVersionCode`. The server app defaults to 0.16.8 / versionCode 1608.
 - Termux package releases use `v*` tags (`PACKAGE_TAG`), independent of the
   app's version.
 - The in-app updater compares the numeric version of published `android-v*`

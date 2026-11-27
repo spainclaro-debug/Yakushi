@@ -9,8 +9,8 @@ plugins {
 
 // Yashi is the companion browser/client for a Yakushi server. It has its own
 // version line; CI can override it with -PyashiVersionName/-PyashiVersionCode.
-val yashiVersionName: String = providers.gradleProperty("yashiVersionName").orElse("0.1.4").get()
-val yashiVersionCode: Int = providers.gradleProperty("yashiVersionCode").orElse("104").get().toInt()
+val yashiVersionName: String = providers.gradleProperty("yashiVersionName").orElse("0.2.0-alpha").get()
+val yashiVersionCode: Int = providers.gradleProperty("yashiVersionCode").orElse("200").get().toInt()
 
 // Sideload APK file name, e.g. yashi-client-release-2026-11-27.apk.
 val apkDate: String = providers.gradleProperty("apkDate")
@@ -90,7 +90,7 @@ androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
             (output as VariantOutputImpl).outputFileName.set(
-                "yashi-client-release-$apkDate.apk",
+                "yashi-client-alpha-$yashiVersionName-$apkDate.apk",
             )
         }
     }
