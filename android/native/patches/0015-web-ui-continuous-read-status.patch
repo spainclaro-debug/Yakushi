@@ -1,0 +1,129 @@
+--- a/crates/tanoshi-web/src/reader.rs
++++ b/crates/tanoshi-web/src/reader.rs
+@@ -1,4 +1,5 @@
+ use std::cell::RefCell;
++use std::collections::HashMap;
+ use std::rc::Rc;
+ 
+ use crate::common::{Fit, ReaderSettings, Spinner, events, snackbar};
+@@ -96,6 +97,8 @@
+     user_scrolled: RefCell<bool>,
+     webtoon_mode: Mutable<bool>,
+     webtoon_checked: RefCell<bool>,
++    /// Last page index seen, used to mark chapters crossed while scrolling fast.
++    last_page_seen: RefCell<Option<usize>>,
+ }
+ 
+ impl Reader {
+@@ -138,6 +141,7 @@
+             user_scrolled: RefCell::new(false),
+             webtoon_mode: Mutable::new(false),
+             webtoon_checked: RefCell::new(false),
++            last_page_seen: RefCell::new(None),
+         })
+     }
+ 
+@@ -328,6 +332,7 @@
+                     this.at_end.set_neq(result.next.is_none());
+                     *this.appending.borrow_mut() = false;
+                     *this.user_scrolled.borrow_mut() = false;
++                    *this.last_page_seen.borrow_mut() = None;
+                     let pages = result.pages.iter().map(|page| (page.to_string(), PageStatus::Initial)).collect();
+                     this.pages.lock_mut().replace_cloned(pages);
+ 
+@@ -418,6 +423,10 @@
+             return;
+         };
+ 
++        // Reaching the sentinel means the current chapter is finished; mark it
++        // complete even if a fast scroll skipped its last page update.
++        Self::mark_chapter_complete_at(this.clone(), this.current_page.get());
++
+         *this.appending.borrow_mut() = true;
+         spawn_local(clone!(this => async move {
+             match query::fetch_chapter(next_chapter).await {
+@@ -485,6 +494,75 @@
+         snackbar::show("Webtoon layout detected".to_string());
+     }
+ 
++    /// Mark a specific page's chapter as complete (used when the reader
++    /// reaches the chapter end / starts appending the next chapter).
++    fn mark_chapter_complete_at(this: Rc<Self>, page: usize) {
++        let mapping = this
++            .page_chapters
++            .borrow()
++            .get(page)
++            .cloned()
++            .unwrap_or((this.chapter_id.get(), page, page + 1));
++        let (chapter_id, page_in_chapter, _) = mapping;
++        spawn_local(async move {
++            if let Err(err) = query::update_page_read_at(chapter_id, page_in_chapter as i64, true).await {
++                log::warn!("could not mark chapter {chapter_id} as read: {err}");
++            }
++        });
++    }
++
++    /// While reading continuously, a fast scroll can jump over the last page of
++    /// one or more chapters, so the debounced single-page update never marks
++    /// them complete. This marks every chapter whose last page was crossed
++    /// between the previous and the current page.
++    fn mark_crossed_chapters(this: Rc<Self>, page: usize) {
++        let Some(previous) = this.last_page_seen.replace(Some(page)) else {
++            return;
++        };
++        if page <= previous {
++            return;
++        }
++
++        let mut last_page_by_chapter: HashMap<i64, usize> = HashMap::new();
++        {
++            let mapping = this.page_chapters.borrow();
++            for (index, (chapter_id, _, _)) in mapping.iter().enumerate() {
++                last_page_by_chapter.insert(*chapter_id, index);
++            }
++        }
++        let Some(current_chapter) = this
++            .page_chapters
++            .borrow()
++            .get(page)
++            .map(|(chapter_id, _, _)| *chapter_id)
++        else {
++            return;
++        };
++
++        let chapters_to_mark: Vec<(i64, usize)> = last_page_by_chapter
++            .into_iter()
++            .filter(|(chapter_id, last_page)| {
++                *chapter_id != current_chapter && *last_page >= previous && *last_page < page
++            })
++            .collect();
++
++        for (chapter_id, last_page) in chapters_to_mark {
++            let page_in_chapter = this
++                .page_chapters
++                .borrow()
++                .get(last_page)
++                .map(|(_, page_in_chapter, _)| *page_in_chapter)
++                .unwrap_or(0);
++            let this = this.clone();
++            spawn_local(async move {
++                if let Err(err) = query::update_page_read_at(chapter_id, page_in_chapter as i64, true).await {
++                    log::warn!("could not mark chapter {chapter_id} as read: {err}");
++                }
++                let _ = &this;
++            });
++        }
++    }
++
+     fn update_page_read(this: Rc<Self>, page: usize) {
+         let pages_len = this.pages.lock_ref().len();
+         if pages_len == 0 {
+@@ -506,6 +584,8 @@
+             .unwrap_or((this.chapter_id.get(), page, pages_len));
+         let (chapter_id, page_in_chapter, chapter_pages) = mapping;
+ 
++        Self::mark_crossed_chapters(this.clone(), page);
++
+         let is_complete = if matches!(reader_mode, ReaderMode::Paged) {
+             page + 1 == pages_len
+         } else {

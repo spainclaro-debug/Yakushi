@@ -77,7 +77,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.15.0 (default)}' code '${CODE:-1500 (default)}'"
+          echo "Building version '${NAME:-0.15.1 (default)}' code '${CODE:-1501 (default)}'"
 
       - name: Build debug APK
         working-directory: android
@@ -87,8 +87,8 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.15.0}"
-          CODE="${APP_VERSION_CODE:-1500}"
+          NAME="${APP_VERSION_NAME:-0.15.1}"
+          CODE="${APP_VERSION_CODE:-1501}"
           ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
 
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi Server 0.15.0 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). New: sources can be pinned in the Catalogue - pinned sources appear in their own Pinned Sources section at the very top (Pin/Unpin button, remembered per device); and the source list grouping is corrected so user-installed extensions are shown under External Sources while the bundled/pre-installed extensions and the built-in Local folder sources are under Local Sources. Includes all 0.14.0 features (extension hot-reload without restart) and 0.13.x (seamless continuous chapters, webtoon detection, server-shared presets, page-image downloads, browser-style library tabs, Migrate/Change Library). Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
+          NOTES="Yakushi Server 0.15.1 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). This is a bug-fix release for seamless continuous reading: chapters read through automatic chapter transitions were sometimes left unread (e.g. chapter 2 onward). A chapter is now marked read when its end is reached and before the next chapter is appended, and chapters crossed during fast scrolling are marked read too, so every chapter you pass is shown as read regardless of how many chapters you scroll through. Includes all 0.15.0 features (pinned catalogue sources, corrected Local/External grouping) and 0.14.0 (extension hot-reload without restart). Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
           APK_DIR=android/app/build/outputs/apk/debug
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \

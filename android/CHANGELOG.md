@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.15.0`). The Termux package in the repository root has
+(for example `android-v0.15.1`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,38 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.15.1
+
+### Fixed
+
+- **Chapters passed in seamless continuous reading are now marked read.** The
+  seamless reader could leave chapter 2 … the last-read chapter unread: the
+  debounced `update_page_read` only sent `is_complete=true` when the current
+  page was that chapter's exact last page, but auto-append/fast scrolling
+  spawns pages without ever updating every chapter's last page. Fixes in
+  `reader.rs`:
+  - `mark_chapter_complete_at(page)` marks the current page's chapter complete
+    immediately when the chapter-end sentinel triggers appending the next
+    chapter (before fetching it), so chapters passed via seamless transitions
+    are completed even if their last-page update was skipped.
+  - New `last_page_seen` + `mark_crossed_chapters(page)`: on every forward page
+    change, every chapter whose last page lies between the previous and the new
+    page is immediately marked complete via
+    `update_page_read_at(chapter_id, last_page_in_chapter, true)` (not
+    debounced), covering fast scrolls past many chapters.
+  - `last_page_seen` resets on chapter fetch; crossed-chapter update errors are
+    logged (`could not mark chapter … as read`) instead of snackbars. The
+    server's SQL keeps `is_complete` sticky (a completed chapter is not unread
+    by later partial progress updates). The seamless-feature behaviour is
+    otherwise unchanged.
+### Changed
+
+- **Web UI and `libtanoshi.so` rebuilt** with
+  `android/native/patches/0015-web-ui-continuous-read-status.patch` (applied
+  after 0014; `reader.rs` only); version **0.15.1** (versionCode 1501, tag
+  `android-v0.15.1`). APK filename scheme unchanged. No server API/schema
+  changes; the CSS is unchanged (`styles-b8b644c443a79429.css`).
 
 ## 0.15.0
 

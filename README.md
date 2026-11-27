@@ -17,7 +17,7 @@ terminal install.
 ## Contents
 
 - [What Yakushi is](#what-yakushi-is)
-- [What's new in 0.15.0](#whats-new-in-0150)
+- [What's new in 0.15.1](#whats-new-in-0151)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Install (Android APK)](#install-android-apk)
@@ -51,6 +51,21 @@ terminal install.
   plugins for users who run Tanoshi from a terminal.
 
 ---
+
+## What's new in 0.15.1
+
+- **Fixed chapter read status in seamless continuous reading.** Chapters after
+  the first could stay unread because completion was only sent for an exact
+  last-page visit. Now reaching a chapter's end sentinel marks that chapter
+  complete before appending the next one, and a `last_page_seen` /
+  `mark_crossed_chapters` tracker marks every chapter whose last page was
+  crossed during fast scrolling. The server keeps completion sticky, so later
+  partial progress cannot unread a finished chapter.
+- **Version 0.15.1** (`android-v0.15.1`, `yakushi-server-release-<date>.apk`);
+  rebuilt web UI/server, CSS unchanged, no server API/schema changes; includes
+  all earlier features.
+
+Previous release — **0.15.0** — and its features:
 
 ## What's new in 0.15.0
 
@@ -210,7 +225,8 @@ trackers](#downloads-and-trackers).
 - **Reading modes:** paged and continuous. Continuous mode is seamless from
   0.13.9: the next chapter's pages append to the same scroll, scrolling to the
   very top loads the previous chapter, and "No previous chapter"/"No more
-  chapters" labels replace the old Prev/Next buttons.
+  chapters" labels replace the old Prev/Next buttons. From 0.15.1 chapters
+  passed via auto-append/fast scroll are marked read correctly.
 - **Display:** single, double and auto (landscape-aware) pages; double-page
   spreads are gapless (spare space at the sides, not in the middle, from
   0.13.6).
@@ -479,7 +495,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current Android release is **0.15.0** (`android-v0.15.0`), published as
+- The current Android release is **0.15.1** (`android-v0.15.1`), published as
   `yakushi-server-release-<date>.apk`.
 - Android releases use tags **`android-vX.Y.Z`** (for example
   `android-v0.13.0`). CI builds the APK and publishes it on a GitHub release

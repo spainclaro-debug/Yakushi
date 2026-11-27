@@ -5,9 +5,13 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.15.0** — see the
+Current release: **0.15.1** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.15.0 adds **pinned Catalogue sources**
+and [`CHANGELOG.md`](CHANGELOG.md). 0.15.1 fixes **read status in seamless
+continuous reading**: chapters passed via auto-append or fast scrolling are now
+marked read (auto-append marks the finished chapter, and chapters whose last
+page was crossed are marked complete immediately), so chapters after the first
+no longer stay unread. 0.15.0 adds **pinned Catalogue sources**
 (Pin/Unpin per row, a Pinned Sources section at the top in pin order, per-device
 localStorage, no duplicates) and fixes the **inverted Local/External source
 grouping** (user-installed extensions with huge ids are External; bundled and
@@ -125,7 +129,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.15.0](#whats-new-in-0150)
+- [What's new in 0.15.1](#whats-new-in-0151)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -174,6 +178,27 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.15.1
+
+- **Seamless continuous reading now updates chapter read status correctly.**
+  Previously only an exact last-page visit sent `is_complete=true`; with
+  auto-appended chapters and fast scrolling, chapters after the first could
+  stay unread. Now:
+  - reaching the chapter-end sentinel marks the finished chapter complete
+    before appending the next one (`mark_chapter_complete_at`);
+  - a new `last_page_seen` + `mark_crossed_chapters` path marks every chapter
+    whose last page was crossed between the previous and current page (fast
+    scrolls past several chapters), using a non-debounced
+    `update_page_read_at(..., true)`;
+  - the tracker resets on chapter fetch, update failures are logged (not shown
+    as snackbars), and the server's completion flag stays sticky so later
+    partial progress cannot unread a completed chapter.
+- **Web UI and server rebuilt** with patch **0015** (after 0014; `reader.rs`,
+  CSS unchanged); version **0.15.1** (`versionCode` 1501, tag
+  `android-v0.15.1`), APK filename unchanged, no server API/schema changes.
+
+Previous release — **0.15.0** — and its features:
 
 ## What's new in 0.15.0
 
@@ -686,12 +711,12 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.15.0**,
-`versionCode` 1500) and today's date in the APK filename. CI derives both from
+Local builds use the defaults in `app/build.gradle.kts` (**0.15.1**,
+`versionCode` 1501) and today's date in the APK filename. CI derives both from
 the release tag; you can do the same manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.15.0 -PappVersionCode=1500 \
+./gradlew :app:assembleDebug -PappVersionName=0.15.1 -PappVersionCode=1501 \
   -PapkDate=2026-11-14
 ```
 
@@ -752,11 +777,11 @@ Android setup/release actions are used: the SDK is provisioned with
 `sdkmanager` and releases are published with the preinstalled GitHub CLI.
 
 Releases are created only for tags of the form **`android-vX.Y.Z`**, for
-example `android-v0.15.0`. For a tag, CI derives everything from the tag and
+example `android-v0.15.1`. For a tag, CI derives everything from the tag and
 the build date:
 
 - `versionName` = `X.Y.Z` from the tag;
-- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.15.0` → `1500`);
+- `versionCode` = `X * 10000 + Y * 100 + Z` (so `android-v0.15.1` → `1501`);
 - the APK filename date = the UTC build date (`-PapkDate=$(date -u +%F)`).
 
 The build command passes these with `-PappVersionName`, `-PappVersionCode` and
@@ -957,7 +982,13 @@ The embedded web UI reader has two related 0.13.9 behaviours:
   chapter. Pages are mapped to their real chapter (`page_chapters`: chapter id,
   page index, chapter page count), so progress, the share URL and chapter
   completion are recorded for the right chapter/page even across appended
-  chapters.
+  chapters. Since 0.15.1 **chapters you pass are marked read**: reaching the
+  end-of-chapter sentinel marks the finished chapter complete before appending
+  the next one, and a forward-scroll tracker (`last_page_seen` +
+  `mark_crossed_chapters`) marks every chapter whose last page was crossed,
+  including when a fast scroll skips several chapters. A chapter reads as
+  complete once its last page is reached/crossed; ordinary partial reading
+  still records the current page.
 - **Webtoon (manhua/manhwa) layout is automatic.** When the first loaded page
   image is a long strip (height ≥ 2.5 × width), the reader switches to
   **Continuous + Fit Width + padding off**, saves the reader settings and shows
@@ -1115,7 +1146,7 @@ independent of this web-UI theme.
 button. Tapping it asks this repository's GitHub API for releases, considers
 only published (non-draft, non-prerelease) tags starting with `android-v`, and
 compares them numerically with the installed version (debug builds carry a
-`-debug` version suffix such as `0.15.0-debug`; the updater strips it before
+`-debug` version suffix such as `0.15.1-debug`; the updater strips it before
 comparing).
 
 When a newer release exists the section shows its version, tag, a release-notes
@@ -2026,6 +2057,15 @@ edit the name inline and press Enter; it saves through the server's
 `updateCategory` and refreshes (visible on all devices). The bulk edit mode
 still exists and hides the per-row rename buttons while active.
 
+**Chapters I read continuously still show as unread.** Fixed in 0.15.1:
+reaching the end of a chapter (including auto-appended chapters) marks that
+chapter complete, and a fast scroll marks every chapter whose last page was
+crossed. A chapter is complete once its last page is reached/crossed; partially
+reading a chapter records the current page but may keep it unread until you
+reach/cross its last page. The server keeps a completed chapter complete even
+if later progress reports a middle page. If an old embedded UI is cached,
+update/reload so the new reader code is served.
+
 **Pinned sources are not remembered / appear on another device.** Pins are
 per-device in localStorage (`catalogue_list_pinned`, JSON array in pin order)
 and are not synced by the server; re-pin on each device/browser. Clearing site
@@ -2323,11 +2363,11 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Library actions | Change Library = `deleteFromLibrary` + `addToLibrary(category_ids)` category replacement (progress/trackers unchanged); Library tabs All + per-category with counts, All merged/deduped; `/library/categories` redirects (0.13.7) |
 | Library tab options | Per-device localStorage (`settings:library`): All tab Shown/Hidden, Counts Shown/Hidden; hidden All falls back to Default; browser-style tabs with 5rem desktop-sidebar offset (0.13.8) |
 | Category rename | Per-row inline Rename in Settings → Categories (Enter saves via server `updateCategory`, list refreshes), bulk edit unchanged (0.13.8) |
-| Reader continuous | Seamless chapter appending at end (no Prev/Next buttons), auto previous at top (`user_scrolled` guard), `No previous chapter`/`No more chapters` labels, `page_chapters` per-chapter progress/completion (from 0.13.9) |
+| Reader continuous | Seamless chapter appending at end (no Prev/Next buttons), auto previous at top (`user_scrolled` guard), `No previous chapter`/`No more chapters` labels, `page_chapters` per-chapter progress/completion (from 0.13.9); passed chapters marked read on append/fast scroll via `mark_chapter_complete_at` + `last_page_seen`/`mark_crossed_chapters`, sticky completion (0.15.1) |
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
 | Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
 | Catalogue pins | Per-device localStorage `catalogue_list_pinned` (JSON array, pin order); Pinned Sources section at top; pinned rows excluded from Local/External; external iff source id >= 1,000,000 (from 0.15.0) |
-| App version | 0.15.0 (`versionName`); `versionCode` 1500 in local builds and for the `android-v0.15.0` tag |
+| App version | 0.15.1 (`versionName`); `versionCode` 1501 in local builds and for the `android-v0.15.1` tag |
 | APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
@@ -2351,7 +2391,7 @@ android/
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README
-├── native/                                # native pipeline, patches 0001-0014 (+ theme_settings.rs/layout_presets.rs/extensions_reload.rs), build_extension.sh, rebuilt web-dist
+├── native/                                # native pipeline, patches 0001-0015 (+ theme_settings.rs/layout_presets.rs/extensions_reload.rs), build_extension.sh, rebuilt web-dist
 ├── build.gradle.kts
 ├── gradle.properties
 ├── README.md                              # this file

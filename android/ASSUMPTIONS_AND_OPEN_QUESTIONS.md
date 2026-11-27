@@ -226,7 +226,7 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.15.0 / 1500, local date).
+three to Gradle; local builds use the Gradle defaults (0.15.1 / 1501, local date).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,8 +279,8 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.15.0 / versionCode
-1500 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.15.0`
+The app follows its own `android-vX.Y.Z` version scheme (0.15.1 / versionCode
+1501 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.15.1`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
@@ -980,6 +980,40 @@ installed source list (no server changes).
 *If wrong:* a source could appear in the wrong group if ids from an extension
 ever fall below the threshold; the boundary matches the downloader's
 `10000..1_000_000` Local range logic and bundled sources keep small ids.
+
+### A49 — Continuous reading marks passed chapters complete (0.15.1 fix)
+
+Before 0.15.1 the seamless continuous reader could leave chapters after the
+first unread. `update_page_read` was debounced for the current page and only
+sent `is_complete=true` when that exact page was a chapter's last page; the
+auto-append path spawns pages without necessarily updating every chapter's last
+page, and fast scrolling can skip them. The 0.15.1 fix in `reader.rs`:
+
+- **Mark on append.** When the chapter-end sentinel fires and the reader is
+  about to append the next chapter, `mark_chapter_complete_at(current_page)` is
+  called *before* the fetch; it maps the page via `page_chapters` and calls
+  `query::update_page_read_at(chapter_id, page_in_chapter, true)` immediately,
+  so the chapter being finished is completed even if its last-page update was
+  skipped.
+- **Mark crossed chapters.** New `last_page_seen: RefCell<Option<usize>>`
+  remembers the previous page. On each forward page change,
+  `mark_crossed_chapters(page)` builds the last page index per chapter from
+  `page_chapters` and, for every *other* chapter whose last page lies in
+  `[previous, page)`, immediately calls
+  `update_page_read_at(chapter_id, last_page_in_chapter, true)` (not debounced),
+  covering fast scrolls across many chapters.
+- **Resets/logging.** `last_page_seen` is reset when a chapter is fetched
+  (including the initial load), and crossed-chapter update failures are logged
+  (`could not mark chapter <id> as read: ...`) rather than showing snackbars.
+  The server's SQL keeps `is_complete` sticky (`CASE is_complete WHEN 0 THEN
+  excluded... ELSE is_complete END`), so later partial progress updates cannot
+  unread a completed chapter. The seamless reader behaviour is otherwise
+  unchanged; no server API/schema change.
+
+*If wrong:* chapters could still occasionally be missed on very large jumps if
+page mappings are incomplete (the sentinel + last-page crossing cover the normal
+cases); a completed chapter remains complete due to the sticky server update,
+and docs describe partial reads vs finishing a chapter.
 
 ## Open questions for the repository owner
 
