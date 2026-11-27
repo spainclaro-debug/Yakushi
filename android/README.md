@@ -5,13 +5,18 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.15.1** — see the
+Current release: **0.16.0** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.15.1 fixes **read status in seamless
-continuous reading**: chapters passed via auto-append or fast scrolling are now
-marked read (auto-append marks the finished chapter, and chapters whose last
-page was crossed are marked complete immediately), so chapters after the first
-no longer stay unread. 0.15.0 adds **pinned Catalogue sources**
+and [`CHANGELOG.md`](CHANGELOG.md). 0.16.0 introduces **Yashi 0.1.0**, a new
+companion Android client in this repository (`android/yashi/`, asset
+`yashi-client-release-<date>.apk`) for connecting another Android device to a
+Yakushi server (address bar/history/saved servers, QR scanning, local-network
+discovery, themes, full-screen WebView). **Yakushi Server is re-released as
+0.16.0** with no functional changes from 0.15.1, and CI now builds and
+publishes both APKs on the same `android-v0.16.0` release. 0.15.1 fixes **read
+status in seamless continuous reading**: chapters passed via auto-append or
+fast scrolling are marked read, so chapters after the first no longer stay
+unread. 0.15.0 adds **pinned Catalogue sources**
 (Pin/Unpin per row, a Pinned Sources section at the top in pin order, per-device
 localStorage, no duplicates) and fixes the **inverted Local/External source
 grouping** (user-installed extensions with huge ids are External; bundled and
@@ -52,8 +57,10 @@ previous reader Save-image feature**. 0.13.0 added the initial download cache
 and `.tempchapter` work, 0.13.1 fixed its UI/DownloadManager details (now
 superseded by the public-folder layout), and 0.12.1 names the Android app
 **Yakushi Server** (launcher, notifications and in-app labels); the web
-frontend/PWA keeps the short name **Yakushi**. Releases publish a single APK
-(`yakushi-server-release-<date>.apk`). 0.12.0 completed the Yakushi branding
+frontend/PWA keeps the short name **Yakushi**. Since 0.16.0 each release
+publishes two APKs: the server app (`yakushi-server-release-<date>.apk`) and
+the optional Yashi client (`yashi-client-release-<date>.apk`). 0.12.0 completed
+the Yakushi branding
 (tab title, favicon, PWA icons/splash, launcher icon and launch screen, Local
 source icon, frontend version = server version) and pointed the
 Settings Changelog / Github links at the Yakushi repository. 0.11.0 added a
@@ -66,25 +73,7 @@ reading history, the sources they use and your current chapter as a portable
 `.json` file in the phone's Downloads folder, and **Restore Library** picks
 that file, restores your library, categories and reading progress, and reports
 any sources that are not installed — with a one-tap **Install Missing
-Sources** action that installs them through the app and restarts the server.
-0.12.1 names the Android app
-**Yakushi Server** (launcher, notifications and in-app labels); the web frontend/PWA
-keeps the short name **Yakushi**. Releases now publish a single APK
-(`yakushi-server-release-<date>.apk`) instead of the duplicate
-`tanoshi-mobile-server` asset. 0.12.0 completed the Yakushi branding (tab
-title, favicon, PWA icons/splash, launcher icon and launch screen, Local source
-icon, frontend version = server version) and pointed the Settings Changelog /
-Github links at the Yakushi repository. 0.11.0 added a **Register** button so
-additional users can create their own accounts (registration can be disabled in
-the server config; admins keep the Users settings). The application id, data
-directories and signing key are unchanged, so existing Yakushi/Tanoshi
-installs update in place. 0.10.0 added **Backup and Restore**
-in Settings: **Backup Library** saves your library titles, reading history,
-the sources they use and your current chapter as a portable `.json` file in
-the phone's Downloads folder, and **Restore Library** picks that file, restores
-your library, categories and reading progress, and reports any sources that
-are not installed — with a one-tap **Install Missing Sources** action that
-installs them through the app and restarts the server. The 0.9.x line adds the
+Sources** action that installs them through the app and restarts the server. The 0.9.x line adds the
 per-device web-UI themes (0.9.0), the reworked theme application (0.9.1) and
 themed settings cells (0.9.2); 0.9.2 fixes the web-UI **Settings list
 cells** (Appearance, Chapters, Library, Categories, Reader, Sources, Users,
@@ -129,7 +118,8 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
-- [What's new in 0.15.1](#whats-new-in-0151)
+- [What's new in 0.16.0](#whats-new-in-0160)
+- [Yashi client (companion app)](#yashi-client-companion-app)
 - [Requirements](#requirements)
 - [Building the APK](#building-the-apk)
 - [Installing and updating](#installing-and-updating)
@@ -178,6 +168,31 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.16.0
+
+- **Yashi 0.1.0 — companion Android client.** A new module
+  (`android/yashi/`, package `dev.spainclaro.yashi`) connects a second Android
+  device to a Yakushi server: first-launch camera permission for QR scanning,
+  address bar + Go, connection **history** and **saved servers** (save from
+  history, edit host/port, delete), QR scan of the server's LAN-sharing QR,
+  **local-network discovery** (local IPv4 /24 on ports 8080/18084, probe for
+  the Yakushi frontend, tap to connect), **System/Dark/Light theme** and
+  **Clear data** in a settings sheet, and a full-screen WebView with a floating
+  back button hidden on catalogue/manga/reader pages. Persistence is local
+  (`SharedPreferences` `yashi`); client-only, no server changes. See
+  [Yashi client (companion app)](#yashi-client-companion-app) and
+  [`yashi/README.md`](yashi/README.md).
+- **Yakushi Server 0.16.0 re-release.** No functional server changes from
+  0.15.1; version bumped to 0.16.0 (versionCode 1600) so both apps ship on the
+  same tag `android-v0.16.0`. Embedded web UI/native binaries unchanged.
+- **Both APKs per release.** CI builds `:app` and `:yashi`, uploads
+  `yakushi-server-release-<date>.apk` and
+  `yashi-client-release-<date>.apk`, and publishes both assets on the release
+  with combined notes/title "Yakushi Server 0.16.0 + Yashi 0.1.0".
+  `settings.gradle.kts` includes `:yashi`.
+
+Previous release — **0.15.1** — and its features:
 
 ## What's new in 0.15.1
 
@@ -651,6 +666,46 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
+## Yashi client (companion app)
+
+**Yashi 0.1.0** is a separate Android app shipped from the same repository for
+connecting a phone/tablet to a Yakushi server running on another device (or
+anywhere reachable by IP). It does **not** bundle or run the server; it is the
+client counterpart of Yakushi Server.
+
+| | |
+| --- | --- |
+| Module | `android/yashi/` (package `dev.spainclaro.yashi`; included by `settings.gradle.kts`) |
+| Asset | `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.0, versionCode 100, same signing key) |
+| Permissions | internet/network state + **camera** (QR scanner; asked on first launch) |
+| Persistence | `SharedPreferences` file `yashi` — history, saved servers, theme, camera_asked (device-only) |
+
+What it does:
+
+- **Start screen:** address bar + **Go**, connection **history** (newest first,
+  max 30, de-duplicated by URL) and **saved servers** (save from history,
+  **edit** host/port, **delete**). Addresses accept `host`,
+  `host:port`, `http://…`, full URLs and the server's QR contents; HTTP is the
+  default scheme and 8080 the default port when omitted.
+- **Connect:** scan the Yakushi Server's LAN-sharing **QR code** (first launch
+  asks for camera permission; denied → the app explains and keeps working for
+  typed addresses), or run **local network** discovery: it scans the local
+  IPv4 `/24` on the default ports **8080** and **18084**, keeps hosts whose
+  HTTP response looks like the Yakushi frontend, and lists them for one-tap
+  connect (best-effort; custom ports via address/QR).
+- **Browse:** a full-screen WebView of the complete Yakushi web UI. A small
+  floating bottom-left **back** button returns to the Yashi start screen; it is
+  hidden on `/catalogue`, `/manga` and `/chapter` paths so it never covers the
+  catalogue or reader. System back walks WebView history first, then exits to
+  the start screen.
+- **Settings (bottom sheet):** **System / Dark / Light** theme and **Clear
+  data** — removes saved servers + connection history from this device; the
+  theme is kept.
+
+Build it separately with `./gradlew :yashi:assembleDebug` (APK under
+`android/yashi/build/outputs/apk/debug/`); see
+[`yashi/README.md`](yashi/README.md) for module details.
+
 ## Requirements
 
 **To run the app**
@@ -690,34 +745,43 @@ any of that for a normal APK build.
 2. Let Gradle sync; select the embedded JDK 17 if prompted.
 3. **Build → Build Bundle(s)/APK(s) → Build APK(s)**.
 
-The debug APK is written to
-`android/app/build/outputs/apk/debug/yakushi-server-release-<yyyy-MM-dd>.apk`,
-where `<yyyy-MM-dd>` is the local build date (CI passes the UTC date via
-`-PapkDate`).
+The debug APKs are written to
+`android/app/build/outputs/apk/debug/yakushi-server-release-<yyyy-MM-dd>.apk`
+(the server app) and
+`android/yashi/build/outputs/apk/debug/yashi-client-release-<yyyy-MM-dd>.apk`
+(the Yashi client, built as a separate module), where `<yyyy-MM-dd>` is the
+local build date (CI passes the UTC date via `-PapkDate`).
 
 ### Command line
 
 ```bash
 cd android
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug          # Yakushi Server only
+./gradlew :yashi:assembleDebug        # Yashi client only
+./gradlew :app:assembleDebug :yashi:assembleDebug   # both (what CI builds)
 ```
 
 The first run downloads the Gradle 8.9 distribution and the Compose
 dependencies; later builds are cached. Other useful tasks:
 
 ```bash
-./gradlew :app:assembleRelease   # release variant (same shared signing key)
-./gradlew :app:installDebug      # build + install on a connected device
+./gradlew :app:assembleRelease   # release variants (same shared signing key)
+./gradlew :app:installDebug      # build + install the server app
+./gradlew :yashi:installDebug    # build + install the Yashi client
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.15.1**,
-`versionCode` 1501) and today's date in the APK filename. CI derives both from
-the release tag; you can do the same manually:
+Local builds use the defaults in `app/build.gradle.kts` (**0.16.0**,
+`versionCode` 1600) and `yashi/build.gradle.kts` (**0.1.0**, versionCode 100)
+plus today's date in the APK filenames. CI derives the server version from the
+release tag; Yashi stays on 0.1.0/100 unless overridden. You can do the same
+manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.15.1 -PappVersionCode=1501 \
-  -PapkDate=2026-11-14
+./gradlew :app:assembleDebug -PappVersionName=0.16.0 -PappVersionCode=1600 \
+  -PapkDate=2026-11-27
+./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.0 -PyashiVersionCode=100 \
+  -PapkDate=2026-11-27
 ```
 
 `-PapkDate` is optional locally (the local date is used) and is what CI sets
@@ -1976,9 +2040,9 @@ Open the **Logs** screen first; the same output is appended to
 Clearing the Logs screen clears the in-memory view only.
 
 **"Native library missing" / the server cannot be started.** The APK was built
-without `jniLibs` or for the wrong ABI. Confirm the APK contains all eleven
-libraries (the server, libarchive and the nine plugins) and that the device is
-arm64:
+without `jniLibs` or for the wrong ABI. Confirm the APK contains the expected
+arm64 libraries (the server, libarchive, the nine plugins and the AndroidX/
+datastore support libs) and that the device is arm64:
 
 ```bash
 unzip -l android/app/build/outputs/apk/debug/yakushi-server-release-*.apk \
@@ -2078,6 +2142,30 @@ with ids >= 1,000,000 (user-installed extensions/plugins) are **External**;
 small ids (bundled/pre-installed extensions) and Local-folder sources (ids
 starting at 10000) are **Local**. If an old web UI is cached, update/reload the
 embedded UI; the groups follow the server's installed sources.
+
+**Yashi: the camera is not available / QR scanning does not start.** Yashi asks
+for camera permission on first launch; if you denied it, open the system
+Settings → Apps → Yashi → Permissions and allow Camera, then use the QR button
+again. Typed addresses, history, saved servers and LAN scan still work without
+the camera.
+
+**Yashi: no servers are found on the local network.** Discovery is best-effort:
+it scans the current local IPv4 `/24` on ports **8080** and **18084** and looks
+for a Yakushi frontend response. Make sure the server's **Expose on LAN** is on,
+both devices are on the same Wi-Fi/LAN, and the server uses one of those ports;
+custom ports can be entered in the address bar or via the server's QR code.
+
+**Yashi: the QR code is rejected / cannot connect.** The scanner expects a QR
+containing a server address (`host`, `host:port`, `http://…` or the URL shown in
+the server's LAN-sharing card); unrelated QR codes are rejected. If the address
+is right but the page does not load, check the server is running, LAN mode is
+on, and the phone is on the same network (Yashi displays a connection error
+otherwise).
+
+**Yashi: clear data or theme questions.** Settings → **Clear saved servers &
+history** removes the saved servers and connection history from this device but
+keeps the System/Dark/Light theme; Yashi stores everything in its own
+`SharedPreferences` (`yashi`) and never syncs it to the server.
 
 **A new/removed/disabled source is not active even without a visible restart
 banner.** The app hot-reloads the running server via
@@ -2367,8 +2455,9 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
 | Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
 | Catalogue pins | Per-device localStorage `catalogue_list_pinned` (JSON array, pin order); Pinned Sources section at top; pinned rows excluded from Local/External; external iff source id >= 1,000,000 (from 0.15.0) |
-| App version | 0.15.1 (`versionName`); `versionCode` 1501 in local builds and for the `android-v0.15.1` tag |
-| APK filename | `yakushi-server-release-<yyyy-MM-dd>.apk` (0.12.1+; 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
+| Yashi client | Module `android/yashi/`, package `dev.spainclaro.yashi`, version 0.1.0 / versionCode 100, pure Kotlin/Compose (no native code); client-only, same signing key |
+| App version | Yakushi Server 0.16.0 (`versionName`, `versionCode` 1600 in local builds and the `android-v0.16.0` tag) |
+| APK filenames | `yakushi-server-release-<yyyy-MM-dd>.apk` and `yashi-client-release-<yyyy-MM-dd>.apk` (Yakushi 0.12.1+; older 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |
 
@@ -2388,6 +2477,9 @@ android/
 │       ├── java/dev/spainclaro/tanoshi/   # app, service, admin bootstrap, updater, extensions, Compose UI
 │       ├── res/                           # strings, themes, icons, network policy
 │       └── jniLibs/arm64-v8a/             # libtanoshi.so, libarchive.so, lib<plugin>.so
+├── yashi/                                 # Yashi 0.1.0 client: address/history/saved, QR, LAN discovery, WebView
+│   ├── README.md
+│   └── build.gradle.kts
 ├── extensions/                            # legacy catalog, exported sources/template, repo-template, built plugins
 ├── gradle/wrapper/                        # Gradle 8.9 wrapper
 ├── keystore/                              # shared sideload signing key + README

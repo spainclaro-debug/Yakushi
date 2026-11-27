@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yakushi (讀) glyph, white on the adaptive icon's red background. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/yakushi_glyph"
+    android:gravity="fill" />

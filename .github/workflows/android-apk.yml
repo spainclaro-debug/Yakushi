@@ -1,8 +1,9 @@
 name: Android APK
 
-# Builds the sideloadable arm64-v8a debug APK of the standalone Tanoshi Android
-# app (no Termux), uploads it as a workflow artifact and, for Android release
-# tags (android-v*), publishes it on a GitHub release. Termux package releases
+# Builds the sideloadable arm64-v8a debug APKs of Yakushi Server (the standalone
+# Tanoshi Android app) and Yashi (its companion browser/client), uploads them as
+# workflow artifacts and, for Android release tags (android-v*), publishes both
+# on a GitHub release. Termux package releases
 # use v* tags and are not touched by this workflow.
 #
 # The native binaries under android/app/src/main/jniLibs/arm64-v8a/ are
@@ -77,26 +78,37 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-          echo "Building version '${NAME:-0.15.1 (default)}' code '${CODE:-1501 (default)}'"
+          # Yashi has its own version line, independent from the server tag.
+          echo "yashi_name=${YASHI_VERSION_NAME:-0.1.0}" >> "$GITHUB_OUTPUT"
+          echo "yashi_code=${YASHI_VERSION_CODE:-100}" >> "$GITHUB_OUTPUT"
+          echo "Building Yakushi '${NAME:-0.16.0 (default)}' code '${CODE:-1600 (default)}', Yashi '${YASHI_VERSION_NAME:-0.1.0}' code '${YASHI_VERSION_CODE:-100}'"
 
-      - name: Build debug APK
+      - name: Build debug APKs
         working-directory: android
         env:
           APP_VERSION_NAME: ${{ steps.version.outputs.name }}
           APP_VERSION_CODE: ${{ steps.version.outputs.code }}
+          YASHI_VERSION_NAME: ${{ steps.version.outputs.yashi_name }}
+          YASHI_VERSION_CODE: ${{ steps.version.outputs.yashi_code }}
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.15.1}"
-          CODE="${APP_VERSION_CODE:-1501}"
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace \
-            -PappVersionName="$NAME" -PappVersionCode="$CODE" -PapkDate="$APK_DATE"
+          NAME="${APP_VERSION_NAME:-0.16.0}"
+          CODE="${APP_VERSION_CODE:-1600}"
+          YASHI_NAME="${YASHI_VERSION_NAME:-0.1.0}"
+          YASHI_CODE="${YASHI_VERSION_CODE:-100}"
+          ./gradlew :app:assembleDebug :yashi:assembleDebug --no-daemon --stacktrace \
+            -PappVersionName="$NAME" -PappVersionCode="$CODE" \
+            -PyashiVersionName="$YASHI_NAME" -PyashiVersionCode="$YASHI_CODE" \
+            -PapkDate="$APK_DATE"
 
-      - name: Upload debug APK
+      - name: Upload debug APKs
         uses: actions/upload-artifact@v4
         with:
-          name: yakushi-android-debug-apk
-          path: android/app/build/outputs/apk/debug/yakushi-server-release-*.apk
+          name: yakushi-yashi-debug-apks
+          path: |
+            android/app/build/outputs/apk/debug/yakushi-server-release-*.apk
+            android/yashi/build/outputs/apk/debug/yashi-client-release-*.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -109,10 +121,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi Server 0.15.1 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). This is a bug-fix release for seamless continuous reading: chapters read through automatic chapter transitions were sometimes left unread (e.g. chapter 2 onward). A chapter is now marked read when its end is reached and before the next chapter is appended, and chapters crossed during fast scrolling are marked read too, so every chapter you pass is shown as read regardless of how many chapters you scroll through. Includes all 0.15.0 features (pinned catalogue sources, corrected Local/External grouping) and 0.14.0 (extension hot-reload without restart). Install: download yakushi-server-release-<date>.apk and sideload it; existing installs update from Settings -> Updates. See android/CHANGELOG.md and README.md."
+          NOTES="Yakushi Server 0.16.0 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). This release also introduces **Yashi 0.1.0**, a companion browser client for connecting to a Yakushi server from another Android device: camera QR scanning on first launch, an address bar + history + saved servers with edit/delete, LAN discovery, dark/light/system themes, clear-data settings, and a full-screen WebView with a floating back button (hidden in the catalogue and manga reader). Yakushi Server 0.16.0 includes all 0.15.1 fixes (seamless continuous reading read-status), pinned catalogue sources, hot extension reload and all earlier features. Install: download yakushi-server-release-<date>.apk for the server app and/or yashi-client-release-<date>.apk for the client; sideload them. Existing Yakushi installs update from Settings -> Updates. See android/CHANGELOG.md, android/README.md and the Yashi section in README.md."
           APK_DIR=android/app/build/outputs/apk/debug
+          YASHI_DIR=android/yashi/build/outputs/apk/debug
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \
+            "$YASHI_DIR"/yashi-client-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Yakushi Server $TAG" \
+            --title "Yakushi Server 0.16.0 + Yashi 0.1.0" \
             --notes "$NOTES"

@@ -55,8 +55,10 @@ per-device tab display options and inline category rename (patch 0011) and
 0.13.9 adds seamless continuous chapters + automatic webtoon layout (patch
 0012), 0.14.0 adds server-side extension **hot reload** (patch 0013 + copied
 `extensions_reload.rs`; web dist unchanged) and 0.15.0 adds Catalogue source
-pins + corrected Local/External grouping (patch 0014) and 0.15.1 fixes
-continuous read status (patch 0015). Offline chapters are extracted as page images into public
+pins + corrected Local/External grouping (patch 0014), 0.15.1 fixes
+continuous read status (patch 0015) and 0.16.0 re-releases the same server
+binary alongside the new **Yashi** client (separate `android/yashi/` module,
+pure Kotlin/Compose, **no native code or pipeline changes**). Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -125,6 +127,12 @@ The scripts to run are:
 | `native/build_libarchive.sh` | Cross-build the minimal `libarchive.so` (zlib only) with the NDK CMake toolchain and stage its `pkg-config` file for `compress-tools`. |
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
+
+The GitHub Actions release workflow builds **both apps** in 0.16.0:
+`:app:assembleDebug` (server, `yakushi-server-release-*.apk`) and
+`:yashi:assembleDebug` (Yashi client, `yashi-client-release-*.apk`) and
+publishes both assets. Yashi is a pure Kotlin/Compose module under
+`android/yashi/` and does not use this native pipeline.
 
 The scripts are self-checking. Typical order: run `native/build_libarchive.sh`
 first (its staging prefix is what `compress-tools` links against), then
@@ -424,6 +432,10 @@ default source is the **vendored dist** in this directory:
   The 0.15.1 rebuild adds patch 0015 (continuous read-status fix) to the dist;
   the 0.15.0 pins/grouping, 0.14.0 hot-reload patch 0013 and the rest stay in
   the binary, and patch 0006 stays deleted.
+- **0.16.0 does not change the native binaries.** Yakushi Server 0.16.0 is a
+  re-release of the 0.15.1 server (version bump only) published together with
+  the new Yashi client; the web dist and `libtanoshi.so` are unchanged, and
+  Yashi has no native code (no jniLibs/NDK/Rust step).
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -726,14 +738,21 @@ grep -c -a "android_dlopen_ext failed" libtanoshi.so   # expect 1
 grep -c -a "tanoshi-disabled" libtanoshi.so            # expect 1
 ```
 
-And on the built APK (since 0.3.0 the output is
-`android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-<date>.apk`):
+And on the built APKs (0.16.0 publishes two: the server app
+`android/app/build/outputs/apk/debug/yakushi-server-release-<date>.apk` and the
+Yashi client `android/yashi/build/outputs/apk/debug/yashi-client-release-<date>.apk`;
+Yashi is pure Kotlin/Compose and carries only the standard AndroidX
+`libandroidx.graphics.path.so` support library, no server/plugin natives):
 
 ```bash
-APK=android/app/build/outputs/apk/debug/tanoshi-mobile-server-release-*.apk
+APK=android/app/build/outputs/apk/debug/yakushi-server-release-*.apk
 unzip -l $APK | grep 'lib/arm64-v8a'
-#   all eleven .so files must be present
+#   server + libarchive + nine plugins + AndroidX/datastore support libs
 zipalign -c -P 16 4 $APK   # Android 15+ 16 KB alignment check
+
+YASHI=android/yashi/build/outputs/apk/debug/yashi-client-release-*.apk
+unzip -l $YASHI | grep -E 'lib/(libtanoshi|libarchive|libmangadex)' \
+  || echo "no server/plugin native libs (expected)"
 ```
 
 If either alignment check reports `0x1000`, rebuild with
@@ -794,7 +813,9 @@ with patch 0012 (seamless continuous chapters + automatic webtoon layout), and
 endpoint and `reload_all`; web dist unchanged), and **0.15.0 rebuilt it** with
 patch 0014 (Catalogue pins + Local/External grouping; new JS/wasm/CSS), and
 **0.15.1 rebuilt it** with patch 0015 (continuous read-status fix; new JS/wasm,
-CSS unchanged). The exported extension sources
+CSS unchanged). **0.16.0 does not rebuild the native binaries** (the server app
+is a version-only re-release published alongside the new pure-Kotlin Yashi
+client; the web dist and `libtanoshi.so` stay as in 0.15.1). The exported extension sources
 (`android/extensions/sources/`), repo template and `build_extension.sh` were
 added in 0.6.0; the canonical catalogs/plugins moved to the separate
 `tanoshi-extension` repository in 0.7.0. Releases that only change the app UI

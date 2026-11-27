@@ -1,9 +1,9 @@
-# Changelog — Yakushi Server for Android
+# Changelog — Yakushi + Yashi for Android
 
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.15.1`). The Termux package in the repository root has
+(for example `android-v0.16.0`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,48 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.0
+
+### Added
+
+- **Yashi 0.1.0 — companion Android client** (`android/yashi/` module, package
+  `dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`,
+  versionCode 100, signed with the same sideload key). It connects another
+  Android device to a Yakushi server:
+  - first-launch **camera permission** request for the built-in QR scanner;
+  - **start screen** with an address bar + **Go**, a **history** of connected
+    servers (max 30, newest first, de-duplicated by URL) and a **saved
+    servers** list (save from history, **edit** host/port, **delete**);
+  - **QR scan** of the server's LAN-sharing QR code (ZXing embedded, QR only);
+  - **local-network discovery**: best-effort scan of the local IPv4 /24 on the
+    default ports **8080** and **18084**, probing for the Yakushi frontend; a
+    popup lists found servers for one-tap connect (custom ports via address/QR);
+  - **settings bottom sheet** with **System / Dark / Light** theme and
+    **Clear data** (removes saved servers + connection history, keeps the
+    theme);
+  - **full-screen WebView** of the Yakushi frontend with a small floating
+    bottom-left **back** button that is hidden on `/catalogue`, `/manga` and
+    `/chapter` paths; system back walks the WebView history first, then returns
+    to the start screen;
+  - persistence is local only: `SharedPreferences` file **`yashi`**
+    (history/saved JSON arrays, theme id, camera_asked). **Client only** — it
+    does not bundle or run the server, and there are no server-side changes.
+
+### Changed
+
+- **Yakushi Server 0.16.0 is a re-release.** The server app has **no
+  functional changes from 0.15.1**; its version is bumped to 0.16.0
+  (versionCode 1600) so both apps publish on one release tag
+  `android-v0.16.0`. The embedded web UI/native binaries are unchanged from
+  0.15.1.
+- **CI builds and publishes both apps.** `.github/workflows/android-apk.yml`
+  now runs `:app:assembleDebug` and `:yashi:assembleDebug` (Yashi defaults
+  0.1.0/100, overridable with `-PyashiVersionName`/`-PyashiVersionCode`),
+  uploads both APKs (`yakushi-server-release-*.apk` and
+  `yashi-client-release-*.apk`) and attaches both assets to the GitHub
+  release with combined notes and the title "Yakushi Server 0.16.0 + Yashi
+  0.1.0". `android/settings.gradle.kts` includes `:yashi`.
 
 ## 0.15.1
 

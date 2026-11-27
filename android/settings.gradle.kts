@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TanoshiAndroid"
 include(":app")
+include(":yashi")

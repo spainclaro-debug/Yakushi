@@ -226,7 +226,14 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.15.1 / 1501, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.0 / 1600, local date).
+
+From 0.16.0 the same workflow also builds the **Yashi** client module
+(`:yashi:assembleDebug`; version defaults 0.1.0 / versionCode 100, overridable
+with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
+publishes both assets (`yakushi-server-release-*.apk` and
+`yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
+`:yashi`. Yashi adds no native/NDK step (pure Kotlin/Compose).
 
 *If wrong:* if the repository owner prefers binaries rebuilt in CI, the
 workflow becomes much heavier (NDK, Rust, libarchive, wasm tooling) — see Q9.
@@ -279,12 +286,18 @@ a manual APK download from the release page.
 
 ### A20 — The app version is independent of the Tanoshi server version
 
-The app follows its own `android-vX.Y.Z` version scheme (0.15.1 / versionCode
-1501 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.15.1`
+The app follows its own `android-vX.Y.Z` version scheme (0.16.0 / versionCode
+1600 locally; the same value as `X*10000+Y*100+Z` for the `android-v0.16.0`
 tag), independent of the bundled Tanoshi server (0.40.0 /
 `VERSION`) and of the Termux package (`PACKAGE_TAG`). An app update may or may
 not change the bundled server; the two version lines are documented
 separately.
+
+Yashi has its own independent version line: **0.1.0 / versionCode 100**, set
+in `android/yashi/build.gradle.kts` and overridable from CI
+(`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
+`android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
+(server 1600) while Yashi stays 0.1.0/100, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1014,6 +1027,41 @@ page, and fast scrolling can skip them. The 0.15.1 fix in `reader.rs`:
 page mappings are incomplete (the sentinel + last-page crossing cover the normal
 cases); a completed chapter remains complete due to the sticky server update,
 and docs describe partial reads vs finishing a chapter.
+
+### A50 — Yashi is a client-only companion app with local persistence
+
+Yashi 0.1.0 is a separate Android application module (`android/yashi/`, package
+`dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
+0.1.0 / versionCode 100) shipped in the same repository and signed with the
+same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
+does not start a server and makes no server-side changes. It connects to a
+Yakushi server over plain HTTP in a full-screen WebView (JS/DOM storage/cookies
+enabled, zoom disabled, mixed content allowed).
+
+- **Persistence:** `SharedPreferences` file **`yashi`** holds `history` and
+  `saved` (JSON arrays of `ServerAddress` URLs), `theme` (system/dark/light) and
+  `camera_asked`. History is newest-first, de-duplicated by URL, capped at 30;
+  saved servers are explicit entries with edit/delete. Nothing is synced to the
+  server; clear data removes history+saved but keeps the theme.
+- **Permissions:** INTERNET, ACCESS_NETWORK_STATE and CAMERA (camera optional
+  feature). Camera permission is requested on first launch (`camera_asked`
+  remembers the ask); QR scanning uses ZXing embedded with QR-only scanning and
+  parses the result as a server address (host/host:port/http URL).
+- **LAN discovery:** best-effort scan of the current local IPv4 `/24` on ports
+  **8080** and **18084**, 48 concurrent probes with 350 ms connect/700 ms read,
+  keeping HTTP 200–399 responses whose first 4 KB contain "yakushi"/"tanoshi"
+  or a doctype; results are listed in a popup for one-tap connect. Custom ports
+  are reachable via the address bar/QR, not discovery.
+- **Navigation:** the floating back button is hidden when the WebView path
+  starts with `/catalogue`, `/manga` or `/chapter`; system back navigates the
+  WebView history first, then exits to the start screen.
+- **Scope:** Yashi is a convenience client for the web UI; it has no offline
+  reading, downloads, extension management or server lifecycle features of its
+  own (those remain in the server app/web UI).
+
+*If wrong:* users could expect Yashi to run/update the server or sync servers
+across devices; the docs and UI state it is client-only and device-local, and
+the server app remains the only way to host.
 
 ## Open questions for the repository owner
 
