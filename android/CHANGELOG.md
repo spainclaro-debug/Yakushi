@@ -3,7 +3,7 @@
 All notable changes to the standalone Android app in `android/`. The app is
 versioned independently of the upstream Tanoshi server it bundles (currently
 Tanoshi **0.40.0**) and is released as GitHub releases tagged **`android-vX.Y.Z`**
-(for example `android-v0.16.0`). The Termux package in the repository root has
+(for example `android-v0.16.1`). The Termux package in the repository root has
 its own `PACKAGE_TAG` and `v*` release tags.
 
 Versioning: local/Gradle builds default to the version in
@@ -17,6 +17,35 @@ where the date is the UTC build date in CI (via `-PapkDate`) and the local
 date otherwise.
 
 ---
+
+## 0.16.1
+
+### Fixed
+
+- **Yashi: floating back button no longer covers the bottom bar.** It used
+  16dp bottom padding and sat on top of the web UI's bottom navigation bar
+  (covering the **Library** button on phones). It now uses
+  `padding(start = 16dp, bottom = 96dp, top = 16dp)` plus navigation-bar
+  insets, so it floats clearly above the bar; it is still hidden on
+  `/catalogue`, `/manga` and `/chapter`.
+- **Yashi: blank reader pages / missing chapter images.** The WebView is now a
+  stable `remember`ed instance (destroyed via `DisposableEffect`) instead of
+  being created/assigned inside the `AndroidView` factory, and its settings
+  match the proven Yakushi Server WebView: JavaScript, DOM storage, database,
+  `loadsImagesAutomatically = true`, `blockNetworkImage = false`,
+  overview/wide viewport, built-in zoom controls enabled with support zoom,
+  `javaScriptCanOpenWindowsAutomatically`, media playback, mixed content and
+  cookies, plus a `WebChromeClient`. The previous `setSupportZoom(false)` is
+  removed, which fixes chapter pages rendering as blank boxes on some devices.
+
+### Changed
+
+- **Versions:** Yashi **0.1.1 / versionCode 101** (was 0.1.0/100); Yakushi
+  Server **0.16.1 / versionCode 1601** is a re-release with **no server/native
+  changes** from 0.16.0. CI builds both apps and publishes both assets
+  (`yakushi-server-release-<date>.apk`, `yashi-client-release-<date>.apk`) on
+  tag `android-v0.16.1` with combined notes/title
+  "Yakushi Server 0.16.1 + Yashi 0.1.1". APK filename scheme unchanged.
 
 ## 0.16.0
 

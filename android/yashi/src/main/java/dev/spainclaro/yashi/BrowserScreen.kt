@@ -2,6 +2,7 @@ package dev.spainclaro.yashi
 
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -57,76 +58,80 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            webView?.destroy()
-            webView = null
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { viewContext ->
-                WebView(viewContext).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.databaseEnabled = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.setSupportZoom(false)
-                    settings.builtInZoomControls = false
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    CookieManager.getInstance().setAcceptCookie(true)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        val currentWebView = remember {
+            WebView(context).apply {
+                // Keep this configuration in sync with the Yakushi Server app's
+                // embedded WebView. In particular, image pages rely on normal
+                // zoom/viewport behaviour; disabling zoom made reader pages
+                // render as empty boxes on some WebViews.
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.databaseEnabled = true
+                settings.loadsImagesAutomatically = true
+                settings.blockNetworkImage = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                settings.setSupportZoom(true)
+                settings.javaScriptCanOpenWindowsAutomatically = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                webChromeClient = WebChromeClient()
 
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                            super.onPageStarted(view, url, favicon)
-                            loading = true
-                            showBack = !isImmersivePage(url)
-                        }
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        loading = true
+                        showBack = !isImmersivePage(url)
+                    }
 
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            loading = false
-                            showBack = !isImmersivePage(url)
-                        }
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        loading = false
+                        showBack = !isImmersivePage(url)
+                    }
 
-                        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                            super.doUpdateVisitedHistory(view, url, isReload)
-                            showBack = !isImmersivePage(url)
-                        }
+                    override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                        super.doUpdateVisitedHistory(view, url, isReload)
+                        showBack = !isImmersivePage(url)
+                    }
 
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?,
-                        ): Boolean = false
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                    ): Boolean = false
 
-                        override fun onReceivedError(
-                            view: WebView?,
-                            request: WebResourceRequest?,
-                            error: WebResourceError?,
-                        ) {
-                            super.onReceivedError(view, request, error)
-                            if (request?.isForMainFrame == true) {
-                                Toast.makeText(
-                                    context,
-                                    "Could not reach this server. Check that Yakushi is running and LAN mode is enabled.",
-                                    Toast.LENGTH_LONG,
-                                ).show()
-                            }
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?,
+                    ) {
+                        super.onReceivedError(view, request, error)
+                        if (request?.isForMainFrame == true) {
+                            Toast.makeText(
+                                context,
+                                "Could not reach this server. Check that Yakushi is running and LAN mode is enabled.",
+                                Toast.LENGTH_LONG,
+                            ).show()
                         }
                     }
-                    loadUrl(url)
-                    webView = this
                 }
-            },
-            // The screen is created once per connection; let the WebView own its
-            // own navigation. Reloading here on recomposition would throw the
-            // user back to the start page whenever the back button visibility
-            // changes.
+                loadUrl(url)
+                webView = this
+            }
+        }
+
+        DisposableEffect(currentWebView) {
+            onDispose { currentWebView.destroy() }
+        }
+
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { currentWebView },
             update = {},
         )
 
@@ -145,7 +150,9 @@ fun BrowserScreen(url: String, onExit: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .navigationBarsPadding()
-                    .padding(16.dp),
+                    // Keep clear of the web UI's bottom navigation bar; 16.dp
+                    // sat directly on top of the Library button on phones.
+                    .padding(start = 16.dp, bottom = 96.dp, top = 16.dp),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Yashi")
             }

@@ -5,9 +5,14 @@ manga server (the open-source core Yakushi is forked from) and the same nine
 extensions as the Termux package in the repository root — **without Termux**. The app runs the server as a foreground
 service and shows its web UI in an embedded WebView (or your normal browser).
 
-Current release: **0.16.0** — see the
+Current release: **0.16.1** — see the
 [latest release](https://github.com/spainclaro-debug/Yakushi/releases/latest)
-and [`CHANGELOG.md`](CHANGELOG.md). 0.16.0 introduces **Yashi 0.1.0**, a new
+and [`CHANGELOG.md`](CHANGELOG.md). 0.16.1 fixes **Yashi 0.1.1**: the floating
+back button is raised clear of the web UI's bottom navigation bar, and the
+WebView is now a stable remembered instance with the same zoom/image settings
+as the Yakushi Server app, fixing blank chapter pages/missing reader images.
+**Yakushi Server 0.16.1** is a re-release with no server/native changes; both
+APKs publish on `android-v0.16.1`. 0.16.0 introduces **Yashi 0.1.0**, a new
 companion Android client in this repository (`android/yashi/`, asset
 `yashi-client-release-<date>.apk`) for connecting another Android device to a
 Yakushi server (address bar/history/saved servers, QR scanning, local-network
@@ -118,6 +123,7 @@ APK only needs JDK 17 and the Android SDK — no Rust or NDK. See
 ## Contents
 
 - [What you get](#what-you-get)
+- [What's new in 0.16.1](#whats-new-in-0161)
 - [What's new in 0.16.0](#whats-new-in-0160)
 - [Yashi client (companion app)](#yashi-client-companion-app)
 - [Requirements](#requirements)
@@ -168,6 +174,28 @@ The APK is large because it carries the ~35 MB server binary plus `libarchive`
 and the plugins. It is not split by ABI — only `arm64-v8a` is shipped.
 
 ---
+
+## What's new in 0.16.1
+
+- **Yashi: back button raised.** The floating back button now uses bottom
+  padding **96dp** (plus navigation-bar insets, start/top 16dp) instead of
+  16dp, so it floats above the Yakushi web UI's bottom navigation bar and no
+  longer covers the **Library** button on phones. It is still hidden on
+  `/catalogue`, `/manga` and `/chapter`.
+- **Yashi: blank reader pages/missing images fixed.** The WebView is now a
+  stable `remember`ed instance (destroyed by `DisposableEffect`) instead of
+  being created/assigned inside the `AndroidView` factory, and its settings
+  match the proven Yakushi Server WebView: JavaScript, DOM storage, database,
+  `loadsImagesAutomatically=true`, `blockNetworkImage=false`,
+  overview/wide viewport, built-in zoom controls with support zoom,
+  `javaScriptCanOpenWindowsAutomatically`, media playback, mixed content,
+  cookies and a `WebChromeClient`. The old `setSupportZoom(false)` is removed.
+- **Versions:** Yashi **0.1.1 / versionCode 101**; Yakushi Server **0.16.1 /
+  versionCode 1601** (re-release, no server/native changes). CI publishes both
+  assets on tag `android-v0.16.1` with title/notes
+  "Yakushi Server 0.16.1 + Yashi 0.1.1".
+
+Previous release — **0.16.0** — and its features:
 
 ## What's new in 0.16.0
 
@@ -668,7 +696,7 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Yashi client (companion app)
 
-**Yashi 0.1.0** is a separate Android app shipped from the same repository for
+**Yashi 0.1.1** is a separate Android app shipped from the same repository for
 connecting a phone/tablet to a Yakushi server running on another device (or
 anywhere reachable by IP). It does **not** bundle or run the server; it is the
 client counterpart of Yakushi Server.
@@ -676,7 +704,7 @@ client counterpart of Yakushi Server.
 | | |
 | --- | --- |
 | Module | `android/yashi/` (package `dev.spainclaro.yashi`; included by `settings.gradle.kts`) |
-| Asset | `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.0, versionCode 100, same signing key) |
+| Asset | `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.1, versionCode 101, same signing key) |
 | Permissions | internet/network state + **camera** (QR scanner; asked on first launch) |
 | Persistence | `SharedPreferences` file `yashi` — history, saved servers, theme, camera_asked (device-only) |
 
@@ -693,11 +721,15 @@ What it does:
   IPv4 `/24` on the default ports **8080** and **18084**, keeps hosts whose
   HTTP response looks like the Yakushi frontend, and lists them for one-tap
   connect (best-effort; custom ports via address/QR).
-- **Browse:** a full-screen WebView of the complete Yakushi web UI. A small
-  floating bottom-left **back** button returns to the Yashi start screen; it is
-  hidden on `/catalogue`, `/manga` and `/chapter` paths so it never covers the
-  catalogue or reader. System back walks WebView history first, then exits to
-  the start screen.
+- **Browse:** a full-screen WebView of the complete Yakushi web UI. The WebView
+  is a stable remembered instance configured like the Yakushi Server app
+  (images load automatically, network images allowed, zoom enabled, JavaScript/
+  DOM storage/database/cookies, `WebChromeClient`) — this fixes the blank
+  reader pages/missing chapter images seen in 0.1.0. A small floating
+  bottom-left **back** button (bottom padding **96dp** + navigation-bar
+  insets) returns to the Yashi start screen; it is hidden on `/catalogue`,
+  `/manga` and `/chapter` paths so it never covers the catalogue or reader.
+  System back walks WebView history first, then exits to the start screen.
 - **Settings (bottom sheet):** **System / Dark / Light** theme and **Clear
   data** — removes saved servers + connection history from this device; the
   theme is kept.
@@ -771,16 +803,16 @@ dependencies; later builds are cached. Other useful tasks:
 ./gradlew clean                  # remove build outputs
 ```
 
-Local builds use the defaults in `app/build.gradle.kts` (**0.16.0**,
-`versionCode` 1600) and `yashi/build.gradle.kts` (**0.1.0**, versionCode 100)
+Local builds use the defaults in `app/build.gradle.kts` (**0.16.1**,
+`versionCode` 1601) and `yashi/build.gradle.kts` (**0.1.1**, versionCode 101)
 plus today's date in the APK filenames. CI derives the server version from the
-release tag; Yashi stays on 0.1.0/100 unless overridden. You can do the same
+release tag; Yashi stays on 0.1.1/101 unless overridden. You can do the same
 manually:
 
 ```bash
-./gradlew :app:assembleDebug -PappVersionName=0.16.0 -PappVersionCode=1600 \
+./gradlew :app:assembleDebug -PappVersionName=0.16.1 -PappVersionCode=1601 \
   -PapkDate=2026-11-27
-./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.0 -PyashiVersionCode=100 \
+./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.1 -PyashiVersionCode=101 \
   -PapkDate=2026-11-27
 ```
 
@@ -2143,6 +2175,18 @@ small ids (bundled/pre-installed extensions) and Local-folder sources (ids
 starting at 10000) are **Local**. If an old web UI is cached, update/reload the
 embedded UI; the groups follow the server's installed sources.
 
+**Yashi: the floating back button covers the web UI's Library/bottom bar.**
+Fixed in Yashi 0.1.1: the button now sits 96dp above the bottom (plus
+navigation-bar insets) instead of 16dp, so it clears the web UI's bottom
+navigation bar. Update Yashi to 0.1.1.
+
+**Yashi: reader pages are blank / chapter images do not load.** Fixed in Yashi
+0.1.1: the WebView is now a stable remembered instance configured like the
+Yakushi Server app (images load automatically, network images allowed, zoom
+controls enabled, JavaScript/DOM storage/database/cookies, WebChromeClient)
+instead of a WebView that disabled zoom. Update Yashi and reopen the chapter;
+if the server itself has the images, normal Yakushi web UI behaviour applies.
+
 **Yashi: the camera is not available / QR scanning does not start.** Yashi asks
 for camera permission on first launch; if you denied it, open the system
 Settings → Apps → Yashi → Permissions and allow Camera, then use the QR button
@@ -2455,8 +2499,8 @@ and `allowBackup` is off. Copy the `tanoshi/` folder out first (see
 | Reader webtoon mode | Auto-detect when a loaded page is height ≥ 2.5×width → Continuous + Fit Width + padding off + saved, one-shot snackbar; fit-only settings panel (from 0.13.9) |
 | Extension hot reload | `POST /api/extensions/reload` → non-destructive `ExtensionManager::reload_all()` (drain sources, close queues/stop workers, `load_all`); app auto-calls after each source mutation, "Sources updated", restart banner only on failure/server stopped (from 0.14.0) |
 | Catalogue pins | Per-device localStorage `catalogue_list_pinned` (JSON array, pin order); Pinned Sources section at top; pinned rows excluded from Local/External; external iff source id >= 1,000,000 (from 0.15.0) |
-| Yashi client | Module `android/yashi/`, package `dev.spainclaro.yashi`, version 0.1.0 / versionCode 100, pure Kotlin/Compose (no native code); client-only, same signing key |
-| App version | Yakushi Server 0.16.0 (`versionName`, `versionCode` 1600 in local builds and the `android-v0.16.0` tag) |
+| Yashi client | Module `android/yashi/`, package `dev.spainclaro.yashi`, version 0.1.1 / versionCode 101, pure Kotlin/Compose (no app-specific native code); client-only, same signing key |
+| App version | Yakushi Server 0.16.1 (`versionName`, `versionCode` 1601 in local builds and the `android-v0.16.1` tag) |
 | APK filenames | `yakushi-server-release-<yyyy-MM-dd>.apk` and `yashi-client-release-<yyyy-MM-dd>.apk` (Yakushi 0.12.1+; older 0.3.0–0.12.0 used `tanoshi-mobile-server-release-<date>.apk`; 0.1.0/0.2.0 used `app-debug.apk`) |
 | Signing key | `android/keystore/tanoshi-signing.jks` (alias `tanoshi`), shared by all releases |
 | Android NDK (native rebuilds only) | r26+ |

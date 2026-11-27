@@ -226,10 +226,10 @@ Termux package tags do not trigger the workflow at all (see Q6). For a tag,
 CI derives `versionName` from `android-vX.Y.Z`, sets
 `versionCode = X * 10000 + Y * 100 + Z`, and names the APK
 `yakushi-server-release-<UTC date>.apk` via `-PapkDate`, passing all
-three to Gradle; local builds use the Gradle defaults (0.16.0 / 1600, local date).
+three to Gradle; local builds use the Gradle defaults (0.16.1 / 1601, local date).
 
 From 0.16.0 the same workflow also builds the **Yashi** client module
-(`:yashi:assembleDebug`; version defaults 0.1.0 / versionCode 100, overridable
+(`:yashi:assembleDebug`; version defaults 0.1.1 / versionCode 101, overridable
 with `-PyashiVersionName` / `-PyashiVersionCode`), uploads both APKs and
 publishes both assets (`yakushi-server-release-*.apk` and
 `yashi-client-release-*.apk`) on the release. `settings.gradle.kts` includes
@@ -293,11 +293,11 @@ tag), independent of the bundled Tanoshi server (0.40.0 /
 not change the bundled server; the two version lines are documented
 separately.
 
-Yashi has its own independent version line: **0.1.0 / versionCode 100**, set
+Yashi has its own independent version line: **0.1.1 / versionCode 101**, set
 in `android/yashi/build.gradle.kts` and overridable from CI
 (`-PyashiVersionName` / `-PyashiVersionCode`); it is not derived from the
 `android-vX.Y.Z` tag. For 0.16.0 the server app tag is `android-v0.16.0`
-(server 1600) while Yashi stays 0.1.0/100, published on the same release.
+(server 1601) while Yashi stays 0.1.1/101, published on the same release.
 
 *If wrong:* users could mistake app releases for server/extension releases;
 the docs state both versions explicitly in the Versions table and changelog.
@@ -1030,13 +1030,18 @@ and docs describe partial reads vs finishing a chapter.
 
 ### A50 — Yashi is a client-only companion app with local persistence
 
-Yashi 0.1.0 is a separate Android application module (`android/yashi/`, package
+Yashi 0.1.1 is a separate Android application module (`android/yashi/`, package
 `dev.spainclaro.yashi`, APK `yashi-client-release-<yyyy-MM-dd>.apk`, version
-0.1.0 / versionCode 100) shipped in the same repository and signed with the
+0.1.1 / versionCode 101) shipped in the same repository and signed with the
 same sideload key, but it is **client-only**: it does not bundle `libtanoshi`,
 does not start a server and makes no server-side changes. It connects to a
-Yakushi server over plain HTTP in a full-screen WebView (JS/DOM storage/cookies
-enabled, zoom disabled, mixed content allowed).
+Yakushi server over plain HTTP in a full-screen WebView. From 0.1.1 the
+WebView is a stable `remember`ed instance configured like the Yakushi Server
+WebView (JS/DOM storage/database, `loadsImagesAutomatically=true`,
+`blockNetworkImage=false`, overview/wide viewport, built-in zoom controls with
+support zoom, `javaScriptCanOpenWindowsAutomatically`, media playback, mixed
+content, cookies, `WebChromeClient`); the earlier `setSupportZoom(false)` is
+removed, which fixed blank chapter pages/missing reader images.
 
 - **Persistence:** `SharedPreferences` file **`yashi`** holds `history` and
   `saved` (JSON arrays of `ServerAddress` URLs), `theme` (system/dark/light) and
@@ -1052,9 +1057,11 @@ enabled, zoom disabled, mixed content allowed).
   keeping HTTP 200–399 responses whose first 4 KB contain "yakushi"/"tanoshi"
   or a doctype; results are listed in a popup for one-tap connect. Custom ports
   are reachable via the address bar/QR, not discovery.
-- **Navigation:** the floating back button is hidden when the WebView path
-  starts with `/catalogue`, `/manga` or `/chapter`; system back navigates the
-  WebView history first, then exits to the start screen.
+- **Navigation:** the floating back button is positioned with
+  `padding(start=16dp, bottom=96dp, top=16dp)` plus navigation-bar insets (raised
+  from 16dp in 0.1.1 so it clears the web UI's bottom navigation bar), hidden
+  when the WebView path starts with `/catalogue`, `/manga` or `/chapter`; system
+  back navigates the WebView history first, then exits to the start screen.
 - **Scope:** Yashi is a convenience client for the web UI; it has no offline
   reading, downloads, extension management or server lifecycle features of its
   own (those remain in the server app/web UI).

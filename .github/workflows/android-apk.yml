@@ -79,9 +79,9 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "apk_date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
           # Yashi has its own version line, independent from the server tag.
-          echo "yashi_name=${YASHI_VERSION_NAME:-0.1.0}" >> "$GITHUB_OUTPUT"
-          echo "yashi_code=${YASHI_VERSION_CODE:-100}" >> "$GITHUB_OUTPUT"
-          echo "Building Yakushi '${NAME:-0.16.0 (default)}' code '${CODE:-1600 (default)}', Yashi '${YASHI_VERSION_NAME:-0.1.0}' code '${YASHI_VERSION_CODE:-100}'"
+          echo "yashi_name=${YASHI_VERSION_NAME:-0.1.1}" >> "$GITHUB_OUTPUT"
+          echo "yashi_code=${YASHI_VERSION_CODE:-101}" >> "$GITHUB_OUTPUT"
+          echo "Building Yakushi '${NAME:-0.16.1 (default)}' code '${CODE:-1601 (default)}', Yashi '${YASHI_VERSION_NAME:-0.1.1}' code '${YASHI_VERSION_CODE:-100}'"
 
       - name: Build debug APKs
         working-directory: android
@@ -93,10 +93,10 @@ jobs:
           APK_DATE: ${{ steps.version.outputs.apk_date }}
         run: |
           chmod +x ./gradlew
-          NAME="${APP_VERSION_NAME:-0.16.0}"
-          CODE="${APP_VERSION_CODE:-1600}"
-          YASHI_NAME="${YASHI_VERSION_NAME:-0.1.0}"
-          YASHI_CODE="${YASHI_VERSION_CODE:-100}"
+          NAME="${APP_VERSION_NAME:-0.16.1}"
+          CODE="${APP_VERSION_CODE:-1601}"
+          YASHI_NAME="${YASHI_VERSION_NAME:-0.1.1}"
+          YASHI_CODE="${YASHI_VERSION_CODE:-101}"
           ./gradlew :app:assembleDebug :yashi:assembleDebug --no-daemon --stacktrace \
             -PappVersionName="$NAME" -PappVersionCode="$CODE" \
             -PyashiVersionName="$YASHI_NAME" -PyashiVersionCode="$YASHI_CODE" \
@@ -112,7 +112,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Android releases are tagged android-v* (e.g. android-v0.1.0). The
+      # Android releases are tagged android-v* (e.g. android-v0.16.1). The
       # release is created with the preinstalled GitHub CLI so the workflow
       # needs no third-party release action.
       - name: Publish Android release
@@ -121,12 +121,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES="Yakushi Server 0.16.0 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). This release also introduces **Yashi 0.1.0**, a companion browser client for connecting to a Yakushi server from another Android device: camera QR scanning on first launch, an address bar + history + saved servers with edit/delete, LAN discovery, dark/light/system themes, clear-data settings, and a full-screen WebView with a floating back button (hidden in the catalogue and manga reader). Yakushi Server 0.16.0 includes all 0.15.1 fixes (seamless continuous reading read-status), pinned catalogue sources, hot extension reload and all earlier features. Install: download yakushi-server-release-<date>.apk for the server app and/or yashi-client-release-<date>.apk for the client; sideload them. Existing Yakushi installs update from Settings -> Updates. See android/CHANGELOG.md, android/README.md and the Yashi section in README.md."
+          NOTES="Yakushi Server 0.16.1 is the standalone arm64-v8a Android app that bundles and runs the Yakushi manga server (no Termux). This release also introduces **Yashi 0.1.1**, a companion browser client for connecting to a Yakushi server from another Android device: camera QR scanning on first launch, an address bar + history + saved servers with edit/delete, LAN discovery, dark/light/system themes, clear-data settings, and a full-screen WebView with a floating back button (hidden in the catalogue and manga reader). 0.1.1 raises the floating back button clear of the web UI's bottom navigation bar and keeps a stable WebView instance with the same zoom/image settings as the Yakushi Server app, fixing blank chapter pages / missing reader images. Yakushi Server 0.16.1 includes all 0.15.1 fixes (seamless continuous reading read-status), pinned catalogue sources, hot extension reload and all earlier features. Install: download yakushi-server-release-<date>.apk for the server app and/or yashi-client-release-<date>.apk for the client; sideload them. Existing Yakushi installs update from Settings -> Updates. See android/CHANGELOG.md, android/README.md and the Yashi section in README.md."
           APK_DIR=android/app/build/outputs/apk/debug
           YASHI_DIR=android/yashi/build/outputs/apk/debug
           gh release create "$TAG" \
             "$APK_DIR"/yakushi-server-release-*.apk \
             "$YASHI_DIR"/yashi-client-release-*.apk \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Yakushi Server 0.16.0 + Yashi 0.1.0" \
+            --title "Yakushi Server 0.16.1 + Yashi 0.1.1" \
             --notes "$NOTES"

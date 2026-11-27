@@ -18,6 +18,7 @@ terminal install.
 
 - [What Yakushi is](#what-yakushi-is)
 - [Yashi client app](#yashi-client-app)
+- [What's new in 0.16.1](#whats-new-in-0161)
 - [What's new in 0.16.0](#whats-new-in-0160)
 - [What's new in 0.15.1](#whats-new-in-0151)
 - [Features](#features)
@@ -85,11 +86,29 @@ general-purpose browser every time.
   this repository. It is signed with the same sideload key as Yakushi Server.
   Yashi is a client only: it does not bundle or run the server.
 
-Yashi 0.1.0 is released together with Yakushi Server 0.16.0. See the
+Yashi 0.1.1 is released together with Yakushi Server 0.16.1. See the
 [Yashi source module](android/yashi/) and [Android README](android/README.md)
 for build details.
 
 ---
+
+## What's new in 0.16.1
+
+- **Yashi 0.1.1:** the floating back button is raised clear of the web UI's
+  bottom navigation bar (bottom padding 96dp + navigation-bar insets) so it no
+  longer covers the Library button on phones, and the WebView is now a stable
+  remembered instance using the same zoom/image settings as the Yakushi Server
+  app (images load automatically, network images allowed, zoom controls
+  enabled), fixing blank chapter pages / missing reader images. The button
+  stays hidden on `/catalogue`, `/manga` and `/chapter`.
+- **Yakushi Server 0.16.1** is a re-release with no server/native changes from
+  0.16.0; both APKs (`yakushi-server-release-<date>.apk`,
+  `yashi-client-release-<date>.apk`) are published on tag `android-v0.16.1`
+  with combined notes/title "Yakushi Server 0.16.1 + Yashi 0.1.1".
+- Includes all 0.16.0 features (Yashi introduction, both APKs per release) and
+  earlier fixes.
+
+Previous release — **0.16.0** — and its features:
 
 ## What's new in 0.16.0
 
@@ -463,8 +482,8 @@ key so updates install over each other).
 > Each release publishes **two** assets: `yakushi-server-release-<date>.apk`
 > (the Android app is called **Yakushi Server**; the web frontend/PWA keeps the
 > short name **Yakushi**) and `yashi-client-release-<date>.apk` (the companion
-> **Yashi** client). They have separate version lines (Yakushi 0.16.0, Yashi
-> 0.1.0) but share the same release tag `android-v0.16.0` and signing key.
+> **Yashi** client). They have separate version lines (Yakushi 0.16.1, Yashi
+> 0.1.1) but share the same release tag `android-v0.16.1` and signing key.
 
 ---
 
@@ -546,7 +565,7 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 | Path | Contents |
 | --- | --- |
 | `android/` | The standalone Yakushi Server app (Kotlin/Compose) and its prebuilt `arm64-v8a` binaries, plus the native build pipeline. |
-| `android/yashi/` | **Yashi 0.1.0**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
+| `android/yashi/` | **Yashi 0.1.1**, the companion Android client (pure Kotlin/Compose, no native code): address bar/history/saved servers, QR scanning, local-network discovery and a full-screen WebView for a Yakushi server. |
 | `patches/` | Fork patches applied to upstream Tanoshi and its extensions. |
 | `extensions/` | Sources of the ported extensions (Atsumaru, MadaraDex, QiScans, MangaBall, HentaiNexus). |
 | `lib/` | Termux package build scripts. |
@@ -557,16 +576,17 @@ both `lib/build.sh` (Termux) and `android/native/build_tanoshi.sh` (app).
 
 ## Releases
 
-- The current release is **0.16.0** (`android-v0.16.0`): **Yakushi Server
-  0.16.0** (`yakushi-server-release-<date>.apk`, no server changes from
-  0.15.1) and **Yashi 0.1.0** (`yashi-client-release-<date>.apk`) are
-  published together on the same GitHub release.
+- The current release is **0.16.1** (`android-v0.16.1`): **Yakushi Server
+  0.16.1** (`yakushi-server-release-<date>.apk`, no server/native changes from
+  0.16.0) and **Yashi 0.1.1** (`yashi-client-release-<date>.apk`, raised back
+  button + stable WebView reader fix) are published together on the same
+  GitHub release.
 - Android releases use tags **`android-vX.Y.Z`** (for example
-  `android-v0.16.0`). CI builds both apps (`:app` and `:yashi`) and publishes
+  `android-v0.16.1`). CI builds both apps (`:app` and `:yashi`) and publishes
   both APKs with combined release notes/title.
-- Yashi has its own version line (0.1.0 / versionCode 100); local builds
+- Yashi has its own version line (0.1.1 / versionCode 101); local builds
   default to it, and CI can override it with `-PyashiVersionName` /
-  `-PyashiVersionCode`. The server app defaults to 0.16.0 / versionCode 1600.
+  `-PyashiVersionCode`. The server app defaults to 0.16.1 / versionCode 1601.
 - Termux package releases use `v*` tags (`PACKAGE_TAG`), independent of the
   app's version.
 - The in-app updater compares the numeric version of published `android-v*`

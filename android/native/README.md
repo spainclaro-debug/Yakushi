@@ -56,9 +56,11 @@ per-device tab display options and inline category rename (patch 0011) and
 0012), 0.14.0 adds server-side extension **hot reload** (patch 0013 + copied
 `extensions_reload.rs`; web dist unchanged) and 0.15.0 adds Catalogue source
 pins + corrected Local/External grouping (patch 0014), 0.15.1 fixes
-continuous read status (patch 0015) and 0.16.0 re-releases the same server
-binary alongside the new **Yashi** client (separate `android/yashi/` module,
-pure Kotlin/Compose, **no native code or pipeline changes**). Offline chapters are extracted as page images into public
+continuous read status (patch 0015), and 0.16.0/0.16.1 re-release the same
+server binary alongside the new **Yashi** client (separate `android/yashi/`
+module, pure Kotlin/Compose with no app-specific native code; 0.16.1 fixes the
+Yashi back-button offset and WebView reader rendering only — **no native or
+pipeline changes**). Offline chapters are extracted as page images into public
 `<external storage>/yakushi/.downloaded/<manga>/<chapter>/` by the server
 worker (patch 0005 + app public `download_path`; see step 1).
 
@@ -128,7 +130,7 @@ The scripts to run are:
 | `native/build_extension.sh` | Build one or all exported extension crates (`android/extensions/sources/`) for `aarch64-linux-android` inside the upstream extension workspace, strip them into `android/extensions/plugins/`, and print SHA-256/size + a catalog entry. |
 | `native/sync_prebuilt.sh` | Copy the built `tanoshi`, `libarchive.so` and the nine plugins into `android/app/src/main/jniLibs/arm64-v8a/` with the `lib` prefix and validate the ELF files. |
 
-The GitHub Actions release workflow builds **both apps** in 0.16.0:
+The GitHub Actions release workflow builds **both apps** in 0.16.x:
 `:app:assembleDebug` (server, `yakushi-server-release-*.apk`) and
 `:yashi:assembleDebug` (Yashi client, `yashi-client-release-*.apk`) and
 publishes both assets. Yashi is a pure Kotlin/Compose module under
@@ -432,10 +434,11 @@ default source is the **vendored dist** in this directory:
   The 0.15.1 rebuild adds patch 0015 (continuous read-status fix) to the dist;
   the 0.15.0 pins/grouping, 0.14.0 hot-reload patch 0013 and the rest stay in
   the binary, and patch 0006 stays deleted.
-- **0.16.0 does not change the native binaries.** Yakushi Server 0.16.0 is a
-  re-release of the 0.15.1 server (version bump only) published together with
-  the new Yashi client; the web dist and `libtanoshi.so` are unchanged, and
-  Yashi has no native code (no jniLibs/NDK/Rust step).
+- **0.16.0/0.16.1 do not change the native binaries.** Yakushi Server
+  0.16.0/0.16.1 are re-releases of the 0.15.1 server (version bumps only)
+  published together with the Yashi client (0.1.1 in 0.16.1); the web dist and
+  `libtanoshi.so` are unchanged, and Yashi has no app-specific native code (no
+  jniLibs/NDK/Rust step).
 
 The theme palette is stored by the browser in
 `localStorage["settings:theme-palette"]`, so **it is not embedded or served by
@@ -738,11 +741,12 @@ grep -c -a "android_dlopen_ext failed" libtanoshi.so   # expect 1
 grep -c -a "tanoshi-disabled" libtanoshi.so            # expect 1
 ```
 
-And on the built APKs (0.16.0 publishes two: the server app
+And on the built APKs (0.16.x publishes two: the server app
 `android/app/build/outputs/apk/debug/yakushi-server-release-<date>.apk` and the
 Yashi client `android/yashi/build/outputs/apk/debug/yashi-client-release-<date>.apk`;
 Yashi is pure Kotlin/Compose and carries only the standard AndroidX
-`libandroidx.graphics.path.so` support library, no server/plugin natives):
+`libandroidx.graphics.path.so` support library, no server/plugin natives; 0.16.1
+adds the Yashi back-button/WebView fixes without touching the native build):
 
 ```bash
 APK=android/app/build/outputs/apk/debug/yakushi-server-release-*.apk

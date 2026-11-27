@@ -11,11 +11,11 @@ the local network, and hosts the full Yakushi web UI in a full-screen WebView.
   Termux/desktop Yakushi install).
 - **Package:** `dev.spainclaro.yashi` (debug builds use
   `dev.spainclaro.yashi.debug`), minSdk 26, target/compile SDK 35.
-- **Release asset:** `yashi-client-release-<yyyy-MM-dd>.apk` (version 0.1.0,
-  versionCode 100), signed with the repository's shared sideload key
+- **Release asset:** `yashi-client-release-<yyyy-MM-dd>.apk` (version **0.1.1**,
+  versionCode **101**), signed with the repository's shared sideload key
   (`android/keystore/tanoshi-signing.jks`, alias `tanoshi`) so updates install
   over earlier Yashi builds.
-- Released together with **Yakushi Server 0.16.0** on tag `android-v0.16.0`
+- Released together with **Yakushi Server 0.16.1** on tag `android-v0.16.1`
   (`yakushi-server-release-<date>.apk` + `yashi-client-release-<date>.apk`);
   it has its own version line and can be overridden with
   `-PyashiVersionName` / `-PyashiVersionCode`.
@@ -38,12 +38,18 @@ the local network, and hosts the full Yakushi web UI in a full-screen WebView.
   for default ports; custom ports via address/QR.
 - **Settings bottom sheet:** **System / Dark / Light** theme and **Clear data**
   (removes saved servers and connection history; the theme is kept).
-- **Full-screen web UI:** the complete Yakushi web frontend in a `WebView`
-  (JavaScript/DOM storage/cookies enabled, zoom disabled). A small floating
-  bottom-left **back** button returns to the Yashi start screen; it is hidden
-  on `/catalogue`, `/manga` and `/chapter` paths so it never covers the
-  catalogue or reader. The system back button walks WebView history first, then
-  exits to the start screen.
+- **Full-screen web UI:** the complete Yakushi web frontend in a stable
+  `remember`ed `WebView` configured like the Yakushi Server app (JavaScript,
+  DOM storage, database, `loadsImagesAutomatically=true`,
+  `blockNetworkImage=false`, overview/wide viewport, built-in zoom controls
+  with support zoom, `javaScriptCanOpenWindowsAutomatically`, media playback,
+  mixed content, cookies and a `WebChromeClient`). 0.1.1 removes the old
+  `setSupportZoom(false)`, which fixes blank chapter pages/missing reader
+  images. A small floating bottom-left **back** button (bottom padding
+  **96dp** plus navigation-bar insets, so it clears the web UI's bottom bar)
+  returns to the Yashi start screen; it is hidden on `/catalogue`, `/manga` and
+  `/chapter` paths so it never covers the catalogue or reader. The system back
+  button walks WebView history first, then exits to the start screen.
 - **Device-local persistence:** `SharedPreferences` file **`yashi`** with
   `history`/`saved` (JSON arrays), `theme` and `camera_asked`. Nothing syncs to
   the server; each device keeps its own list.
@@ -57,6 +63,10 @@ cd android
 ./gradlew :yashi:assembleDebug -PyashiVersionName=0.1.0 -PyashiVersionCode=100 \
   -PapkDate=2026-11-27
 ```
+
+0.1.1 fixes the floating back button covering the web UI's bottom bar and the
+blank-reader/missing-image WebView issue (stable instance + Yakushi-matching
+settings); Yakushi Server 0.16.1 is a re-release with no server/native changes.
 
 The debug APK is written to
 `android/yashi/build/outputs/apk/debug/yashi-client-release-<yyyy-MM-dd>.apk`.
